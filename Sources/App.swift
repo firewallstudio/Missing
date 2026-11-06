@@ -64,6 +64,7 @@ import UserNotifications
         let model = SettingsModel(store: store)
         self.model = model
         model.onOpenSetup = { [weak self] in self?.showSetup() }
+        model.onEQChanged = { Equalizer.shared.apply() }
         model.onPowerChanged = {
             if PowerProfiles.active { PowerProfiles.shared.start() } else { PowerProfiles.shared.stop() }
         }
@@ -202,6 +203,7 @@ import UserNotifications
     private func startFeatures() {
         if FileSearchSettings.enabled { FileIndex.shared.start() }
         PowerProfiles.shared.start()   // sadece MacBook Pro 14" M4 Pro'da bir şey yapar
+        if EQSettings.enabled { Equalizer.shared.apply() }
         if model.anyPreviews, !CGPreflightScreenCaptureAccess() {
             _ = CGRequestScreenCaptureAccess()
         }
@@ -243,6 +245,7 @@ import UserNotifications
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        Equalizer.shared.stop()   // sistem sesi asıl çıkışa geri dönsün
         switcher.stop()
         restoreNativeHotkeys()
         FileIndex.shared.stop()

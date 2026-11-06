@@ -27,7 +27,7 @@ enum Feature: String, CaseIterable, Identifiable {
     var detail: String {
         switch self {
         case .switcher: return L("⌘Tab · ⌥Tab · önizlemeler · tarayıcı profilleri")
-        case .sound: return L("Ses kısayolu · uygulamaya göre ses cihazı")
+        case .sound: return L("Ses kısayolu · uygulamaya göre ses cihazı · ekolayzır")
         case .screen: return L("Ekran görüntüsü ve kayıt · ekranı böl · harici monitörler")
         case .quick: return L("Dosya ara · karartma · gruplu görünüm · Finder ve Dock")
         }
@@ -52,7 +52,8 @@ enum Feature: String, CaseIterable, Identifiable {
                     ("opt", { Profile.opt.enabled }, { Profile.opt.enabled = $0 }, true)]
         case .sound:
             return [("hotkey", { store.hotkeyEnabled }, { store.hotkeyEnabled = $0 }, true),
-                    ("appAudio", { store.autoSwitchByApp }, { store.autoSwitchByApp = $0 }, true)]
+                    ("appAudio", { store.autoSwitchByApp }, { store.autoSwitchByApp = $0 }, true),
+                    ("eq", { EQSettings.enabled }, { EQSettings.enabled = $0 }, false)]
         case .screen:
             return [("capture", { CaptureSettings.enabled }, { CaptureSettings.enabled = $0 }, true),
                     ("tile", { TileSettings.enabled }, { TileSettings.enabled = $0 }, true),
@@ -96,6 +97,7 @@ enum Feature: String, CaseIterable, Identifiable {
         model.onDockDragChanged()
         model.onDeepScanChanged()
         model.onFinderTabsChanged()
+        model.onEQChanged()
         model.refresh()
     }
 
