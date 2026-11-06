@@ -876,12 +876,12 @@ struct SettingsView: View {
                         Text(p.detail).font(.system(size: 11)).foregroundStyle(.white.opacity(0.55))
                     }
                     Spacer()
-                    Button(L("Şimdi uygula")) { power.apply(p); model.refresh() }
+                    Button(L("Şimdi uygula")) { power.apply(p, manual: true); model.refresh() }
                 }
             }
             Divider().opacity(0.4)
-            Row(L("Düşük / yüksek güç modu"), L("macOS'a bir kez tanıtılır: pilde düşük güç, şarjda yüksek güç. Yönetici şifresini macOS kendi penceresinde sorar.")) {
-                if power.powerModesConfigured {
+            Row(L("Düşük / yüksek güç modu"), L("Bir kez kurulur: pilde düşük güç, şarjda yüksek güç; menüden elle geçişte de güç modu değişir. Missing'e sadece güç modunu değiştirme izni verilir. Yönetici şifresini macOS kendi penceresinde sorar.")) {
+                if power.fullyConfigured {
                     Label(L("Ayarlı"), systemImage: "checkmark.circle.fill")
                         .font(.system(size: 12, weight: .semibold)).foregroundStyle(Color.green)
                 } else {

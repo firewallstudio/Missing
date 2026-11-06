@@ -595,4 +595,5 @@ private let englishStrings: [String: String] = [
     "Ses işleme başlatılamadı (%@)": "Couldn't start audio processing (%@)",
     "Çıkış cihazı bulunamadı": "No output device found",
     "Ses kısayolu · uygulamaya göre ses cihazı · ekolayzır": "Sound shortcut · sound device per app · equalizer",
+    "Bir kez kurulur: pilde düşük güç, şarjda yüksek güç; menüden elle geçişte de güç modu değişir. Missing'e sadece güç modunu değiştirme izni verilir. Yönetici şifresini macOS kendi penceresinde sorar.": "Set up once: Low Power on battery, High Power when charging; switching from the menu changes the power mode too. Missing is only allowed to change the power mode. macOS asks for your administrator password in its own window.",
 ]
