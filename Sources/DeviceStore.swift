@@ -44,6 +44,15 @@ final class DeviceStore: ObservableObject {
     @Published private(set) var current: AudioDevice?
     /// eqMac gibi bir aracı sanal cihaz şu an varsayılan çıkış mı?
     @Published private(set) var passthroughActive = false
+
+    #if SNAPSHOT
+    /// Sadece tanıtım görüntüsü derlemesi: örnek ses aygıtları
+    func snapshotDevices(_ rows: [DeviceRow], current: AudioDevice?) {
+        self.rows = rows
+        self.current = current
+        passthroughActive = false
+    }
+    #endif
     /// Uygulamaya göre ses cihazı: bundle kimliği → cihaz UID
     @Published private(set) var appAudio: [String: String] = [:]
 

@@ -139,6 +139,18 @@ struct Item {
     var aspect: CGFloat = 1.6   // genişlik / yükseklik
     var system = false          // sistem sorusu / uyarısı
     var pid: pid_t { app.processIdentifier }
+    #if SNAPSHOT
+    // Sadece tanıtım görüntüsü derlemesi: açık olmayan uygulamaların ikon ve adı
+    var iconOverride: NSImage? = nil
+    var nameOverride: String? = nil
+    var displayIcon: NSImage? { iconOverride ?? app.icon }
+    var displayName: String { nameOverride ?? (app.localizedName ?? "") }
+    var looksLive: Bool { iconOverride != nil }
+    #else
+    var displayIcon: NSImage? { app.icon }
+    var displayName: String { app.localizedName ?? "" }
+    var looksLive: Bool { false }
+    #endif
 }
 
 // MARK: - Pencere listesi (sadece Cmd+Tab basıldığı an çalışır)
@@ -1273,6 +1285,10 @@ let perfLog = Logger(subsystem: Bundle.main.bundleIdentifier ?? "com.firewallstu
         return nil
     }
 
+    #if SNAPSHOT
+    var snapshotView: NSView { glass }
+    #endif
+
     /// Filtre çubuğunu panelin üstüne yerleştir; panel genişliği en az çubuk kadar olsun.
     private var minWidthForBar: CGFloat {
         guard let fb = filterBar else { return 0 }
@@ -1353,10 +1369,12 @@ let perfLog = Logger(subsystem: Bundle.main.bundleIdentifier ?? "com.firewallstu
         // Yerleşim seçimi zaten görünür kıldı (ya da tekerlekle bilerek kaydırıldı): sadece işaretle
         for c in cells { c.isSelected = (c.index == selected) }
 
+        #if !SNAPSHOT
         if !panel.isVisible {
             panel.alphaValue = 1
             panel.orderFrontRegardless()   // animasyon yok: anında görünür
         }
+        #endif
         panel.invalidateShadow()
     }
 
@@ -1861,19 +1879,19 @@ final class ItemCell: NSView {
          folderName: String? = nil, project: String? = nil, profile: BrowserProfiles.Profile? = nil) {
         self.index = index
         self.wid = item.wid
-        self.dimmed = item.minimized || item.app.isHidden || (item.window == nil && !item.system)
+        self.dimmed = item.minimized || item.app.isHidden || (item.window == nil && !item.system && !item.looksLive)
         super.init(frame: frame)
         wantsLayer = true
         layer?.cornerRadius = mode == .list ? 14 : 16
         layer?.cornerCurve = .continuous
         layer?.masksToBounds = false
 
-        let appName = item.app.localizedName ?? ""
+        let appName = item.displayName
         let hasDots = item.window != nil && !item.system
         let dotsW: CGFloat = hasDots ? Self.dotsWidth : 0
         let state: String
         if item.system { state = L("Sistem") }
-        else if item.window == nil { state = L("Pencere yok") }
+        else if item.window == nil && !item.looksLive { state = L("Pencere yok") }
         else if item.minimized { state = L("Küçültülmüş") }
         else if item.app.isHidden { state = L("Gizli") }
         else { state = "" }
@@ -1884,7 +1902,7 @@ final class ItemCell: NSView {
             let top = frame.height - titleH
             let iconS: CGFloat = 28
             let icon = NSImageView(frame: NSRect(x: inset, y: top + (titleH - iconS) / 2, width: iconS, height: iconS))
-            icon.image = item.app.icon
+            icon.image = item.displayIcon
             icon.imageScaling = .scaleProportionallyUpOrDown
             addSubview(icon)
 
@@ -1915,7 +1933,7 @@ final class ItemCell: NSView {
                 let tv = ThumbView(frame: area, scale: scale)
                 addSubview(tv)
                 thumbView = tv
-                if let thumb { tv.set(thumb, dimmed: dimmed) } else { tv.placeholder(item.app.icon, dimmed: dimmed) }
+                if let thumb { tv.set(thumb, dimmed: dimmed) } else { tv.placeholder(item.displayIcon, dimmed: dimmed) }
                 if let project { addSubview(Self.projectBand(project, app: item.app, in: area)) }
                 else if let profile {
                     let b = Self.profileBadge(profile, maxWidth: area.width - 12)
@@ -1928,7 +1946,7 @@ final class ItemCell: NSView {
             // Önizlemesiz: büyük ikon + başlık
             let iconS: CGFloat = 96
             let icon = NSImageView(frame: NSRect(x: (frame.width - iconS) / 2, y: frame.height - 14 - iconS, width: iconS, height: iconS))
-            icon.image = item.app.icon
+            icon.image = item.displayIcon
             icon.imageScaling = .scaleProportionallyUpOrDown
             if dimmed { icon.alphaValue = 0.7 }
             addSubview(icon)
@@ -1969,7 +1987,7 @@ final class ItemCell: NSView {
             // Satır: ikon | başlık + uygulama adı | ses rozeti
             let iconS: CGFloat = 38
             let icon = NSImageView(frame: NSRect(x: 12, y: (frame.height - iconS) / 2, width: iconS, height: iconS))
-            icon.image = item.app.icon
+            icon.image = item.displayIcon
             icon.imageScaling = .scaleProportionallyUpOrDown
             if dimmed { icon.alphaValue = 0.7 }
             addSubview(icon)

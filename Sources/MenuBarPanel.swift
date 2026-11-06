@@ -153,7 +153,13 @@ struct MenuBarView: View {
         .environment(\.colorScheme, .dark)
     }
 
-    private var needsAccess: Bool { Onboarding.needsAccessibility && !AXIsProcessTrusted() }
+    private var needsAccess: Bool {
+        #if SNAPSHOT
+        return false
+        #else
+        return Onboarding.needsAccessibility && !AXIsProcessTrusted()
+        #endif
+    }
 
     // MARK: Üst
 
