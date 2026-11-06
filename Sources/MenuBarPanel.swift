@@ -273,6 +273,14 @@ struct MenuBarView: View {
                         controller.run { actions.blackout() }
                     }
                 }
+                if PowerProfiles.active {
+                    let p = PowerProfiles.shared.current ?? (PowerProfiles.shared.onBattery ? .saver : .performance)
+                    tile(p.symbol, L("Güç: %@", p.title), p == .saver ? "600 nit · 60 Hz" : "1600 nit · 120 Hz",
+                         active: p == .saver) {
+                        PowerProfiles.shared.toggle()
+                        actions.refresh()
+                    }
+                }
                 if ShortcutDemo.allCases.contains(where: \.enabled) {
                     tile("keyboard", L("Kısayollar"), nil) { controller.run { actions.openSettings(.shortcuts) } }
                 }

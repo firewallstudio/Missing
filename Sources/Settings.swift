@@ -34,6 +34,8 @@ final class SettingsModel: ObservableObject {
     var onFileSearchChanged: () -> Void = {}
     /// Finder sekme şeridi açılıp kapandı
     var onFinderTabsChanged: () -> Void = {}
+    /// Pil / şarj profilleri açılıp kapandı
+    var onPowerChanged: () -> Void = {}
     /// Genel › Kurulum: ilk kurulum ekranını yeniden aç
     var onOpenSetup: () -> Void = {}
     /// Dock'a sürükle-bırak hızlandırma açılıp kapandı
@@ -738,6 +740,7 @@ struct SettingsView: View {
     // MARK: Harici monitörler (parlaklık / ses)
 
     @ViewBuilder private var monitorsCard: some View {
+        if PowerProfiles.supported { powerCard }
         Card(title: L("Harici monitörler"), icon: "display.2",
              isOn: model.bind({ MonitorSettings.showInMenu }, { MonitorSettings.showInMenu = $0 }),
              subtitle: L("Menü çubuğunda parlaklık ve ses kaydırıcıları")) {
@@ -789,6 +792,45 @@ struct SettingsView: View {
         }
         .padding(10)
         .background(RoundedRectangle(cornerRadius: 11, style: .continuous).fill(.white.opacity(0.05)))
+    }
+
+    // MARK: Pil / şarj profilleri (sadece MacBook Pro 14" M4 Pro)
+
+    @ViewBuilder private var powerCard: some View {
+        let power = PowerProfiles.shared
+        Card(title: L("Pil ve şarj profilleri"), icon: "battery.75percent",
+             isOn: model.bind({ PowerProfileSettings.enabled }, { v in
+                 PowerProfileSettings.enabled = v
+                 model.onPowerChanged()
+             }),
+             subtitle: L("Fişten çekince tasarruf, şarja takınca tam performans")) {
+            ToggleRow(L("Şarj takılıp çıkarılınca otomatik geç"), nil,
+                      isOn: model.bind({ PowerProfileSettings.auto }, { PowerProfileSettings.auto = $0 }))
+            Divider().opacity(0.4)
+            ForEach([PowerProfile.saver, .performance], id: \.self) { p in
+                HStack(spacing: 10) {
+                    Image(systemName: p.symbol)
+                        .font(.system(size: 12, weight: .semibold))
+                        .frame(width: 28, height: 28)
+                        .background(Circle().fill(power.current == p ? Brand.red : Color.white.opacity(0.12)))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(p == .saver ? L("Pilde: Tasarruf") : L("Şarjda: Performans")).font(.system(size: 13, weight: .medium))
+                        Text(p.detail).font(.system(size: 11)).foregroundStyle(.white.opacity(0.55))
+                    }
+                    Spacer()
+                    Button(L("Şimdi uygula")) { power.apply(p); model.refresh() }
+                }
+            }
+            Divider().opacity(0.4)
+            Row(L("Düşük / yüksek güç modu"), L("macOS'a bir kez tanıtılır: pilde düşük güç, şarjda yüksek güç. Yönetici şifresini macOS kendi penceresinde sorar.")) {
+                if power.powerModesConfigured {
+                    Label(L("Ayarlı"), systemImage: "checkmark.circle.fill")
+                        .font(.system(size: 12, weight: .semibold)).foregroundStyle(Color.green)
+                } else {
+                    Button(L("Ayarla…")) { power.configurePowerModes(); model.refresh() }
+                }
+            }
+        }
     }
 
     private func addFavoriteFolders(_ profile: Profile) {

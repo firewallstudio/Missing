@@ -2,6 +2,12 @@
 
 Also shown in the app: **Settings › Versions**.
 
+## 3.0.6
+
+- MacBook Pro 14" M4 Pro: unplugged drops the display to 600 nits and 60 Hz with Low Power; plugged in returns to 1600 nits, ProMotion and High Power (Settings › Screen, button in the menu)
+- Finder tabs use Finder's own bar material and no longer vanish on right-click
+- Area and window screenshots now show the preview card in the bottom right too
+
 ## 3.0.5
 
 - Typing in Finder's search box shows Missing's instant results right below it (↓↑ ↩ ⌘↩ Esc)
