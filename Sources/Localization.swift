@@ -537,4 +537,9 @@ private let englishStrings: [String: String] = [
     "Ekran görüntüsü ve kayıt · ekranı böl · harici monitörler": "Screenshots and recording · split screen · external displays",
     "Dosya ara · karartma · gruplu görünüm · Finder ve Dock": "File search · black out · grouped view · Finder and Dock",
     "Kullanmadığın sekmeyi kapat: içindeki hiçbir şey çalışmaz, izin istemez ve Ayarlar'da görünmez. Açınca ayarların kaldığı gibi geri gelir.": "Turn off a tab you don't use: nothing in it runs, asks for permissions or shows up in Settings. Turn it back on and your settings return as they were.",
+    "Bu klasör": "This folder",
+    "Tüm Mac": "Whole Mac",
+    "Tüm Mac'te ara": "Search the whole Mac",
+    "Tab: tüm Mac'te ara": "Tab: search the whole Mac",
+    "Klasör": "Folder",
 ]

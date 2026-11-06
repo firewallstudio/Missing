@@ -135,12 +135,20 @@ private final class Generation: @unchecked Sendable {
 @MainActor final class FileSearchController: NSObject {
     private let panel: SearchPanel
     private let field = NSTextField()
-    private let scopeButton = NSButton()
     private let status = NSTextField(labelWithString: "")
-    private let table = NSTableView()
+    private let table = HoverTableView()
+    /// Sağdaki önizleme bölmesi
+    private let previewPane = SearchPreviewPane()
+    /// Arama yerini gösteren jeton (büyütecin yanında)
+    private let scopeToken = ScopeTokenView()
+    /// Alttaki kısayol çubuğu
+    private let hints = NSTextField(labelWithString: "")
+    /// Oklarla / fareyle sonuçlarda gezinildi: Space Hızlı Bakış açar (yazarken boşluk yazar)
+    private var navigating = false
+    private var currentQuery = ""
+    private var divider: NSView!
     private let scroll = NSScrollView()
     private let empty = NSTextField(labelWithString: "")
-    private var scopeWidth: NSLayoutConstraint!
 
     private var results: [FileResult] = []
     /// Arama kapsamı (nil = bu Mac)
@@ -155,14 +163,17 @@ private final class Generation: @unchecked Sendable {
     private var openedSomething = false
 
     // Spotlight ölçüleri: hap biçimli arama çubuğu, sonuçlar yazınca altında açılır
-    private static let width: CGFloat = 680
+    private static let width: CGFloat = 840
+    private static let listW: CGFloat = 450
+    private static let footerH: CGFloat = 30
+    private static let minListH: CGFloat = 320
     private static let barH: CGFloat = 56
     private static let height: CGFloat = 470
     private static let rowH: CGFloat = 40
     private static let headerH: CGFloat = 26
     private static let listGap: CGFloat = 8
     private static let listPad: CGFloat = 6
-    private static let maxListH: CGFloat = 420
+    private static let maxListH: CGFloat = 460
     private var listGlass: NSView!
     /// Tablodaki satırlar: bölüm başlığı ya da sonuç (results sırası)
     private enum DisplayRow { case header(String), item(Int) }
@@ -223,8 +234,9 @@ private final class Generation: @unchecked Sendable {
         let root = NSView()
         root.wantsLayer = true
         panel.contentView = root
+        panel.acceptsMouseMovedEvents = true
 
-        // Arama çubuğu: tek başına duran hap
+        // Arama çubuğu: tek başına duran hap — büyüteç · klasör jetonu · yazı · durum
         let bar = Self.glassView(radius: Self.barH / 2)
         bar.translatesAutoresizingMaskIntoConstraints = false
         root.addSubview(bar)
@@ -232,8 +244,6 @@ private final class Generation: @unchecked Sendable {
         let glass = NSImageView(image: NSImage(systemSymbolName: "magnifyingglass", accessibilityDescription: nil) ?? NSImage())
         glass.symbolConfiguration = .init(pointSize: 20, weight: .regular)
         glass.contentTintColor = .white.withAlphaComponent(0.6)
-        glass.translatesAutoresizingMaskIntoConstraints = false
-        bar.addSubview(glass)
 
         field.isBordered = false
         field.drawsBackground = false
@@ -244,34 +254,24 @@ private final class Generation: @unchecked Sendable {
         field.cell?.wraps = false
         field.cell?.isScrollable = true
         field.delegate = self
-        field.translatesAutoresizingMaskIntoConstraints = false
-        bar.addSubview(field)
+        field.setContentHuggingPriority(.defaultLow, for: .horizontal)
 
-        // Kapsam: Spotlight'taki filtre jetonu gibi, çubuğun sağında
-        scopeButton.bezelStyle = .inline
-        scopeButton.isBordered = false
-        scopeButton.wantsLayer = true
-        scopeButton.layer?.cornerRadius = 13
-        scopeButton.layer?.backgroundColor = NSColor.white.withAlphaComponent(0.14).cgColor
-        scopeButton.font = .systemFont(ofSize: 12.5, weight: .medium)
-        scopeButton.contentTintColor = .white
-        scopeButton.imagePosition = .imageLeading
-        scopeButton.imageHugsTitle = true
-        scopeButton.target = self
-        scopeButton.action = #selector(toggleScope)
-        scopeButton.translatesAutoresizingMaskIntoConstraints = false
-        scopeButton.setContentHuggingPriority(.required, for: .horizontal)
-        scopeButton.setContentCompressionResistancePriority(.defaultHigh, for: .horizontal)
-        bar.addSubview(scopeButton)
+        scopeToken.onClick = { [weak self] in self?.toggleScope() }
 
         status.font = .systemFont(ofSize: 12)
         status.textColor = .white.withAlphaComponent(0.45)
         status.alignment = .right
-        status.translatesAutoresizingMaskIntoConstraints = false
         status.setContentHuggingPriority(.required, for: .horizontal)
-        bar.addSubview(status)
 
-        // Sonuçlar: çubuğun altında ayrı cam kart
+        let row = NSStackView(views: [glass, scopeToken, field, status])
+        row.orientation = .horizontal
+        row.alignment = .centerY
+        row.spacing = 10
+        row.setCustomSpacing(12, after: glass)
+        row.translatesAutoresizingMaskIntoConstraints = false
+        bar.addSubview(row)
+
+        // Sonuçlar: çubuğun altında ayrı cam kart — solda liste, sağda önizleme, altta kısayollar
         let list = Self.glassView(radius: 22)
         list.translatesAutoresizingMaskIntoConstraints = false
         root.addSubview(list)
@@ -294,6 +294,7 @@ private final class Generation: @unchecked Sendable {
         table.refusesFirstResponder = true
         table.setDraggingSourceOperationMask([.copy, .move, .link, .generic], forLocal: false)
         table.menu = makeMenu()
+        table.onHoverRow = { [weak self] row in self?.hoverRow(row) }
 
         scroll.documentView = table
         scroll.drawsBackground = false
@@ -304,33 +305,48 @@ private final class Generation: @unchecked Sendable {
         scroll.translatesAutoresizingMaskIntoConstraints = false
         list.addSubview(scroll)
 
+        let divider = NSView()
+        self.divider = divider
+        divider.wantsLayer = true
+        divider.layer?.backgroundColor = NSColor.white.withAlphaComponent(0.10).cgColor
+        divider.translatesAutoresizingMaskIntoConstraints = false
+        list.addSubview(divider)
+
+        previewPane.translatesAutoresizingMaskIntoConstraints = false
+        previewPane.onOpen = { [weak self] in if let r = self?.selected { self?.open(r) } }
+        previewPane.onReveal = { [weak self] in if let r = self?.selected { self?.reveal(r) } }
+        previewPane.onTrash = { [weak self] in if let r = self?.selected { self?.trash(r) } }
+        list.addSubview(previewPane)
+
+        let footerLine = NSView()
+        footerLine.wantsLayer = true
+        footerLine.layer?.backgroundColor = NSColor.white.withAlphaComponent(0.08).cgColor
+        footerLine.translatesAutoresizingMaskIntoConstraints = false
+        list.addSubview(footerLine)
+
+        hints.font = .systemFont(ofSize: 11, weight: .medium)
+        hints.textColor = .white.withAlphaComponent(0.5)
+        hints.lineBreakMode = .byTruncatingTail
+        hints.translatesAutoresizingMaskIntoConstraints = false
+        list.addSubview(hints)
+
         empty.font = .systemFont(ofSize: 14)
         empty.textColor = .white.withAlphaComponent(0.45)
         empty.alignment = .center
         empty.translatesAutoresizingMaskIntoConstraints = false
         list.addSubview(empty)
 
-        scopeWidth = scopeButton.widthAnchor.constraint(lessThanOrEqualToConstant: 220)
         NSLayoutConstraint.activate([
             bar.leadingAnchor.constraint(equalTo: root.leadingAnchor),
             bar.trailingAnchor.constraint(equalTo: root.trailingAnchor),
             bar.topAnchor.constraint(equalTo: root.topAnchor),
             bar.heightAnchor.constraint(equalToConstant: Self.barH),
 
-            glass.leadingAnchor.constraint(equalTo: bar.leadingAnchor, constant: 20),
-            glass.centerYAnchor.constraint(equalTo: bar.centerYAnchor),
-
-            field.leadingAnchor.constraint(equalTo: glass.trailingAnchor, constant: 12),
-            field.centerYAnchor.constraint(equalTo: bar.centerYAnchor),
-            field.trailingAnchor.constraint(equalTo: status.leadingAnchor, constant: -10),
-
-            status.trailingAnchor.constraint(equalTo: scopeButton.leadingAnchor, constant: -10),
-            status.centerYAnchor.constraint(equalTo: bar.centerYAnchor),
-
-            scopeButton.trailingAnchor.constraint(equalTo: bar.trailingAnchor, constant: -14),
-            scopeButton.centerYAnchor.constraint(equalTo: bar.centerYAnchor),
-            scopeButton.heightAnchor.constraint(equalToConstant: 26),
-            scopeWidth,
+            row.leadingAnchor.constraint(equalTo: bar.leadingAnchor, constant: 20),
+            row.trailingAnchor.constraint(equalTo: bar.trailingAnchor, constant: -20),
+            row.centerYAnchor.constraint(equalTo: bar.centerYAnchor),
+            scopeToken.heightAnchor.constraint(equalToConstant: 30),
+            scopeToken.widthAnchor.constraint(lessThanOrEqualToConstant: 240),
 
             list.leadingAnchor.constraint(equalTo: root.leadingAnchor),
             list.trailingAnchor.constraint(equalTo: root.trailingAnchor),
@@ -338,13 +354,71 @@ private final class Generation: @unchecked Sendable {
             list.bottomAnchor.constraint(equalTo: root.bottomAnchor),
 
             scroll.leadingAnchor.constraint(equalTo: list.leadingAnchor, constant: 6),
-            scroll.trailingAnchor.constraint(equalTo: list.trailingAnchor, constant: -6),
+            scroll.widthAnchor.constraint(equalToConstant: Self.listW - 12),
             scroll.topAnchor.constraint(equalTo: list.topAnchor),
-            scroll.bottomAnchor.constraint(equalTo: list.bottomAnchor),
+            scroll.bottomAnchor.constraint(equalTo: footerLine.topAnchor),
+
+            divider.leadingAnchor.constraint(equalTo: list.leadingAnchor, constant: Self.listW),
+            divider.widthAnchor.constraint(equalToConstant: 1),
+            divider.topAnchor.constraint(equalTo: list.topAnchor, constant: 12),
+            divider.bottomAnchor.constraint(equalTo: footerLine.topAnchor, constant: -12),
+
+            previewPane.leadingAnchor.constraint(equalTo: divider.trailingAnchor),
+            previewPane.trailingAnchor.constraint(equalTo: list.trailingAnchor),
+            previewPane.topAnchor.constraint(equalTo: list.topAnchor),
+            previewPane.bottomAnchor.constraint(equalTo: footerLine.topAnchor),
+
+            footerLine.leadingAnchor.constraint(equalTo: list.leadingAnchor),
+            footerLine.trailingAnchor.constraint(equalTo: list.trailingAnchor),
+            footerLine.heightAnchor.constraint(equalToConstant: 1),
+            footerLine.bottomAnchor.constraint(equalTo: list.bottomAnchor, constant: -Self.footerH),
+
+            hints.leadingAnchor.constraint(equalTo: list.leadingAnchor, constant: 16),
+            hints.trailingAnchor.constraint(lessThanOrEqualTo: list.trailingAnchor, constant: -16),
+            hints.centerYAnchor.constraint(equalTo: list.bottomAnchor, constant: -Self.footerH / 2),
 
             empty.centerXAnchor.constraint(equalTo: list.centerXAnchor),
-            empty.centerYAnchor.constraint(equalTo: list.centerYAnchor),
+            empty.centerYAnchor.constraint(equalTo: list.centerYAnchor, constant: -Self.footerH / 2),
         ])
+        updateHints()
+    }
+
+    /// Alttaki kısayol çubuğu: tuşlar beyaz, açıklamaları soluk
+    private func updateHints() {
+        let items: [(String, String)] = [("↩", L("Aç")), ("⌘↩", L("Finder'da göster")), ("Space", L("Hızlı Bakış")),
+                                         ("⌘⌫", L("Çöp Sepetine taşı")), ("Tab", scope == nil ? L("Bu klasör") : L("Tüm Mac"))]
+        let s = NSMutableAttributedString()
+        for (i, it) in items.enumerated() {
+            if i > 0 { s.append(NSAttributedString(string: "    ")) }
+            s.append(NSAttributedString(string: it.0 + " ", attributes: [
+                .font: NSFont.systemFont(ofSize: 11, weight: .semibold), .foregroundColor: NSColor.white.withAlphaComponent(0.85)]))
+            s.append(NSAttributedString(string: it.1, attributes: [
+                .font: NSFont.systemFont(ofSize: 11, weight: .regular), .foregroundColor: NSColor.white.withAlphaComponent(0.5)]))
+        }
+        hints.attributedStringValue = s
+    }
+
+    /// Fare bir satırın üstüne gelince o satır seçilir ve önizlenir
+    private func hoverRow(_ row: Int) {
+        guard let i = resultIndex(row: row), i != selectedIndex else { return }
+        navigating = true
+        let keep = scroll.contentView.bounds.origin
+        table.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
+        scroll.contentView.scroll(to: keep)
+        updatePreview()
+    }
+
+    private var previewWork: DispatchWorkItem?
+
+    /// Seçili sonucu sağ bölmede göster (hızlı gezinirken her satırda yeniden yüklemesin)
+    private func updatePreview() {
+        previewWork?.cancel()
+        guard let r = selected else { previewPane.show(nil); return }
+        let work = DispatchWorkItem { [weak self] in
+            MainActor.assumeIsolated { self?.previewPane.show(r) }
+        }
+        previewWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.06, execute: work)
     }
 
     private func makeMenu() -> NSMenu {
@@ -429,22 +503,16 @@ private final class Generation: @unchecked Sendable {
     // MARK: Kapsam
 
     private func updateScopeButton() {
-        let title: String
-        let icon: String
-        if let s = scope {
-            title = s == "/" ? "/" : (s as NSString).lastPathComponent
-            icon = "folder.fill"
+        // Klasörde arıyorsa büyütecin yanında klasör jetonu; tüm Mac'te ararken jeton yok
+        if let sc = scope {
+            scopeToken.isHidden = false
+            scopeToken.set(path: sc)
             field.placeholderString = L("Bu klasörde ara")
         } else {
-            title = L("Bu Mac")
-            icon = "desktopcomputer"
-            field.placeholderString = L("Dosya ara")
+            scopeToken.isHidden = true
+            field.placeholderString = L("Tüm Mac'te ara")
         }
-        scopeButton.title = " " + title + "  "
-        scopeButton.image = NSImage(systemSymbolName: icon, accessibilityDescription: nil)?
-            .withSymbolConfiguration(.init(pointSize: 11, weight: .semibold))
-        scopeButton.toolTip = scope.map { ($0 as NSString).abbreviatingWithTildeInPath }
-        scopeButton.isHidden = false
+        updateHints()
     }
 
     @objc private func toggleScope() {
@@ -538,8 +606,15 @@ private final class Generation: @unchecked Sendable {
 
     static let knownExts: Set<String> = FileIndex.docExts.union(["swift", "py", "js", "ts", "html", "css", "json", "app", "dmg", "pkg"])
 
-    private func show(_ r: [FileResult], query: String) {
+    private func show(_ r0: [FileResult], query: String) {
         let prevPath = selected?.path
+        currentQuery = query
+        // Az önce silinen / taşınan dosyalar indeks güncellenene kadar görünmesin
+        #if SNAPSHOT
+        let r = r0
+        #else
+        let r = r0.filter { FileManager.default.fileExists(atPath: $0.path) }
+        #endif
         // Spotlight gibi: aramada En İyi Sonuç + türe göre bölümler; klasörde gezinirken düz liste
         let sections = query.isEmpty ? [("", r)] : Self.sections(r)
         results = []
@@ -567,7 +642,10 @@ private final class Generation: @unchecked Sendable {
             empty.stringValue = ""
         }
         updateStatus(searching: false)
+        divider.isHidden = results.isEmpty
+        previewPane.isHidden = results.isEmpty
         resize(message: !empty.stringValue.isEmpty)
+        updatePreview()
     }
 
     /// Sonuç türleri (Spotlight'taki bölümler)
@@ -605,8 +683,8 @@ private final class Generation: @unchecked Sendable {
         for row in rows {
             if case .header = row { listH += Self.headerH } else { listH += Self.rowH }
         }
-        if listH > 0 { listH = min(listH + Self.listPad * 2, Self.maxListH) }
-        else if message { listH = 64 }
+        if listH > 0 { listH = min(max(listH + Self.listPad * 2, Self.minListH), Self.maxListH) + Self.footerH }
+        else if message { listH = 64 + Self.footerH }
         listGlass.isHidden = listH == 0
         let h = Self.barH + (listH > 0 ? Self.listGap + listH : 0)
         var f = panel.frame
@@ -691,10 +769,12 @@ private final class Generation: @unchecked Sendable {
         table.scrollRowToVisible(row > 0 && resultIndex(row: row - 1) == nil ? row - 1 : row)
         table.scrollRowToVisible(row)
         if QLPreviewPanel.sharedPreviewPanelExists(), QLPreviewPanel.shared().isVisible { QLPreviewPanel.shared().reloadData() }
+        updatePreview()
     }
 
     private func move(_ d: Int) {
         guard !results.isEmpty else { return }
+        navigating = true
         select((selectedIndex ?? 0) + d)
     }
 
@@ -736,10 +816,20 @@ private final class Generation: @unchecked Sendable {
         pb.setString(r.path, forType: .string)
     }
 
+    /// Çöp Sepetine taşı ve satırı anında listeden kaldır (seçim bir sonrakine geçer)
     private func trash(_ r: FileResult) {
+        let keepIndex = selectedIndex ?? 0
         NSWorkspace.shared.recycle([URL(fileURLWithPath: r.path)]) { [weak self] _, err in
             guard err == nil else { NSSound.beep(); return }
-            MainActor.assumeIsolated { self?.refresh() }
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                let snd = "/System/Library/Components/CoreAudio.component/Contents/SharedSupport/SystemSounds/finder/move to trash.aif"
+                NSSound(contentsOfFile: snd, byReference: true)?.play()
+                let rest = self.results.filter { $0.path != r.path }
+                let q = self.currentQuery
+                self.show(rest, query: q)
+                if !self.results.isEmpty { self.select(min(keepIndex, self.results.count - 1)) }
+            }
         }
     }
 
@@ -783,8 +873,11 @@ private final class Generation: @unchecked Sendable {
                 close(restore: true)
             }
             return true
-        case 51 where cmd && fieldEmpty:   // ⌘⌫ çöpe
+        case 51 where cmd:   // ⌘⌫ seçili dosyayı çöpe (Finder'daki gibi)
             if let r = selected { trash(r) }
+            return true
+        case 49 where !cmd && !opt && (navigating || fieldEmpty) && selected != nil:   // Space: Hızlı Bakış
+            quickLook()
             return true
         default:
             break
@@ -825,7 +918,10 @@ private final class Generation: @unchecked Sendable {
 // MARK: - Metin kutusu
 
 extension FileSearchController: NSTextFieldDelegate {
-    func controlTextDidChange(_ obj: Notification) { refresh() }
+    func controlTextDidChange(_ obj: Notification) {
+        navigating = false   // yazmaya dönünce Space yine boşluk yazar
+        refresh()
+    }
 
     func control(_ control: NSControl, textView: NSTextView, doCommandBy sel: Selector) -> Bool {
         switch sel {
@@ -878,6 +974,7 @@ extension FileSearchController: NSTableViewDataSource, NSTableViewDelegate {
 
     func tableViewSelectionDidChange(_ notification: Notification) {
         if QLPreviewPanel.sharedPreviewPanelExists(), QLPreviewPanel.shared().isVisible { QLPreviewPanel.shared().reloadData() }
+        updatePreview()
     }
 
     func tableView(_ tableView: NSTableView, pasteboardWriterForRow row: Int) -> NSPasteboardWriting? {
@@ -1084,5 +1181,234 @@ private final class ResultCell: NSTableCellView {
         f.dateStyle = .medium
         f.timeStyle = .none
         return f.string(from: d)
+    }
+}
+
+
+// MARK: - Fareyle gezinilen tablo
+
+/// Fare bir satırın üstüne gelince haber verir (Spotlight gibi: üstüne gelinen önizlenir)
+final class HoverTableView: NSTableView {
+    var onHoverRow: ((Int) -> Void)?
+    private var tracking: NSTrackingArea?
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let t = tracking { removeTrackingArea(t) }
+        let t = NSTrackingArea(rect: bounds, options: [.mouseMoved, .activeAlways, .inVisibleRect], owner: self, userInfo: nil)
+        addTrackingArea(t)
+        tracking = t
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        let p = convert(event.locationInWindow, from: nil)
+        let r = row(at: p)
+        if r >= 0 { onHoverRow?(r) }
+    }
+}
+
+// MARK: - Klasör jetonu
+
+/// Büyütecin yanında: gerçek klasör ikonu ve adı. Tıklayınca (ya da Tab) tüm Mac'e geçer.
+final class ScopeTokenView: NSView {
+    var onClick: (() -> Void)?
+    private let icon = NSImageView()
+    private let label = NSTextField(labelWithString: "")
+    private let chevron = NSImageView()
+
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        wantsLayer = true
+        layer?.cornerRadius = 9
+        layer?.cornerCurve = .continuous
+        layer?.backgroundColor = NSColor.white.withAlphaComponent(0.12).cgColor
+        layer?.borderWidth = 0.75
+        layer?.borderColor = NSColor.white.withAlphaComponent(0.16).cgColor
+        icon.imageScaling = .scaleProportionallyUpOrDown
+        label.font = .systemFont(ofSize: 14, weight: .semibold)
+        label.textColor = .white
+        label.lineBreakMode = .byTruncatingMiddle
+        label.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        chevron.image = NSImage(systemSymbolName: "xmark", accessibilityDescription: nil)?
+            .withSymbolConfiguration(.init(pointSize: 9, weight: .bold))
+        chevron.contentTintColor = .white.withAlphaComponent(0.5)
+        let row = NSStackView(views: [icon, label, chevron])
+        row.spacing = 6
+        row.alignment = .centerY
+        row.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(row)
+        NSLayoutConstraint.activate([
+            icon.widthAnchor.constraint(equalToConstant: 18),
+            icon.heightAnchor.constraint(equalToConstant: 18),
+            row.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 8),
+            row.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -9),
+            row.centerYAnchor.constraint(equalTo: centerYAnchor),
+        ])
+        toolTip = L("Tab: tüm Mac'te ara")
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    func set(path: String) {
+        label.stringValue = path == "/" ? "/" : FileManager.default.displayName(atPath: path)
+        icon.image = NSWorkspace.shared.icon(forFile: path)
+        #if SNAPSHOT
+        if !FileManager.default.fileExists(atPath: path) { icon.image = NSWorkspace.shared.icon(for: .folder) }
+        #endif
+    }
+
+    override func mouseDown(with event: NSEvent) { onClick?() }
+    override func resetCursorRects() { addCursorRect(bounds, cursor: .pointingHand) }
+}
+
+// MARK: - Önizleme bölmesi
+
+/// Sağ bölme: dosyanın Hızlı Bakış önizlemesi, adı, türü, boyutu, tarihi ve eylem düğmeleri
+final class SearchPreviewPane: NSView {
+    var onOpen: (() -> Void)?
+    var onReveal: (() -> Void)?
+    var onTrash: (() -> Void)?
+
+    private let ql: QLPreviewView = QLPreviewView(frame: .zero, style: .compact)
+    private let bigIcon = NSImageView()
+    private let name = NSTextField(labelWithString: "")
+    private let info = NSTextField(wrappingLabelWithString: "")
+    private var buttons: NSStackView!
+    private var current: String?
+
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        ql.translatesAutoresizingMaskIntoConstraints = false
+        ql.shouldCloseWithWindow = false
+        ql.autostarts = true
+        ql.wantsLayer = true
+        ql.layer?.cornerRadius = 10
+        ql.layer?.masksToBounds = true
+        addSubview(ql)
+
+        bigIcon.imageScaling = .scaleProportionallyUpOrDown
+        bigIcon.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(bigIcon)
+
+        name.font = .systemFont(ofSize: 14, weight: .semibold)
+        name.textColor = .white
+        name.lineBreakMode = .byTruncatingMiddle
+        name.alignment = .center
+        name.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(name)
+
+        info.font = .systemFont(ofSize: 11.5)
+        info.textColor = .white.withAlphaComponent(0.55)
+        info.alignment = .center
+        info.maximumNumberOfLines = 3
+        info.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(info)
+
+        buttons = NSStackView(views: [Self.button("arrow.up.forward.app", L("Aç"), self, #selector(openTap)),
+                                      Self.button("folder", L("Finder'da göster"), self, #selector(revealTap)),
+                                      Self.button("trash", L("Çöp Sepetine taşı"), self, #selector(trashTap))])
+        buttons.spacing = 8
+        buttons.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(buttons)
+
+        NSLayoutConstraint.activate([
+            ql.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 16),
+            ql.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -16),
+            ql.topAnchor.constraint(equalTo: topAnchor, constant: 16),
+            ql.bottomAnchor.constraint(equalTo: name.topAnchor, constant: -12),
+
+            bigIcon.centerXAnchor.constraint(equalTo: ql.centerXAnchor),
+            bigIcon.centerYAnchor.constraint(equalTo: ql.centerYAnchor),
+            bigIcon.widthAnchor.constraint(equalToConstant: 96),
+            bigIcon.heightAnchor.constraint(equalToConstant: 96),
+
+            name.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 16),
+            name.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -16),
+            name.bottomAnchor.constraint(equalTo: info.topAnchor, constant: -4),
+
+            info.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 16),
+            info.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -16),
+            info.bottomAnchor.constraint(equalTo: buttons.topAnchor, constant: -12),
+
+            buttons.centerXAnchor.constraint(equalTo: centerXAnchor),
+            buttons.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -14),
+        ])
+        show(nil)
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    private static func button(_ symbol: String, _ tip: String, _ target: AnyObject, _ sel: Selector) -> NSButton {
+        let b = NSButton(image: NSImage(systemSymbolName: symbol, accessibilityDescription: tip)?
+            .withSymbolConfiguration(.init(pointSize: 13, weight: .medium)) ?? NSImage(), target: target, action: sel)
+        b.isBordered = false
+        b.wantsLayer = true
+        b.layer?.cornerRadius = 15
+        b.layer?.backgroundColor = NSColor.white.withAlphaComponent(0.12).cgColor
+        b.contentTintColor = symbol == "trash" ? Brand.nsRed.blended(withFraction: 0.25, of: .white) : .white
+        b.toolTip = tip
+        b.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([b.widthAnchor.constraint(equalToConstant: 44), b.heightAnchor.constraint(equalToConstant: 30)])
+        return b
+    }
+
+    @objc private func openTap() { onOpen?() }
+    @objc private func revealTap() { onReveal?() }
+    @objc private func trashTap() { onTrash?() }
+
+    func show(_ r: FileResult?) {
+        guard let r else {
+            current = nil
+            ql.previewItem = nil
+            ql.isHidden = true
+            bigIcon.isHidden = true
+            name.stringValue = ""
+            info.stringValue = ""
+            buttons.isHidden = true
+            return
+        }
+        buttons.isHidden = false
+        name.stringValue = r.name
+        info.stringValue = Self.describe(r)
+        guard current != r.path else { return }
+        current = r.path
+        let exists = FileManager.default.fileExists(atPath: r.path)
+        // Klasör ve uygulamalarda büyük ikon; dosyalarda gerçek önizleme
+        if r.isDir || !exists {
+            ql.previewItem = nil
+            ql.isHidden = true
+            bigIcon.isHidden = false
+            var img = NSWorkspace.shared.icon(forFile: r.path)
+            if !exists {
+                let ext = (r.name as NSString).pathExtension
+                img = r.isDir ? NSWorkspace.shared.icon(for: .folder)
+                    : (UTType(filenameExtension: ext).map { NSWorkspace.shared.icon(for: $0) } ?? img)
+            }
+            img.size = NSSize(width: 256, height: 256)
+            bigIcon.image = img
+        } else {
+            bigIcon.isHidden = true
+            ql.isHidden = false
+            ql.previewItem = URL(fileURLWithPath: r.path) as NSURL
+        }
+    }
+
+    /// "PDF belgesi · 2,4 MB · 3 Kas 2026"
+    private static func describe(_ r: FileResult) -> String {
+        let url = URL(fileURLWithPath: r.path)
+        let v = try? url.resourceValues(forKeys: [.localizedTypeDescriptionKey, .fileSizeKey, .contentModificationDateKey])
+        var parts: [String] = []
+        if let k = v?.localizedTypeDescription { parts.append(k) }
+        else if r.isDir { parts.append(L("Klasör")) }
+        if !r.isDir, let size = v?.fileSize { parts.append(ByteCountFormatter.string(fromByteCount: Int64(size), countStyle: .file)) }
+        let date = v?.contentModificationDate ?? r.mtime
+        if date > Date.distantPast {
+            let f = DateFormatter()
+            f.dateStyle = .medium
+            f.locale = AppLanguage.active == .tr ? Locale(identifier: "tr_TR") : Locale(identifier: "en_US")
+            parts.append(f.string(from: date))
+        }
+        let folder = ((r.path as NSString).deletingLastPathComponent as NSString).abbreviatingWithTildeInPath
+        return parts.joined(separator: " · ") + "\n" + folder
     }
 }
