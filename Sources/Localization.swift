@@ -531,4 +531,5 @@ private let englishStrings: [String: String] = [
     "Özellik öner": "Suggest a feature",
     "Önerilere bak": "Browse ideas",
     "GitHub'da açılır; bir GitHub hesabı gerekir.": "Opens on GitHub; you'll need a GitHub account.",
+    "Tek tuşla sıradaki ses çıkışına geç": "Jump to the next sound output with one key",
 ]
