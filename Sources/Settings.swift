@@ -151,7 +151,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
 // MARK: - Görünüm
 
 enum SettingsPage: CaseIterable {
-    case features, general, switcher, audio, screen, quick, permissions, shortcuts, request, versions, about
+    case features, general, switcher, audio, screen, power, quick, permissions, shortcuts, request, versions, about
 
     var title: String {
         switch self {
@@ -160,6 +160,7 @@ enum SettingsPage: CaseIterable {
         case .switcher: return L("Pencere Değiştirici")
         case .audio: return L("Ses")
         case .screen: return L("Ekran")
+        case .power: return L("Pil ve Şarj")
         case .quick: return L("Hızlı Özellikler")
         case .permissions: return L("İzinler")
         case .shortcuts: return L("Kısayollar")
@@ -176,6 +177,7 @@ enum SettingsPage: CaseIterable {
         case .switcher: return "rectangle.on.rectangle"
         case .audio: return "speaker.wave.2.fill"
         case .screen: return "camera.viewfinder"
+        case .power: return "battery.75percent"
         case .quick: return "bolt.fill"
         case .permissions: return "lock.shield.fill"
         case .shortcuts: return "keyboard"
@@ -245,6 +247,7 @@ struct SettingsView: View {
         case .switcher: windowsTab
         case .audio: audioTab
         case .screen: screenTab
+        case .power: powerCard
         case .quick: quickTab
         case .permissions: permissionsTab
         case .shortcuts: ShortcutsPage()
@@ -413,7 +416,6 @@ struct SettingsView: View {
         }
 
         appAudioCard
-        if Equalizer.available { eqCard }
     }
 
     // MARK: Uygulamaya göre ses
@@ -609,6 +611,7 @@ struct SettingsView: View {
     // MARK: Hızlı özellikler
 
     @ViewBuilder private var quickTab: some View {
+        if Equalizer.available { eqCard }
         Card(title: L("Gruplu görünüm"), icon: "square.grid.3x1.below.line.grid.1x2",
              isOn: model.bind({ Profile.allCases.contains { $0.grouped && !$0.list } }, { v in
                  if v {
@@ -798,7 +801,6 @@ struct SettingsView: View {
     // MARK: Harici monitörler (parlaklık / ses)
 
     @ViewBuilder private var monitorsCard: some View {
-        if PowerProfiles.supported { powerCard }
         Card(title: L("Harici monitörler"), icon: "display.2",
              isOn: model.bind({ MonitorSettings.showInMenu }, { MonitorSettings.showInMenu = $0 }),
              subtitle: L("Menü çubuğunda parlaklık ve ses kaydırıcıları")) {
@@ -1325,35 +1327,144 @@ struct SettingsView: View {
     private var installBusy: Bool { updater.state == .downloading || updater.state == .installing }
 
     @ViewBuilder private var versionsTab: some View {
-        Card(title: L("Sürümler"), icon: "clock.arrow.circlepath", startOpen: true) {
-            HStack(spacing: 10) {
-                Text(L("Şu an %@", updater.currentVersion))
-                    .font(.system(size: 11.5))
-                    .foregroundStyle(.white.opacity(0.65))
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                if updater.releasesLoading {
-                    ProgressView().controlSize(.small)
-                } else {
-                    Button { updater.fetchReleases() } label: { Label(L("Yenile"), systemImage: "arrow.clockwise") }
-                }
-            }
-            if let err = updater.releasesError {
-                Label(L("Sürüm listesi alınamadı: %@", err), systemImage: "exclamationmark.triangle.fill")
-                    .font(.system(size: 11.5)).foregroundStyle(.orange)
-            }
-            switch updater.state {
-            case .downloading, .installing, .failed:
-                let s = updateStatus
-                Label(s.0, systemImage: s.1).font(.system(size: 12, weight: .semibold)).foregroundStyle(s.2)
-            default: EmptyView()
+        let rows = versionRows
+        let cur = updater.currentVersion
+        currentVersionHero(rows.first { $0.version == cur })
+        if let err = updater.releasesError {
+            Label(L("Sürüm listesi alınamadı: %@", err), systemImage: "exclamationmark.triangle.fill")
+                .font(.system(size: 11.5)).foregroundStyle(.orange)
+        }
+        switch updater.state {
+        case .downloading, .installing, .failed:
+            let st = updateStatus
+            Label(st.0, systemImage: st.1).font(.system(size: 12, weight: .semibold)).foregroundStyle(st.2)
+        default: EmptyView()
+        }
+        HStack {
+            Text(L("Diğer sürümler")).font(.system(size: 13, weight: .semibold)).foregroundStyle(.white.opacity(0.7))
+            Spacer()
+            if updater.releasesLoading {
+                ProgressView().controlSize(.small)
+            } else {
+                Button { updater.fetchReleases() } label: { Label(L("Yenile"), systemImage: "arrow.clockwise") }
+                    .buttonStyle(GlassButtonStyle())
             }
         }
+        .padding(.top, 4)
+        LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], alignment: .leading, spacing: 12) {
+            ForEach(rows.filter { $0.version != cur }) { v in versionBox(v) }
+        }
         .onAppear { if updater.releases.isEmpty { updater.fetchReleases() } }
+    }
 
-        // Sürüm serileri (1.0, 2.0, 2.1, 2.2, 2.3…): eşit boyda kutular, açınca alt sürümler
-        VStack(spacing: 12) {
-            ForEach(versionSeries) { s in
-                seriesBox(s)
+    /// Kullandığın sürüm: büyük kırmızı kutu
+    private func currentVersionHero(_ v: VersionRow?) -> some View {
+        let cur = updater.currentVersion
+        let st = updateStatus
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 14) {
+                Image(nsImage: Brand.leaf).resizable().frame(width: 44, height: 44)
+                    .padding(8)
+                    .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(.white.opacity(0.18)))
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(L("Kullandığın sürüm")).font(.system(size: 11, weight: .semibold)).foregroundStyle(.white.opacity(0.8))
+                    Text("Missing \(cur)").font(.system(size: 26, weight: .heavy))
+                    if let d = v?.release?.date {
+                        Text(d.formatted(date: .long, time: .omitted)).font(.system(size: 11)).foregroundStyle(.white.opacity(0.75))
+                    }
+                }
+                Spacer()
+                VStack(alignment: .trailing, spacing: 6) {
+                    if updater.updateAvailable {
+                        Button(L("Yükle ve yeniden aç")) { model.onInstallUpdate(nil) }
+                            .buttonStyle(GlassButtonStyle())
+                    } else {
+                        Button(L("Şimdi denetle")) { updater.check(userInitiated: true) }
+                            .buttonStyle(GlassButtonStyle())
+                            .disabled(updater.state == .checking || installBusy)
+                    }
+                    Label(st.0, systemImage: st.1).font(.system(size: 10.5, weight: .medium)).foregroundStyle(.white.opacity(0.85))
+                        .lineLimit(1)
+                }
+            }
+            if let v, !v.lines.isEmpty {
+                VStack(alignment: .leading, spacing: 5) {
+                    ForEach(Array(v.lines.enumerated()), id: \.offset) { _, line in
+                        HStack(alignment: .firstTextBaseline, spacing: 7) {
+                            Circle().fill(.white.opacity(0.85)).frame(width: 4, height: 4).offset(y: -2)
+                            Text(line).font(.system(size: 12)).fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                }
+                .foregroundStyle(.white.opacity(0.95))
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(.black.opacity(0.18)))
+            }
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(LinearGradient(colors: [Brand.red, Brand.red.opacity(0.72)], startPoint: .topLeading, endPoint: .bottomTrailing))
+        )
+        .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).strokeBorder(.white.opacity(0.22), lineWidth: 1))
+        .shadow(color: Brand.red.opacity(0.35), radius: 14, y: 6)
+    }
+
+    /// Diğer sürümler: eşit boyda kutular; tıklayınca bütün notlar açılır
+    private func versionBox(_ v: VersionRow) -> some View {
+        let open = expandedVersions.contains(v.version)
+        let newer = Updater.isNewer(v.version, than: updater.currentVersion)
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(v.version).font(.system(size: 19, weight: .heavy))
+                if newer {
+                    Text(L("Yeni")).font(.system(size: 9.5, weight: .bold))
+                        .padding(.horizontal, 6).padding(.vertical, 2)
+                        .background(Capsule().fill(Brand.red))
+                        .foregroundStyle(.white)
+                }
+                Spacer(minLength: 0)
+                if let d = v.release?.date {
+                    Text(d.formatted(date: .abbreviated, time: .omitted)).font(.system(size: 10.5)).foregroundStyle(.white.opacity(0.5))
+                } else if v.preGitHub {
+                    Text(L("GitHub öncesi")).font(.system(size: 10.5)).foregroundStyle(.white.opacity(0.5))
+                }
+            }
+            VStack(alignment: .leading, spacing: 4) {
+                ForEach(Array(v.lines.prefix(open ? 99 : 3).enumerated()), id: \.offset) { _, line in
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Circle().fill(.white.opacity(0.4)).frame(width: 3.5, height: 3.5).offset(y: -2)
+                        Text(line).font(.system(size: 11)).foregroundStyle(.white.opacity(0.75))
+                            .lineLimit(open ? nil : 2)
+                            .fixedSize(horizontal: false, vertical: open)
+                    }
+                }
+            }
+            Spacer(minLength: 0)
+            HStack {
+                if v.lines.count > 3 || v.lines.contains(where: { $0.count > 70 }) {
+                    Text(open ? L("Küçült") : L("Tümünü göster"))
+                        .font(.system(size: 10.5, weight: .semibold)).foregroundStyle(.white.opacity(0.55))
+                }
+                Spacer()
+                if let r = v.release {
+                    Button(newer ? L("Yükle") : L("Bu sürüme dön")) { confirmRelease = r }
+                        .buttonStyle(GlassButtonStyle())
+                        .disabled(installBusy)
+                }
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, minHeight: 140, alignment: .topLeading)
+        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(.white.opacity(0.06)))
+        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous)
+            .strokeBorder(newer ? Brand.red.opacity(0.6) : .white.opacity(0.10), lineWidth: 1))
+        .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .onTapGesture {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                if open { expandedVersions.remove(v.version) } else { expandedVersions.insert(v.version) }
             }
         }
     }

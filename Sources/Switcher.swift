@@ -2186,7 +2186,7 @@ final class ItemCell: NSView {
     /// Diğer kartlar: ince cam zemin, böylece her kart ayrı bir hedef olarak görünür.
     private func updateLook() {
         guard let layer else { return }
-        let accent = NSColor.controlAccentColor
+        let accent = Brand.nsRed   // Missing kırmızısı
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         if isSelected {
@@ -2312,7 +2312,7 @@ final class FilterBarView: NSView {
             let path = NSBezierPath(roundedRect: r.insetBy(dx: 0.5, dy: 0.5), xRadius: Self.chipH / 2, yRadius: Self.chipH / 2)
             if i == current {
                 NSColor.white.withAlphaComponent(0.22).setFill(); path.fill()
-                NSColor.controlAccentColor.setStroke(); path.lineWidth = 1.5; path.stroke()
+                Brand.nsRed.setStroke(); path.lineWidth = 1.5; path.stroke()
             } else {
                 NSColor.white.withAlphaComponent(0.08).setFill(); path.fill()
             }

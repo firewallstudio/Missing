@@ -34,11 +34,29 @@ Uygulamalar değil pencereler, canlı önizlemeyle. Tüm tarayıcı profilleri, 
 
 Seçili sonuç sağda önizlenir; fareyle bir satırın üstüne gelince o önizlenir. **Space** Finder'daki gibi Hızlı Bakış açar, **⌘⌫** dosyayı anında Çöp Sepeti'ne atar, **Enter** açar, **⌘Enter** Finder'da gösterir. Finder'ın kendi arama kutusuna yazınca da kutunun altında aynı anında sonuçlar çıkar. Başka her yerde ⌘Space yine Spotlight'ı açar.
 
+## Windows gibi Finder sekmeleri
+
+<div align="center"><img src="assets/finder-tabs.png" alt="Windows tarzı Finder sekmeleri" width="820"></div>
+
+Finder sekmelerini, iki tane bile olsa bütün pencereye yayar. Missing onları Windows'taki gibi dizer: soldan başlar, her biri belli bir genişlikte; açtıkça daralır, sığmayınca yana kayar. Üstüne gelince kapatma düğmesi, sonda **+** ile yeni sekme. Finder'ın kendi çubuğuyla aynı tonda durur; uygulama değiştirince ya da sağ tıklayınca yerinden oynamaz.
+
 ## Çentikten ekran bölme
 
 <div align="center"><img src="assets/notch.gif" alt="Çentik adası" width="900"></div>
 
-Bir pencereyi ekranın üstüne sürükle. Çentikli MacBook'larda çentik, iki yanında düzenler olan bir adaya dönüşür. En çok kullandığın iki düzen çentiğin hemen altında durur ve kullandıkça güncellenir. Pencereyi bir bölmeye bırak, oraya yerleşsin. Ya da **⌘<** ile düzen seç ve pencere pencere doldur.
+Bir pencereyi ekranın üstüne sürükle. Çentikli MacBook'larda çentik, iki yanında düzenler olan bir adaya dönüşür. En çok kullandığın iki düzen çentiğin hemen altında durur ve kullandıkça güncellenir. Pencereyi bir bölmeye bırak, oraya yerleşsin. Ya da **⌘<** ile düzen seç: pencere pencere doldur ya da bölmeleri o ekrandaki son kullanılan pencerelerle Missing doldursun (Ayarlar › Ekran).
+
+## eqMac'siz basit ekolayzır
+
+<div align="center"><img src="assets/settings-eq.png" alt="Ekolayzır" width="560"></div>
+
+Sistemin bütün sesi için 32 Hz – 16 kHz arası 10 bant (±12 dB) ve ön kazanç; hazır ayarlar: Düz, Bas, Tiz, Konuşma, Gece. macOS'un kendi ses yakalama özelliğini kullanır (macOS 14.2+): sürücü yok, ek uygulama yok. Çıkış cihazını değiştirince seninle gelir. İlk seferde macOS bir kez ses kaydı izni sorar; hiçbir şey kaydedilmez.
+
+## Pil ve şarj profilleri
+
+*Sadece 14 inç MacBook Pro M4 Pro'da; diğer Mac'lerde hiç görünmez.*
+
+Fişten çekince ekran **600 nit** ayarına ve **60 Hz**'e iner, **Düşük Güç Modu** açılır. Şarja takınca **1600 nit (XDR)**, **ProMotion** ve **Yüksek Güç Modu**'na döner. Kendiliğinden olur; istersen menü çubuğundan elle de geçersin.
 
 ## Tek tuşla ses çıkışı
 
@@ -52,9 +70,9 @@ Bir pencereyi ekranın üstüne sürükle. Çentikli MacBook'larda çentik, iki 
 
 Menü çubuğundaki yaprağa tıkla: üstte ses çıkışı, altında hızlı eylemler (ekranı böl, ekran görüntüsü, kayıt, kaydırmalı görüntü, ekranları karart) ve harici ekranlar için parlaklık kaydırıcıları.
 
-- **Ekran görüntüsü ve kayıt:** ⌘⇧3 bulunduğun ekran, ⌘⇧4 alan, ⌘⇧6 kaydırmalı sayfa, ⌘⇧5 MP4 kayıt.
+- **Ekran görüntüsü ve kayıt:** ⌘⇧3 bulunduğun ekran, ⌘⇧4 alan, ⌘⇧6 kaydırmalı sayfa, ⌘⇧5 MP4 kayıt. ⌘⇧5 paletinden **sadece bir pencereyi** çekebilir ya da kaydedebilirsin; kendi kayıt klasörüyle.
 - **Ekranları karart:** ⌘⇧< ile karart, aynı kısayolla geri aç.
-- **Hızlı özellikler:** Windows tarzı Finder sekmeleri (pencereye yayılmak yerine belli bir genişlikte, çoğaldıkça daralır), gruplu ⌘Tab görünümü, Finder'da fare tuşlarıyla geri/ileri, dosya sürüklerken Dock'ta anında açılma.
+- **Hızlı özellikler:** ekolayzır, Windows tarzı Finder sekmeleri, gruplu ⌘Tab görünümü, Finder'da fare tuşlarıyla geri/ileri, dosya sürüklerken Dock'ta anında açılma.
 
 ## Sadece kullandıkların
 
