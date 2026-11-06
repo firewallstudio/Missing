@@ -1,5 +1,6 @@
 import Cocoa
 import SwiftUI
+import ScreenCaptureKit
 
 // MARK: - Finder sekmeleri (Windows gibi)
 //
@@ -27,6 +28,10 @@ struct FinderTab: Identifiable, Equatable {
 
 final class FinderTabsModel: ObservableObject {
     @Published var tabs: [FinderTab] = []
+    /// Şerit yukarıdan kayarak gelir
+    @Published var shown = false
+    /// Finder'ın kendi sekme çubuğunun rengi (Ekran Kaydı izni varsa ölçülür)
+    @Published var barColor: NSColor?
     var onSelect: (Int) -> Void = { _ in }
     var onClose: (Int) -> Void = { _ in }
     var onNew: () -> Void = {}
@@ -164,6 +169,49 @@ private final class TabsHostingView<Content: View>: NSHostingView<Content> {
         tabElements = els
         if model.tabs != tabs { model.tabs = tabs }
         place(frame)
+        sampleBarColor(window: win, tabs: els, selected: tabs.map(\.selected))
+    }
+
+    // MARK: Renk
+
+    private var sampledFor: String?
+
+    /// Finder'ın sekme çubuğunun gerçek rengini ölç: seçili olmayan bir sekmenin boş köşesinden bir piksel.
+    /// Pencere ve görünüm (açık/koyu) değişmedikçe bir kez yapılır; Ekran Kaydı izni yoksa hiç denenmez.
+    private func sampleBarColor(window: AXUIElement, tabs: [AXUIElement], selected: [Bool]) {
+        guard #available(macOS 14.0, *), CGPreflightScreenCaptureAccess(),
+              let wid = axWindowID(window) else { return }
+        let dark = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        let key = "\(wid)-\(dark)"
+        guard sampledFor != key else { return }
+        sampledFor = key
+        let idx = selected.firstIndex(of: false) ?? 0
+        guard let tabRect = Self.axRect(tabs[idx]), let winRect = Self.axRect(window) else { return }
+        // Pencereye göre nokta (sol üst başlangıçlı), sekmenin sol üst köşesine yakın boşluk
+        let pt = CGPoint(x: tabRect.minX - winRect.minX + 6, y: tabRect.minY - winRect.minY + 4)
+        Task { [weak self] in
+            guard let content = try? await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true),
+                  let w = content.windows.first(where: { $0.windowID == wid }) else { return }
+            let cfg = SCStreamConfiguration()
+            cfg.width = Int(w.frame.width)
+            cfg.height = Int(w.frame.height)
+            cfg.showsCursor = false
+            cfg.ignoreShadowsSingleWindow = true
+            guard let img = try? await SCScreenshotManager.captureImage(contentFilter: SCContentFilter(desktopIndependentWindow: w),
+                                                                         configuration: cfg) else { return }
+            let sx = CGFloat(img.width) / w.frame.width, sy = CGFloat(img.height) / w.frame.height
+            let rep = NSBitmapImageRep(cgImage: img)
+            let px = Int(pt.x * sx), py = Int(pt.y * sy)
+            guard px >= 0, py >= 0, px < rep.pixelsWide, py < rep.pixelsHigh, let c = rep.colorAt(x: px, y: py) else { return }
+            await MainActor.run { self?.model.barColor = c.withAlphaComponent(1) }
+        }
+    }
+
+    private static func axRect(_ el: AXUIElement) -> CGRect? {
+        guard let pv: AXValue = AX.attr(el, kAXPositionAttribute), let sv: AXValue = AX.attr(el, kAXSizeAttribute) else { return nil }
+        var p = CGPoint.zero, s = CGSize.zero
+        guard AXValueGetValue(pv, .cgPoint, &p), AXValueGetValue(sv, .cgSize, &s) else { return nil }
+        return CGRect(origin: p, size: s)
     }
 
     /// Pencerenin sekme grubu (araç çubuğunun altındaki AXTabGroup)
@@ -193,7 +241,14 @@ private final class TabsHostingView<Content: View>: NSHostingView<Content> {
         let p = panel ?? make()
         panel = p
         if p.frame != frame { p.setFrame(frame, display: true) }
-        if !p.isVisible { p.orderFrontRegardless() }
+        if !p.isVisible {
+            // Yukarıdan aşağı kayarak gel (ani beliriş göz yormasın)
+            model.shown = false
+            p.orderFrontRegardless()
+            DispatchQueue.main.async { [weak self] in
+                withAnimation(.easeOut(duration: 0.2)) { self?.model.shown = true }
+            }
+        }
     }
 
     private func make() -> NSPanel {
@@ -220,30 +275,33 @@ private final class TabsHostingView<Content: View>: NSHostingView<Content> {
         scheduleRefresh()
     }
 
+    /// Finder sekmenin kapatma düğmesini sadece fare üstündeyken oluşturur; ona güvenmeden:
+    /// sekmeyi seç, seçildiğinde ⌘W'yi doğrudan Finder'a gönder. Her seferinde aynı sonuç.
     private func closeTab(_ i: Int) {
         guard tabElements.indices.contains(i) else { return }
-        let kids: [AXUIElement] = AX.attr(tabElements[i], kAXChildrenAttribute) ?? []
-        if let close = kids.first(where: { (AX.attr($0, kAXRoleAttribute) as String?) == kAXButtonRole as String }) {
-            AXUIElementPerformAction(close, kAXPressAction as CFString)
-        } else {
-            // Kapatma düğmesi bulunamazsa: sekmeyi seç, ⌘W gönder
-            AXUIElementPerformAction(tabElements[i], kAXPressAction as CFString)
-            Self.sendKey(13, .maskCommand)
+        let el = tabElements[i]
+        let wasSelected = (AX.attr(el, kAXValueAttribute) as Int?) == 1
+        if !wasSelected { AXUIElementPerformAction(el, kAXPressAction as CFString) }
+        let pid = observedPid
+        DispatchQueue.main.asyncAfter(deadline: .now() + (wasSelected ? 0 : 0.12)) { [weak self] in
+            MainActor.assumeIsolated {
+                Self.sendKey(13, .maskCommand, to: pid)   // ⌘W
+                self?.scheduleRefresh()
+            }
         }
-        scheduleRefresh()
     }
 
     private func newTab() {
-        if let b = newTabButton { AXUIElementPerformAction(b, kAXPressAction as CFString) } else { Self.sendKey(17, .maskCommand) }   // ⌘T
+        if let b = newTabButton { AXUIElementPerformAction(b, kAXPressAction as CFString) } else { Self.sendKey(17, .maskCommand, to: observedPid) }   // ⌘T
         scheduleRefresh()
     }
 
-    private static func sendKey(_ code: CGKeyCode, _ flags: CGEventFlags) {
+    private static func sendKey(_ code: CGKeyCode, _ flags: CGEventFlags, to pid: pid_t) {
         let src = CGEventSource(stateID: .hidSystemState)
         for down in [true, false] {
             let e = CGEvent(keyboardEventSource: src, virtualKey: code, keyDown: down)
             e?.flags = flags
-            e?.post(tap: .cghidEventTap)
+            if pid != 0 { e?.postToPid(pid) } else { e?.post(tap: .cghidEventTap) }
         }
     }
 }
@@ -291,6 +349,8 @@ struct FinderTabsView: View {
                     Spacer(minLength: 0)
                 }
             }
+            .offset(y: model.shown ? 0 : -geo.size.height)
+            .opacity(model.shown ? 1 : 0)
         }
     }
 
@@ -301,7 +361,7 @@ struct FinderTabsView: View {
     /// Finder'ın sekme çubuğuyla aynı ton (açık / koyu görünüm)
     private var barBackground: some View {
         Rectangle()
-            .fill(scheme == .dark ? Color(white: 0.13) : Color(white: 0.86))
+            .fill(model.barColor.map { Color(nsColor: $0) } ?? (scheme == .dark ? Color(white: 0.13) : Color(white: 0.86)))
             .overlay(alignment: .bottom) {
                 Rectangle().fill(Color.primary.opacity(0.12)).frame(height: 0.5)
             }

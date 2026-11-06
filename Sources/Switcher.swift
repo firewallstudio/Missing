@@ -28,6 +28,13 @@ private typealias FnPost = @convention(c) (UnsafeMutablePointer<ProcessSerialNum
 
 private let fHotKey = sym("CGSSetSymbolicHotKeyEnabled", FnHotKey.self)
 private let fGetWindow = sym("_AXUIElementGetWindow", FnGetWindow.self)
+
+/// AX penceresinin pencere sunucusundaki kimliği
+func axWindowID(_ el: AXUIElement) -> CGWindowID? {
+    var wid: CGWindowID = 0
+    guard fGetWindow?(el, &wid) == 0, wid != 0 else { return nil }
+    return wid
+}
 private let fPSN = sym("GetProcessForPID", FnPSN.self)
 private let fFront = sym("_SLPSSetFrontProcessWithOptions", FnFront.self)
 private let fPost = sym("SLPSPostEventRecordTo", FnPost.self)

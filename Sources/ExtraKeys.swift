@@ -20,6 +20,7 @@ import Cocoa
 
     private static let key3: Int64 = 20, key4: Int64 = 21, key6: Int64 = 22, key5: Int64 = 23
     private static let keySpace: Int64 = 49
+    private static let keyF: Int64 = 3
 
     func handle(_ type: CGEventType, _ code: Int64, _ flags: CGEventFlags, _ event: CGEvent) -> Bool {
         if type == .keyUp, swallowedUp.contains(code) {
@@ -48,6 +49,8 @@ import Cocoa
             }
         } else if code == Self.keySpace && FileSearchSettings.enabled && Self.finderInFront {
             action = onFileSearch
+        } else if code == Self.keyF && FileSearchSettings.enabled && Self.finderInFront {
+            action = onFileSearch   // Finder'da ⌘F de bizim aramayı açar
         } else if TileSettings.enabled && Self.isLessThan(event) {
             action = onTile
         }
