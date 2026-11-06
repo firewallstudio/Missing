@@ -11,6 +11,12 @@ enum TileSettings {
         get { d.object(forKey: "tile.enabled") as? Bool ?? true }
         set { d.set(newValue, forKey: "tile.enabled") }
     }
+    /// Düzen seçilince bölmeleri o ekranda en son kullanılan pencerelerle kendiliğinden doldur
+    /// (false: şimdiki gibi hangi pencerenin hangi bölmeye gideceğini sen seçersin)
+    static var autoFill: Bool {
+        get { d.object(forKey: "tile.autoFill") as? Bool ?? false }
+        set { d.set(newValue, forKey: "tile.autoFill") }
+    }
     /// Birden fazla monitör varken her seferinde hangi monitör olduğunu sor
     static var askMonitor: Bool {
         get { d.object(forKey: "tile.askMonitor") as? Bool ?? false }
@@ -517,7 +523,37 @@ final class TilingModel: ObservableObject {
         model.assignments = [:]
         model.zone = 0
         model.highlight = 0
+        if TileSettings.autoFill {
+            autoFill()
+            apply()
+            return
+        }
         model.step = .assign
+    }
+
+    /// Bölmeleri hedef ekrandaki en son kullanılan pencerelerle doldur (liste zaten en son kullanılandan başlar).
+    /// O ekranda yeterli pencere yoksa diğer ekranlardaki son pencereler kullanılır.
+    private func autoFill() {
+        guard let screen = model.targetScreen else { return }
+        let n = model.layout.zones.count
+        let usable = model.items.indices.filter { model.items[$0].window != nil && !model.items[$0].system }
+        let here = usable.filter { Self.screenOf(model.items[$0]) == screen }
+        let others = usable.filter { !here.contains($0) }
+        for (z, i) in (here + others).prefix(n).enumerated() { model.assignments[z] = i }
+    }
+
+    /// Pencerenin çoğunun durduğu ekran
+    private static func screenOf(_ item: Item) -> NSScreen? {
+        guard let w = item.window,
+              let pv: AXValue = AX.attr(w, kAXPositionAttribute), let sv: AXValue = AX.attr(w, kAXSizeAttribute) else { return nil }
+        var p = CGPoint.zero, s = CGSize.zero
+        guard AXValueGetValue(pv, .cgPoint, &p), AXValueGetValue(sv, .cgSize, &s) else { return nil }
+        let top = NSScreen.screens.first?.frame.maxY ?? 0
+        let r = NSRect(x: p.x, y: top - p.y - s.height, width: s.width, height: s.height)
+        return NSScreen.screens.max { a, b in
+            let ia = a.frame.intersection(r), ib = b.frame.intersection(r)
+            return ia.width * ia.height < ib.width * ib.height
+        }
     }
 
     func selectZone(_ z: Int) {
