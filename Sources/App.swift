@@ -23,6 +23,7 @@ import UserNotifications
     private let onboarding = OnboardingController()
     private let menuPanel = MenuBarPanelController()
     private let finderTabs = FinderTabsController()
+    private let finderSearch = FinderSearchHook()
     private var model: SettingsModel!
     private var fileSearch: FileSearchController!
     private var permTimer: Timer?
@@ -104,7 +105,14 @@ import UserNotifications
         // ⌘Space dosya arama (indeks arka planda hazırlanır)
         fileSearch = FileSearchController()
         extraKeys.onFileSearch = { [weak self] in self?.fileSearch.toggle() }
+        finderSearch.onSearch = { [weak self] in
+            guard let self, !self.fileSearch.isVisible else { return }
+            self.fileSearch.show()
+        }
         model.onFileSearchChanged = { [weak self] in
+            if FileSearchSettings.enabled {
+                if self?.switcher.isRunning == true { self?.finderSearch.start() }
+            } else { self?.finderSearch.stop() }
             if FileSearchSettings.enabled { FileIndex.shared.start() } else {
                 self?.fileSearch.close(restore: true)
                 FileIndex.shared.stop()
@@ -219,6 +227,7 @@ import UserNotifications
 
     private func startInput() {
         if FinderTabsSettings.enabled { finderTabs.start() }
+        if FileSearchSettings.enabled { finderSearch.start() }
         switcher.start()
         applyExtraNative()
         dockDrag.start()

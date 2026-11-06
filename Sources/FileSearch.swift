@@ -99,6 +99,19 @@ enum FileSearchSettings {
         return nil
     }
 
+    /// Öndeki Finder penceresinin çerçevesi (ekran koordinatı)
+    static func windowFrame() -> NSRect? {
+        guard let app = NSWorkspace.shared.frontmostApplication, app.bundleIdentifier == "com.apple.finder" else { return nil }
+        let ax = AXUIElementCreateApplication(app.processIdentifier)
+        AXUIElementSetMessagingTimeout(ax, 0.25)
+        guard let w: AXUIElement = AX.attr(ax, kAXFocusedWindowAttribute),
+              let pv: AXValue = AX.attr(w, kAXPositionAttribute), let sv: AXValue = AX.attr(w, kAXSizeAttribute) else { return nil }
+        var p = CGPoint.zero, s = CGSize.zero
+        guard AXValueGetValue(pv, .cgPoint, &p), AXValueGetValue(sv, .cgSize, &s) else { return nil }
+        let top = NSScreen.screens.first?.frame.maxY ?? 0
+        return NSRect(x: p.x, y: top - p.y - s.height, width: s.width, height: s.height)
+    }
+
     private static func clean(_ p: String) -> String {
         var s = p
         while s.count > 1 && s.hasSuffix("/") { s.removeLast() }
@@ -121,6 +134,11 @@ private final class SearchPanel: NSPanel {
     override func endPreviewPanelControl(_ panel: QLPreviewPanel!) {
         panel.dataSource = nil
         panel.delegate = nil
+        // Hızlı Bakış kapanınca arama açık kalsın ve yazmaya devam edilebilsin
+        if isVisible {
+            makeKeyAndOrderFront(nil)
+            if let c = quickLook { MainActor.assumeIsolated { c.refocus() } }
+        }
     }
 }
 
@@ -457,8 +475,13 @@ private final class Generation: @unchecked Sendable {
 
         if let screen = screenUnderMouse() {
             let f = screen.visibleFrame
-            let x = (f.midX - Self.width / 2).rounded()
+            var x = (f.midX - Self.width / 2).rounded()
             topY = (f.maxY - f.height * 0.24).rounded()
+            // Finder penceresinin üst ortasında, araç çubuğunun hemen altında (Finder'ın kendi araması gibi)
+            if let w = FinderLocation.windowFrame(), w.width > 300, f.intersects(w) {
+                x = min(max(w.midX - Self.width / 2, f.minX + 8), f.maxX - Self.width - 8).rounded()
+                topY = min(w.maxY - 64, f.maxY - 8).rounded()
+            }
             panel.setFrame(NSRect(x: x, y: topY - Self.barH, width: Self.width, height: Self.barH), display: false)
         }
         PanelFocus.grab(panel)
@@ -484,11 +507,13 @@ private final class Generation: @unchecked Sendable {
             return self.handleKey(e) ? nil : e
         }
         resignObserver = NotificationCenter.default.addObserver(forName: NSWindow.didResignKeyNotification, object: panel, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated {
-                guard let self, !self.dragging else { return }
-                // Hızlı Bakış penceresi öne geldiyse kapanma
-                if QLPreviewPanel.sharedPreviewPanelExists(), QLPreviewPanel.shared().isKeyWindow { return }
-                self.close(restore: false)
+            // Hızlı Bakış açılırken odak bir an boşta kalır: hemen kapanma, biraz sonra bak
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                MainActor.assumeIsolated {
+                    guard let self, !self.dragging, self.panel.isVisible, !self.panel.isKeyWindow else { return }
+                    if QLPreviewPanel.sharedPreviewPanelExists(), QLPreviewPanel.shared().isVisible { return }
+                    self.close(restore: false)
+                }
             }
         }
     }
@@ -836,7 +861,22 @@ private final class Generation: @unchecked Sendable {
     private func quickLook() {
         guard selected != nil else { return }
         let ql = QLPreviewPanel.shared()!
-        if ql.isVisible { ql.orderOut(nil) } else { ql.makeKeyAndOrderFront(nil) }
+        if ql.isVisible {
+            ql.orderOut(nil)
+            panel.makeKeyAndOrderFront(nil)
+            refocus()
+        } else {
+            ql.makeKeyAndOrderFront(nil)
+        }
+    }
+
+    /// Arama kutusuna geri dön (Hızlı Bakış sonrası)
+    func refocus() {
+        guard panel.isVisible else { return }
+        panel.makeFirstResponder(field)
+        if let ed = panel.fieldEditor(false, for: field) as? NSTextView {
+            ed.setSelectedRange(NSRange(location: field.stringValue.utf16.count, length: 0))
+        }
     }
 
     /// true → tuş işlendi
@@ -1280,7 +1320,7 @@ final class SearchPreviewPane: NSView {
         super.init(frame: frame)
         ql.translatesAutoresizingMaskIntoConstraints = false
         ql.shouldCloseWithWindow = false
-        ql.autostarts = true
+        ql.autostarts = false   // video / ses kendiliğinden oynamasın (Space ile Hızlı Bakış'ta oynar)
         ql.wantsLayer = true
         ql.layer?.cornerRadius = 10
         ql.layer?.masksToBounds = true
@@ -1410,5 +1450,81 @@ final class SearchPreviewPane: NSView {
         }
         let folder = ((r.path as NSString).deletingLastPathComponent as NSString).abbreviatingWithTildeInPath
         return parts.joined(separator: " · ") + "\n" + folder
+    }
+}
+
+
+// MARK: - Finder'ın kendi arama kutusu
+
+/// Finder'ın sağ üstteki arama kutusuna tıklanınca Finder'ın aramasını bırakıp bizimkini açar.
+/// Sadece Finder öndeyken, odak değişikliklerini dinler (AXObserver).
+@MainActor final class FinderSearchHook {
+    var onSearch: () -> Void = {}
+    private var observer: AXObserver?
+    private var pid: pid_t = 0
+    private var running = false
+    private var lastFire = Date.distantPast
+
+    func start() {
+        guard !running else { return }
+        running = true
+        NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(appChanged),
+                                                          name: NSWorkspace.didActivateApplicationNotification, object: nil)
+        appChanged()
+    }
+
+    func stop() {
+        running = false
+        NSWorkspace.shared.notificationCenter.removeObserver(self)
+        detach()
+    }
+
+    @objc private func appChanged() {
+        guard running, let app = NSWorkspace.shared.frontmostApplication, app.bundleIdentifier == "com.apple.finder" else { return }
+        attach(app.processIdentifier)
+    }
+
+    private func attach(_ p: pid_t) {
+        guard pid != p else { return }
+        detach()
+        var obs: AXObserver?
+        let cb: AXObserverCallback = { _, element, _, refcon in
+            guard let refcon else { return }
+            let me = Unmanaged<FinderSearchHook>.fromOpaque(refcon).takeUnretainedValue()
+            MainActor.assumeIsolated { me.focusChanged(element) }
+        }
+        guard AXObserverCreate(p, cb, &obs) == .success, let obs else { return }
+        let app = AXUIElementCreateApplication(p)
+        AXObserverAddNotification(obs, app, kAXFocusedUIElementChangedNotification as CFString, Unmanaged.passUnretained(self).toOpaque())
+        CFRunLoopAddSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(obs), .commonModes)
+        observer = obs
+        pid = p
+    }
+
+    private func detach() {
+        if let obs = observer { CFRunLoopRemoveSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(obs), .commonModes) }
+        observer = nil
+        pid = 0
+    }
+
+    private func focusChanged(_ el: AXUIElement) {
+        guard FileSearchSettings.enabled, NSWorkspace.shared.frontmostApplication?.bundleIdentifier == "com.apple.finder" else { return }
+        let role: String = AX.attr(el, kAXRoleAttribute) ?? ""
+        let sub: String = AX.attr(el, kAXSubroleAttribute) ?? ""
+        guard role == kAXTextFieldRole as String, sub == kAXSearchFieldSubrole as String else { return }
+        guard Date().timeIntervalSince(lastFire) > 0.6 else { return }
+        lastFire = Date()
+        // Finder'ın aramasını bırak (Esc): odak dosya listesine döner, kutuya bir dahaki tıklama yine yakalanır
+        Self.sendEscape(to: pid)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+            MainActor.assumeIsolated { self?.onSearch() }
+        }
+    }
+
+    private static func sendEscape(to pid: pid_t) {
+        let src = CGEventSource(stateID: .hidSystemState)
+        for down in [true, false] {
+            CGEvent(keyboardEventSource: src, virtualKey: 53, keyDown: down)?.postToPid(pid)
+        }
     }
 }
