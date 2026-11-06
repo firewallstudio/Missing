@@ -64,6 +64,9 @@ import UserNotifications
         let model = SettingsModel(store: store)
         self.model = model
         model.onOpenSetup = { [weak self] in self?.showSetup() }
+        model.onPowerChanged = {
+            if PowerProfiles.active { PowerProfiles.shared.start() } else { PowerProfiles.shared.stop() }
+        }
         model.onFinderTabsChanged = { [weak self] in
             guard let self else { return }
             if FinderTabsSettings.enabled, self.switcher.isRunning { self.finderTabs.start() } else { self.finderTabs.stop() }
@@ -198,6 +201,7 @@ import UserNotifications
     /// İzinleri yalnızca açık özellikler gerektiriyorsa iste, sonra dinleyicileri başlat
     private func startFeatures() {
         if FileSearchSettings.enabled { FileIndex.shared.start() }
+        PowerProfiles.shared.start()   // sadece MacBook Pro 14" M4 Pro'da bir şey yapar
         if model.anyPreviews, !CGPreflightScreenCaptureAccess() {
             _ = CGRequestScreenCaptureAccess()
         }
