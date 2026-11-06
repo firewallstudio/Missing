@@ -1,0 +1,42 @@
+name: 💡 Suggest a feature
+description: Something the Mac forgot, skipped or only half did. Tell us and we'll consider it for Missing.
+title: "Idea: "
+labels: ["idea"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping make Missing better! Before posting, check the [existing ideas](https://github.com/firewallstudio/Missing/issues?q=label%3Aidea) and give a 👍 to ones you want too. The most wanted ones come first.
+  - type: textarea
+    id: missing
+    attributes:
+      label: What's missing on your Mac?
+      description: Describe the feature in a sentence or two.
+      placeholder: "When I take a screenshot, I want to …"
+    validations:
+      required: true
+  - type: textarea
+    id: today
+    attributes:
+      label: How do you do it today?
+      description: The workaround, another app, or "I can't".
+    validations:
+      required: false
+  - type: input
+    id: shortcut
+    attributes:
+      label: Shortcut idea (optional)
+      placeholder: "⌘⇧…"
+  - type: dropdown
+    id: area
+    attributes:
+      label: Which part of the Mac is it about?
+      options:
+        - Windows and ⌘Tab
+        - Sound
+        - Screen, screenshots and recording
+        - Finder and files
+        - Menu bar
+        - Something else
+    validations:
+      required: false

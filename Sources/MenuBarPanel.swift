@@ -273,7 +273,9 @@ struct MenuBarView: View {
                         controller.run { actions.blackout() }
                     }
                 }
-                tile("keyboard", L("Kısayollar"), nil) { controller.run { actions.openSettings(.shortcuts) } }
+                if ShortcutDemo.allCases.contains(where: \.enabled) {
+                    tile("keyboard", L("Kısayollar"), nil) { controller.run { actions.openSettings(.shortcuts) } }
+                }
             }
         }
     }
@@ -339,7 +341,11 @@ struct MenuBarView: View {
             .buttonStyle(.plain)
             .foregroundStyle(.white.opacity(0.6))
             Spacer()
-            Text(store.current?.name ?? "").font(.system(size: 10.5)).foregroundStyle(.white.opacity(0.35)).lineLimit(1)
+            Button { controller.run { actions.openSettings(.request) } } label: {
+                Label(L("Özellik iste"), systemImage: "lightbulb").font(.system(size: 11.5))
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.white.opacity(0.6))
         }
     }
 

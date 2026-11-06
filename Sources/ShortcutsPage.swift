@@ -72,7 +72,10 @@ enum ShortcutDemo: String, CaseIterable, Identifiable {
 }
 
 struct ShortcutsPage: View {
-    @State private var selected: ShortcutDemo = .switcher
+    @State private var chosen: ShortcutDemo?
+    /// Sadece açık özelliklerin kısayolları
+    private var shown: [ShortcutDemo] { ShortcutDemo.allCases.filter(\.enabled) }
+    private var selected: ShortcutDemo { chosen.flatMap { shown.contains($0) ? $0 : nil } ?? shown.first ?? .switcher }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -84,22 +87,19 @@ struct ShortcutsPage: View {
                 Text(selected.detail).font(.system(size: 12)).foregroundStyle(.white.opacity(0.6))
             }
             LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)], spacing: 8) {
-                ForEach(ShortcutDemo.allCases) { d in tile(d) }
+                ForEach(shown) { d in tile(d) }
             }
-            panelKeys
+            if Profile.allCases.contains(where: \.enabled) { panelKeys }
         }
     }
 
     private func tile(_ d: ShortcutDemo) -> some View {
         let on = d == selected
-        return Button { withAnimation(.easeOut(duration: 0.2)) { selected = d } } label: {
+        return Button { withAnimation(.easeOut(duration: 0.2)) { chosen = d } } label: {
             HStack(spacing: 10) {
                 KeyCombo(keys: d.keys, size: 10.5)
                 Text(d.title).font(.system(size: 12, weight: .medium)).lineLimit(1)
                 Spacer(minLength: 0)
-                if !d.enabled {
-                    Text(L("Kapalı")).font(.system(size: 10, weight: .semibold)).foregroundStyle(.white.opacity(0.4))
-                }
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 8)
@@ -108,7 +108,6 @@ struct ShortcutsPage: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .opacity(d.enabled ? 1 : 0.55)
     }
 
     private var panelKeys: some View {

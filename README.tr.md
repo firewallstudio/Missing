@@ -6,7 +6,7 @@
 
 **Mac'te eksik kalan özellikler, menü çubuğunda tek hafif bir uygulamada.**
 
-[**İndir**](https://github.com/firewallstudio/Missing/releases/latest) · [Kurulum](#kurulum) · [Kısayollar](#kısayollar) · [**English**](README.md)
+[**İndir**](https://github.com/firewallstudio/Missing/releases/latest) · [Kurulum](#kurulum) · [Kısayollar](#kısayollar) · [Özellik öner](https://github.com/firewallstudio/Missing/issues/new?template=feature_request.yml) · [**English**](README.md)
 
 <img src="assets/switcher.gif" alt="Missing ⌘Tab: tüm pencereler, canlı önizlemeyle" width="900">
 
@@ -56,14 +56,14 @@ Menü çubuğundaki yaprağa tıkla: üstte ses çıkışı, altında hızlı ey
 - **Ekranları karart:** ⌘⇧< ile karart, aynı kısayolla geri aç.
 - **Hızlı özellikler:** gruplu ⌘Tab görünümü, Finder'da fare tuşlarıyla geri/ileri, dosya sürüklerken Dock'ta anında açılma.
 
-## Yolunu kesmeyen ayarlar
+## Sadece kullandıkların
 
 <div align="center">
+<img src="assets/settings-features.png" alt="Özellikler: her birini aç ya da kapat" width="440">
 <img src="assets/settings-quick.png" alt="Hızlı Özellikler" width="440">
-<img src="assets/settings-screen.png" alt="Ekran ayarları" width="440">
 </div>
 
-Her özelliğin tek bir düğmesi var; ayrıntılar ihtiyacın olana kadar kapalı durur.
+**Ayarlar › Özellikler** her özelliği canlı önizlemesi ve tek bir düğmesiyle gösterir. Kapattığın her şey tamamen kaybolur: Ayarlar'dan, menü panelinden, kısayol listesinden ve izinler sayfasından. Ne izin ister ne çalışır. Açık olanların ayrıntıları da ihtiyacın olana kadar kapalı durur.
 
 ## Kısayollar
 
@@ -79,6 +79,10 @@ Her özelliğin tek bir düğmesi var; ayrıntılar ihtiyacın olana kadar kapal
 | ⌘⇧3 · ⌘⇧4 · ⌘⇧5 · ⌘⇧6 | Ekran · alan · kayıt · kaydırmalı görüntü |
 | ⌘Space (Finder'da) | Dosya ara |
 | ⌘⇧< | Ekranları karart |
+
+## Sende ne eksik?
+
+Mac'in unuttuğu, atladığı ya da yarım bıraktığı bir özellik mi var? **[Buradan öner](https://github.com/firewallstudio/Missing/issues/new?template=feature_request.yml)**, beğendiğin [önerilere](https://github.com/firewallstudio/Missing/issues?q=label%3Aidea) 👍 ver; en çok istenenler önce gelir. Formu uygulamada **Ayarlar › Özellik iste**'den de açabilirsin.
 
 ## Kurulum
 

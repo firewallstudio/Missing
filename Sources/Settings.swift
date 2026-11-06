@@ -40,7 +40,7 @@ final class SettingsModel: ObservableObject {
     var onInstallUpdate: (ReleaseInfo?) -> Void = { _ in }
 
     /// Ayarlarda açık sayfa (menü panelinden belirli bir sayfaya gidilebilir)
-    @Published var page: SettingsPage = .general
+    @Published var page: SettingsPage = .features
 
     init(store: DeviceStore) { self.store = store }
 
@@ -145,10 +145,11 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
 // MARK: - Görünüm
 
 enum SettingsPage: CaseIterable {
-    case general, switcher, audio, screen, quick, permissions, shortcuts, versions, about
+    case features, general, switcher, audio, screen, quick, permissions, shortcuts, request, versions, about
 
     var title: String {
         switch self {
+        case .features: return L("Özellikler")
         case .general: return L("Genel")
         case .switcher: return L("Pencere Değiştirici")
         case .audio: return L("Ses")
@@ -158,11 +159,13 @@ enum SettingsPage: CaseIterable {
         case .shortcuts: return L("Kısayollar")
         case .versions: return L("Sürümler")
         case .about: return L("Hakkında")
+        case .request: return L("Özellik iste")
         }
     }
 
     var icon: String {
         switch self {
+        case .features: return "square.grid.2x2.fill"
         case .general: return "gearshape.fill"
         case .switcher: return "rectangle.on.rectangle"
         case .audio: return "speaker.wave.2.fill"
@@ -172,6 +175,7 @@ enum SettingsPage: CaseIterable {
         case .shortcuts: return "keyboard"
         case .versions: return "clock.arrow.circlepath"
         case .about: return "leaf.fill"
+        case .request: return "lightbulb.fill"
         }
     }
 }
@@ -192,7 +196,7 @@ struct SettingsView: View {
             Divider().opacity(0.3)
             ScrollView {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text(page.title)
+                    Text((Feature.pageVisible(page) ? page : .features).title)
                         .font(.system(size: 22, weight: .bold))
                         .padding(.bottom, 6)
                     pageContent
@@ -227,7 +231,10 @@ struct SettingsView: View {
     }
 
     @ViewBuilder private var pageContent: some View {
-        switch page {
+        // Kapatılan özelliğin sayfası açıksa Özellikler'e dön
+        switch Feature.pageVisible(page) ? page : .features {
+        case .features: FeaturesPage(model: model)
+        case .request: RequestPage()
         case .general: generalTab
         case .switcher: windowsTab
         case .audio: audioTab
@@ -249,8 +256,8 @@ struct SettingsView: View {
             .padding(.horizontal, 10)
             .padding(.top, 40)
             .padding(.bottom, 14)
-            ForEach(SettingsPage.allCases, id: \.self) { p in
-                if p == .permissions || p == .versions { Spacer().frame(height: 10) }
+            ForEach(SettingsPage.allCases.filter { Feature.pageVisible($0) }, id: \.self) { p in
+                if p == .general || p == .permissions || p == .request { Spacer().frame(height: 10) }
                 sidebarItem(p)
             }
             Spacer()
@@ -261,7 +268,7 @@ struct SettingsView: View {
     }
 
     private func sidebarItem(_ p: SettingsPage) -> some View {
-        let selected = page == p
+        let selected = (Feature.pageVisible(page) ? page : .features) == p
         return Button { model.page = p } label: {
             HStack(spacing: 9) {
                 Image(systemName: p.icon)
@@ -1403,6 +1410,11 @@ struct Card<Content: View>: View {
     private var showsBody: Bool { expanded && enabled }
 
     var body: some View {
+        // Özelliği kapalıysa kart hiç görünmez (aç/kapa Ayarlar › Özellikler'de)
+        if enabled { card }
+    }
+
+    private var card: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
             if showsBody {
@@ -1434,7 +1446,6 @@ struct Card<Content: View>: View {
                 }
             }
             Spacer(minLength: 8)
-            if let isOn { BrandToggle(isOn: isOn) }
             Image(systemName: "chevron.right")
                 .font(.system(size: 11, weight: .bold))
                 .foregroundStyle(.white.opacity(enabled ? 0.45 : 0.15))
