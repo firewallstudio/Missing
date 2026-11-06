@@ -2,6 +2,10 @@
 
 Also shown in the app: **Settings › Versions**.
 
+## 3.0.7
+
+- Equalizer: 10 bands and a preamp (dB) for system audio, with presets; no eqMac needed (Settings › Sound, macOS 14.2+)
+
 ## 3.0.6
 
 - MacBook Pro 14" M4 Pro: unplugged drops the display to 600 nits and 60 Hz with Low Power; plugged in returns to 1600 nits, ProMotion and High Power (Settings › Screen, button in the menu)

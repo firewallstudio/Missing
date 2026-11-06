@@ -16,6 +16,10 @@ struct ChangelogEntry {
 
 enum Changelog {
     static let entries: [ChangelogEntry] = [
+        ChangelogEntry(version: "3.0.7", items: [
+            ("Ekolayzır: sistemin sesi için 10 bant ve ön kazanç (dB), hazır ayarlar; eqMac gerekmez (Ayarlar › Ses, macOS 14.2+)",
+             "Equalizer: 10 bands and a preamp (dB) for system audio, with presets; no eqMac needed (Settings › Sound, macOS 14.2+)"),
+        ]),
         ChangelogEntry(version: "3.0.6", items: [
             ("MacBook Pro 14 inç M4 Pro: fişten çekince ekran 600 nit ve 60 Hz, düşük güç; şarja takınca 1600 nit, ProMotion, yüksek güç (Ayarlar › Ekran, menüde düğme)",
              "14-inch MacBook Pro M4 Pro: unplugged drops the display to 600 nits and 60 Hz with Low Power; plugged in returns to 1600 nits, ProMotion and High Power (Settings › Screen, button in the menu)"),
