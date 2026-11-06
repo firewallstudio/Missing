@@ -16,6 +16,18 @@ struct ChangelogEntry {
 
 enum Changelog {
     static let entries: [ChangelogEntry] = [
+        ChangelogEntry(version: "3.0.4", items: [
+            ("Finder'ın sağ üstteki arama kutusu ve ⌘F de Missing aramasını açar",
+             "Finder's search box and ⌘F open Missing's search too"),
+            ("Aramanın önizlemesinde video kendiliğinden oynamaz; Space ile Hızlı Bakış kapanınca arama açık kalır",
+             "Videos no longer autoplay in the search preview; search stays open after closing Quick Look with Space"),
+            ("Sadece pencereyi çek: ekran görüntüsü ve kayıtta tek bir pencere seç (⌘⇧5 paleti)",
+             "Capture just a window: pick a single window for screenshots or recordings (⌘⇧5 palette)"),
+            ("Ekranı böl: düzen seçince bölmeler o ekrandaki son kullanılan pencerelerle dolsun ya da sen seç (Ayarlar › Ekran)",
+             "Split screen: fill zones with that screen's most recent windows automatically, or choose them yourself (Settings › Screen)"),
+            ("Finder sekmeleri: × her zaman kapatır, şerit yukarıdan kayarak gelir ve Finder'ın rengini alır",
+             "Finder tabs: × always closes, the strip slides in from the top and matches Finder's colour"),
+        ]),
         ChangelogEntry(version: "3.0.3", items: [
             ("Dosya arama: seçili sonuç sağda önizleniyor; fareyle üstüne gelince önizlenir, Space Finder'daki gibi Hızlı Bakış açar",
              "File search: the selected result is previewed on the right; hover to preview, Space opens Quick Look like in Finder"),
