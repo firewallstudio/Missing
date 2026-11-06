@@ -1,3 +1,4 @@
+import UniformTypeIdentifiers
 import Cocoa
 import Quartz
 
@@ -1036,6 +1037,13 @@ private final class ResultCell: NSTableCellView {
         current = r
         self.showPath = showPath
         icon.image = NSWorkspace.shared.icon(forFile: r.path)
+        #if SNAPSHOT
+        if !FileManager.default.fileExists(atPath: r.path) {
+            let ext = (r.name as NSString).pathExtension
+            if r.isDir { icon.image = NSWorkspace.shared.icon(for: .folder) }
+            else if let t = UTType(filenameExtension: ext) { icon.image = NSWorkspace.shared.icon(for: t) }
+        }
+        #endif
         sub.isHidden = !showPath
         apply(r)
     }

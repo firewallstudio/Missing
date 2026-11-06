@@ -8,40 +8,68 @@
 
 [**Download**](https://github.com/firewallstudio/Missing/releases/latest) · [Install](#install) · [Shortcuts](#shortcuts) · [**Türkçe**](README.tr.md)
 
+<img src="assets/switcher.gif" alt="Missing's ⌘Tab: every window, with live previews" width="900">
+
 </div>
 
 ---
 
-The Mac is great, but some everyday things are missing or only half done. ⌘Tab shows apps, not windows. Switching the sound output takes a trip through menus. Splitting the screen, capturing a long page or finding a file by name each mean hunting for another app.
+The Mac is great, but some everyday things are missing or only half done. ⌘Tab shows apps, not windows. Switching the sound output means a trip through menus. Splitting the screen, capturing a long page or finding a file by name each send you hunting for another app.
 
-Missing puts these forgotten features in one place, and each one feels like part of macOS. Turn off what you don't need: a feature you turn off never asks for a permission and never runs.
+Missing brings these forgotten features together, and each one feels like it shipped with macOS. Turn off what you don't need: a feature you turn off never asks for a permission and never runs.
 
-## Features
+## ⌘Tab, window by window
 
-| | |
-|---|---|
-| **⌘Tab, window by window** | Windows, not just apps, with live previews. Every browser profile, every Space, full-screen windows too. Drop a file on a card to open it with that app. |
-| **One-key sound output** | Hold ⌘ and tap ⇧: speakers → headphones → monitor. Assign a device per app. |
-| **Split screen** | ⌘< or drag a window to the top of the screen (on MacBooks, to the notch) and pick a layout. |
-| **Screenshots and recording** | ⌘⇧3 for the display you're on, ⌘⇧4 for an area, ⌘⇧6 for scrolling pages, ⌘⇧5 to record MP4. |
-| **File search in Finder** | ⌘Space while Finder is in front: a Spotlight-style bar that searches file names instantly, inside the folder you're in. |
-| **Quick features** | Grouped ⌘Tab view, mouse back/forward in Finder, Dock drag and drop, black out every display with ⌘⇧<. |
+Windows, not just apps, with live previews. Every browser profile, every Space and every full-screen window is there. Close a window with the red dot on its card, or send it to part of the screen with the button next to it.
 
-It does nothing while idle and only goes online to check for updates. Native Swift.
+- **⌥Tab** works too, with its own settings (previews, list view, one app only).
+- **Drop a file on a card** to open it with that app. Drop it on a Finder window to move it into that folder.
+- Too many windows to fit? Previews shrink first, then the panel scrolls with your selection.
 
-## Install
+## Find files in Finder, like Spotlight
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/firewallstudio/Missing/main/install.sh | bash
-```
+<div align="center"><img src="assets/search.gif" alt="File search in Finder" width="820"></div>
 
-Or download `Missing.zip` from [Releases](https://github.com/firewallstudio/Missing/releases/latest) and drag `Missing.app` into **Applications**.
+Press **⌘Space while Finder is in front** and a Spotlight-style bar opens. It matches file names as you type, inside the folder you're looking at; **Tab** widens the search to the whole Mac. Results are grouped like Spotlight: Top Hit, Folders, Documents, Images and more.
 
-On first launch Missing asks which features you want and only requests the permissions those need. You can change everything later in **Settings**.
+Everywhere else, ⌘Space still opens Spotlight. **Enter** opens · **⌘Enter** shows in Finder · **⌘Y** Quick Look · drag results into any app.
 
-Missing isn't in Apple's paid developer program. If you downloaded the zip in a browser and macOS blocks it, open **System Settings › Privacy & Security** and click **Open Anyway**, or run `xattr -dr com.apple.quarantine /Applications/Missing.app`.
+## Split the screen from the notch
+
+<div align="center"><img src="assets/notch.gif" alt="Notch tiling island" width="900"></div>
+
+Drag a window to the top of the screen. On MacBooks with a notch, the notch grows into an island with layouts on both sides. Your two most-used layouts sit right under the notch and update as you use them. Drop the window on a zone and it snaps there. Or press **⌘<** to pick a layout and fill it window by window.
+
+## One key for sound output
+
+<div align="center"><img src="assets/audio.png" alt="Sound output switch" width="640"></div>
+
+Hold **⌘** and tap **⇧** to move to the next output: speakers → AirPods → display. Assign a device per app, and sound follows when that app comes forward.
+
+## Everything else, one click away
+
+<div align="center"><img src="assets/menu.png" alt="Menu bar panel" width="560"></div>
+
+Click the leaf in the menu bar for a glass panel: sound output at the top, then quick actions (split screen, screenshot, record, scrolling capture, black out displays) and brightness sliders for external displays.
+
+- **Screenshots and recording:** ⌘⇧3 captures the display you're on, ⌘⇧4 an area, ⌘⇧6 a whole scrolling page, ⌘⇧5 records MP4.
+- **Black out displays** with ⌘⇧<, and bring them back the same way.
+- **Quick features:** grouped ⌘Tab view, back/forward with mouse buttons in Finder, instant Dock opening while dragging a file.
+
+## Settings that stay out of your way
+
+<div align="center">
+<img src="assets/settings-quick.png" alt="Quick Features settings" width="440">
+<img src="assets/settings-screen.png" alt="Screen settings" width="440">
+</div>
+
+Every feature has one switch. Details fold away until you need them.
 
 ## Shortcuts
+
+<div align="center"><img src="assets/shortcuts.gif" alt="Animated shortcut guide" width="520"></div>
+
+**Settings › Shortcuts** plays a short animation of what each shortcut does.
 
 | Shortcut | Does |
 |---|---|
@@ -52,7 +80,23 @@ Missing isn't in Apple's paid developer program. If you downloaded the zip in a 
 | ⌘Space (in Finder) | Find files |
 | ⌘⇧< | Black out displays |
 
-**Settings › Shortcuts** shows each one in action.
+## Install
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/firewallstudio/Missing/main/install.sh | bash
+```
+
+Or download `Missing.zip` from [Releases](https://github.com/firewallstudio/Missing/releases/latest) and drag `Missing.app` into **Applications**.
+
+<div align="center"><img src="assets/setup.png" alt="First launch setup" width="420"></div>
+
+On first launch Missing asks which features you want and only requests the permissions those need. You can change everything later in **Settings**.
+
+Missing isn't in Apple's paid developer program. If you downloaded the zip in a browser and macOS blocks it, open **System Settings › Privacy & Security** and click **Open Anyway**, or run `xattr -dr com.apple.quarantine /Applications/Missing.app`.
+
+## Privacy
+
+Nothing leaves your Mac. The only network request is the update check against GitHub Releases. File search keeps an index of file names on this Mac only; file contents are never read.
 
 ## Build
 
@@ -61,4 +105,6 @@ Missing isn't in Apple's paid developer program. If you downloaded the zip in a 
 ./build.sh --install   # build and install to /Applications
 ```
 
-Every release is signed with the same certificate (`signing/AudioTab.pem`), so macOS keeps your permissions across updates and the updater only installs builds signed with it.
+Every release is signed with the same certificate (`signing/AudioTab.pem`), so macOS keeps your permissions across updates, and the updater only installs builds signed with it.
+
+<sub>The images show Missing's real interface; window contents in the backgrounds are illustrations.</sub>

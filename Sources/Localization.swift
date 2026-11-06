@@ -181,7 +181,7 @@ private let englishStrings: [String: String] = [
     "Pencereyi başlığından tutup sürükleyince ekranın üst ortasında küçük bir çıkıntı belirir. Oraya götür, düzen ve bölmeyi seç, bırak: pencere oraya yerleşir (Windows'taki gibi).": "Drag a window by its title bar and a small tab appears at the top center of the screen. Move it there, pick a layout and zone, release: the window snaps into place (like Windows).",
     "Kullan": "Enable",
     "Kapatınca hepsi devre dışı kalır ve macOS'un kendi ⌘⇧3 / ⌘⇧4 / ⌘⇧5 kısayolları geri gelir.": "Turning this off disables everything and restores the macOS ⌘⇧3 / ⌘⇧4 / ⌘⇧5 shortcuts.",
-    "Bu monitörün görüntüsü": "Screenshot of this display",
+    "Bu monitörün görüntüsü": "Capture this display",
     "Sadece farenin olduğu monitör": "Only the display under the mouse",
     "Alan seç; Space ile pencere seçimi": "Select an area; Space to pick a window",
     "Alanı seç, sayfa kendiliğinden kayar · Esc bitirir": "Select an area, the page scrolls by itself · Esc finishes",

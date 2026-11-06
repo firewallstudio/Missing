@@ -191,8 +191,16 @@ private final class TopPanel: NSPanel {
 
     /// Çentikte: en çok kullanılan iki düzen çentiğin hemen altında büyük, diğerleri iki yanda (2 satır)
     private static func layout(for s: NSScreen) -> (size: NSSize, frames: [CGRect], featured: Set<Int>) {
+        layout(notch: notch(of: s))
+    }
+
+    #if SNAPSHOT
+    static func snapshotLayout(notch: NSSize) -> (size: NSSize, frames: [CGRect], featured: Set<Int>) { layout(notch: notch) }
+    #endif
+
+    private static func layout(notch nt: NSSize?) -> (size: NSSize, frames: [CGRect], featured: Set<Int>) {
         let n = layouts.count
-        if let nt = notch(of: s) {
+        if let nt {
             let top = SnapUsage.top2(layouts)
             let rest = (0..<n).filter { !top.contains($0) }
             let perSide: Int = (rest.count + 1) / 2
