@@ -16,6 +16,14 @@ struct ChangelogEntry {
 
 enum Changelog {
     static let entries: [ChangelogEntry] = [
+        ChangelogEntry(version: "3.0.5", items: [
+            ("Finder'ın arama kutusuna yazdıkça altında Missing'in anında sonuçları çıkar (↓↑ ↩ ⌘↩ Esc)",
+             "Typing in Finder's search box shows Missing's instant results right below it (↓↑ ↩ ⌘↩ Esc)"),
+            ("Finder sekmeleri hep yerinde: sağ tıkta ve uygulama geçişinde kaybolmaz, yeniden inmez; renk Finder'dan doğru ölçülür",
+             "Finder tabs stay put: they no longer vanish on right-click or reappear when switching apps; the colour is sampled correctly from Finder"),
+            ("Pencere görüntüleri ve pencere kayıtları için ayrı klasör seçimi (Ayarlar › Ekran)",
+             "Choose folders for window screenshots and window recordings (Settings › Screen)"),
+        ]),
         ChangelogEntry(version: "3.0.4", items: [
             ("Finder'ın sağ üstteki arama kutusu ve ⌘F de Missing aramasını açar",
              "Finder's search box and ⌘F open Missing's search too"),

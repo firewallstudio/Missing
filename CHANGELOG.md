@@ -2,6 +2,12 @@
 
 Also shown in the app: **Settings › Versions**.
 
+## 3.0.5
+
+- Typing in Finder's search box shows Missing's instant results right below it (↓↑ ↩ ⌘↩ Esc)
+- Finder tabs stay put: they no longer vanish on right-click or reappear when switching apps; the colour is sampled correctly from Finder
+- Choose folders for window screenshots and window recordings (Settings › Screen)
+
 ## 3.0.4
 
 - Finder's search box and ⌘F open Missing's search too
