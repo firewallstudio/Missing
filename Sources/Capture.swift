@@ -1014,7 +1014,7 @@ struct CapturePaletteView: View {
     func screenshotWindow() {
         guard ensurePermission() else { return }
         let url = CaptureFiles.newURL(.window, prefix: L("Pencere"), ext: "png")
-        runScreencapture(["-i", "-W", "-o", "-x"], url: url, label: L("Pencere görüntüsü"), preview: false, shutterOnSuccess: true)
+        runScreencapture(["-i", "-W", "-o", "-x"], url: url, label: L("Pencere görüntüsü"), shutterOnSuccess: true)
     }
 
     /// Bir pencere seç, sadece o pencereyi kaydet (üstüne başka pencere gelse de görünmez)
@@ -1112,7 +1112,7 @@ struct CapturePaletteView: View {
         guard ensurePermission() else { return }
         let url = CaptureFiles.newURL(.area, prefix: L("Ekran Alıntısı"), ext: "png")
         // -x: macOS'un kendi sesi çalmasın; çekim bitince bizimki çalar
-        runScreencapture(["-i", "-x"], url: url, label: L("Ekran alıntısı"), preview: false, shutterOnSuccess: true)
+        runScreencapture(["-i", "-x"], url: url, label: L("Ekran alıntısı"), shutterOnSuccess: true)
     }
 
     // MARK: ⌘⇧6 — kaydırmalı görüntü
