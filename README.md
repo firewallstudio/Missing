@@ -6,7 +6,7 @@
 
 **The features your Mac left out, in one light menu bar app.**
 
-[**Download**](https://github.com/firewallstudio/Missing/releases/latest) · [Install](#install) · [Shortcuts](#shortcuts) · [**Türkçe**](README.tr.md)
+[**Download**](https://github.com/firewallstudio/Missing/releases/latest) · [Install](#install) · [Shortcuts](#shortcuts) · [Suggest a feature](https://github.com/firewallstudio/Missing/issues/new?template=feature_request.yml) · [**Türkçe**](README.tr.md)
 
 <img src="assets/switcher.gif" alt="Missing's ⌘Tab: every window, with live previews" width="900">
 
@@ -56,14 +56,14 @@ Click the leaf in the menu bar for a glass panel: sound output at the top, then 
 - **Black out displays** with ⌘⇧<, and bring them back the same way.
 - **Quick features:** grouped ⌘Tab view, back/forward with mouse buttons in Finder, instant Dock opening while dragging a file.
 
-## Settings that stay out of your way
+## Only what you use
 
 <div align="center">
+<img src="assets/settings-features.png" alt="Features: turn each one on or off" width="440">
 <img src="assets/settings-quick.png" alt="Quick Features settings" width="440">
-<img src="assets/settings-screen.png" alt="Screen settings" width="440">
 </div>
 
-Every feature has one switch. Details fold away until you need them.
+**Settings › Features** shows every feature with a live preview and one switch. Anything you turn off disappears completely: from Settings, the menu bar panel, the shortcut list and the permissions page. It never asks for a permission and never runs. Details for the rest fold away until you need them.
 
 ## Shortcuts
 
@@ -79,6 +79,10 @@ Every feature has one switch. Details fold away until you need them.
 | ⌘⇧3 · ⌘⇧4 · ⌘⇧5 · ⌘⇧6 | Display · area · record · scrolling capture |
 | ⌘Space (in Finder) | Find files |
 | ⌘⇧< | Black out displays |
+
+## Missing something?
+
+Is there a feature the Mac forgot, skipped or only half did? **[Suggest it here](https://github.com/firewallstudio/Missing/issues/new?template=feature_request.yml)** and give a 👍 to [ideas](https://github.com/firewallstudio/Missing/issues?q=label%3Aidea) you'd like too. The most wanted ones come first. You can also open the form from **Settings › Suggest a Feature** in the app.
 
 ## Install
 
