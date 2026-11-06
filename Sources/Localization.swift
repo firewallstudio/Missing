@@ -532,4 +532,9 @@ private let englishStrings: [String: String] = [
     "Önerilere bak": "Browse ideas",
     "GitHub'da açılır; bir GitHub hesabı gerekir.": "Opens on GitHub; you'll need a GitHub account.",
     "Tek tuşla sıradaki ses çıkışına geç": "Jump to the next sound output with one key",
+    "⌘Tab · ⌥Tab · önizlemeler · tarayıcı profilleri": "⌘Tab · ⌥Tab · previews · browser profiles",
+    "Ses kısayolu · uygulamaya göre ses cihazı": "Sound shortcut · sound device per app",
+    "Ekran görüntüsü ve kayıt · ekranı böl · harici monitörler": "Screenshots and recording · split screen · external displays",
+    "Dosya ara · karartma · gruplu görünüm · Finder ve Dock": "File search · black out · grouped view · Finder and Dock",
+    "Kullanmadığın sekmeyi kapat: içindeki hiçbir şey çalışmaz, izin istemez ve Ayarlar'da görünmez. Açınca ayarların kaldığı gibi geri gelir.": "Turn off a tab you don't use: nothing in it runs, asks for permissions or shows up in Settings. Turn it back on and your settings return as they were.",
 ]

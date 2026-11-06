@@ -16,6 +16,12 @@ struct ChangelogEntry {
 
 enum Changelog {
     static let entries: [ChangelogEntry] = [
+        ChangelogEntry(version: "3.0.2", items: [
+            ("Özellikler paneli artık sekmeleri açıp kapatıyor: Pencere Değiştirici, Ses, Ekran, Hızlı Özellikler. Kapalı sekme kenar çubuğundan ve menü panelinden kalkar, içindeki hiçbir şey çalışmaz",
+             "The Features panel now turns whole tabs on or off: Window Switcher, Sound, Screen, Quick Features. A tab you turn off leaves the sidebar and the menu bar panel, and nothing in it runs"),
+            ("Sekmeyi tekrar açınca içindeki ayarlar kaldığı gibi geri gelir; sekmenin içindeki her seçeneğin kendi düğmesi var",
+             "Turn a tab back on and its settings return as they were; every option inside a tab has its own switch"),
+        ]),
         ChangelogEntry(version: "3.0.1", items: [
             ("Özellikler paneli: ana kısayollar (⌘Tab, ses, ekran görüntüsü, ekranı böl) canlı önizlemeyle tek yerde; kapattığın özellik Ayarlar'da, menü panelinde ve kısayol listesinde hiç görünmez",
              "Features panel: the main shortcuts (⌘Tab, sound, screenshots, split screen) with live previews in one place; anything you turn off disappears from Settings, the menu bar panel and the shortcut list"),

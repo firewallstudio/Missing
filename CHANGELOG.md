@@ -2,6 +2,11 @@
 
 Also shown in the app: **Settings › Versions**.
 
+## 3.0.2
+
+- The Features panel now turns whole tabs on or off: Window Switcher, Sound, Screen, Quick Features. A tab you turn off leaves the sidebar and the menu bar panel, and nothing in it runs
+- Turn a tab back on and its settings return as they were; every option inside a tab has its own switch
+
 ## 3.0.1
 
 - Features panel: the main shortcuts (⌘Tab, sound, screenshots, split screen) with live previews in one place; anything you turn off disappears from Settings, the menu bar panel and the shortcut list

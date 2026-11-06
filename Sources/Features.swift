@@ -2,39 +2,34 @@ import SwiftUI
 
 // MARK: - Özellikler paneli (Ayarlar › Özellikler)
 //
-// Her özellik canlı bir önizlemeyle bir kart. Kapatılan özelliğin Ayarlar'da, menü panelinde,
+// Her sekme canlı bir önizlemeyle bir kart. Kapatılan sekmenin Ayarlar'da, menü panelinde,
 // kısayol listesinde ve izinlerde hiçbir izi kalmaz; sadece kullanılanlar görünür.
 
-/// Ana özellikler: her biri bir kısayol. Alt ayarlar ve hızlı özellikler kendi sayfalarında.
+/// Ayarlardaki sekmeler: her biri bir düğmeyle açılır/kapanır. Kapalı sekme kenar çubuğundan
+/// kalkar ve içindeki her şey durur; açınca içindeki ayarlar kapatmadan önceki haline döner.
 enum Feature: String, CaseIterable, Identifiable {
-    case switcher, audioKey, capture, tile
+    case switcher, sound, screen, quick
 
     var id: String { rawValue }
 
-    var title: String {
+    var page: SettingsPage {
         switch self {
-        case .switcher: return L("Pencere değiştirici")
-        case .audioKey: return L("Ses cihazı kısayolu")
-        case .capture: return L("Ekran görüntüsü ve kayıt")
-        case .tile: return L("Ekranı böl")
+        case .switcher: return .switcher
+        case .sound: return .audio
+        case .screen: return .screen
+        case .quick: return .quick
         }
     }
 
-    var keys: [String] {
-        switch self {
-        case .switcher: return ["⌘", "Tab"]
-        case .audioKey: return DeviceStore.shared.hotkeyChoice == .cmdShift ? ["⌘", "⇧"] : ["⌘", "⇪"]
-        case .capture: return ["⌘", "⇧", "3–6"]
-        case .tile: return ["⌘", "<"]
-        }
-    }
+    var title: String { page.title }
+    var icon: String { page.icon }
 
     var detail: String {
         switch self {
-        case .switcher: return L("Uygulamalar değil pencereler, canlı önizlemeyle")
-        case .audioKey: return L("Tek tuşla sıradaki ses çıkışına geç")
-        case .capture: return L("Bulunduğun ekran, alan, kaydırmalı sayfa, MP4 kayıt")
-        case .tile: return L("⌘< ya da pencereyi ekranın üstüne sürükle")
+        case .switcher: return L("⌘Tab · ⌥Tab · önizlemeler · tarayıcı profilleri")
+        case .sound: return L("Ses kısayolu · uygulamaya göre ses cihazı")
+        case .screen: return L("Ekran görüntüsü ve kayıt · ekranı böl · harici monitörler")
+        case .quick: return L("Dosya ara · karartma · gruplu görünüm · Finder ve Dock")
         }
     }
 
@@ -42,49 +37,71 @@ enum Feature: String, CaseIterable, Identifiable {
     var demo: ShortcutDemo {
         switch self {
         case .switcher: return .switcher
-        case .audioKey: return .audio
-        case .capture: return .area
-        case .tile: return .tile
+        case .sound: return .audio
+        case .screen: return .tile
+        case .quick: return .search
         }
     }
 
-    var isOn: Bool {
-        switch self {
-        case .switcher: return Profile.cmd.enabled || Profile.opt.enabled
-        case .audioKey: return DeviceStore.shared.hotkeyEnabled
-        case .capture: return CaptureSettings.enabled
-        case .tile: return TileSettings.enabled || SnapBarSettings.enabled
-        }
-    }
-
-    /// Aç/kapat ve çalışan parçalara uygula
-    func set(_ on: Bool, model: SettingsModel) {
+    /// Sekmenin içindeki ayarlar (kapatınca hepsi kapanır, açınca eski halleri geri gelir)
+    private var items: [(key: String, get: () -> Bool, set: (Bool) -> Void, fresh: Bool)] {
+        let store = DeviceStore.shared
         switch self {
         case .switcher:
-            Profile.cmd.enabled = on
-            Profile.opt.enabled = on
-            model.onNativeTabChanged(); model.onPreviewsChanged()
-        case .audioKey:
-            DeviceStore.shared.hotkeyEnabled = on
-            model.onHotkeyChanged()
-        case .capture:
-            CaptureSettings.enabled = on
-            model.onShortcutsChanged()
-        case .tile:
-            TileSettings.enabled = on
-            SnapBarSettings.enabled = on
-            model.onShortcutsChanged()
+            return [("cmd", { Profile.cmd.enabled }, { Profile.cmd.enabled = $0 }, true),
+                    ("opt", { Profile.opt.enabled }, { Profile.opt.enabled = $0 }, true)]
+        case .sound:
+            return [("hotkey", { store.hotkeyEnabled }, { store.hotkeyEnabled = $0 }, true),
+                    ("appAudio", { store.autoSwitchByApp }, { store.autoSwitchByApp = $0 }, true)]
+        case .screen:
+            return [("capture", { CaptureSettings.enabled }, { CaptureSettings.enabled = $0 }, true),
+                    ("tile", { TileSettings.enabled }, { TileSettings.enabled = $0 }, true),
+                    ("snapBar", { SnapBarSettings.enabled }, { SnapBarSettings.enabled = $0 }, true),
+                    ("monitors", { MonitorSettings.showInMenu }, { MonitorSettings.showInMenu = $0 }, true)]
+        case .quick:
+            return [("search", { FileSearchSettings.enabled }, { FileSearchSettings.enabled = $0 }, true),
+                    ("blackout", { MonitorSettings.blackoutKey }, { MonitorSettings.blackoutKey = $0 }, true),
+                    ("grouped", { Profile.cmd.grouped }, { Profile.cmd.grouped = $0 }, false),
+                    ("deepScan", { DeepScanScope.current != .off }, { DeepScanScope.current = $0 ? .browsers : .off }, true),
+                    ("mouseNav", { FinderMouseNav.enabled }, { FinderMouseNav.enabled = $0 }, true),
+                    ("dockDrag", { DockDragSettings.enabled }, { DockDragSettings.enabled = $0 }, true)]
         }
+    }
+
+    private var flagKey: String { "section.\(rawValue).enabled" }
+    private var savedKey: String { "section.\(rawValue).saved" }
+
+    var isOn: Bool { UserDefaults.standard.object(forKey: flagKey) as? Bool ?? true }
+
+    /// Sekmeyi aç/kapat ve çalışan parçalara uygula
+    func set(_ on: Bool, model: SettingsModel) {
+        guard on != isOn else { return }
+        let d = UserDefaults.standard
+        if on {
+            let saved = d.dictionary(forKey: savedKey) as? [String: Bool] ?? [:]
+            for it in items { it.set(saved[it.key] ?? it.fresh) }
+        } else {
+            var saved: [String: Bool] = [:]
+            for it in items { saved[it.key] = it.get(); it.set(false) }
+            d.set(saved, forKey: savedKey)
+        }
+        d.set(on, forKey: flagKey)
+        // Çalışan parçalar yeni ayarlara uysun
+        model.onNativeTabChanged()
+        model.onPreviewsChanged()
+        model.onHotkeyChanged()
+        model.onShortcutsChanged()
+        model.onFileSearchChanged()
+        model.onDockDragChanged()
+        model.onDeepScanChanged()
         model.refresh()
     }
 
-    /// Ayarlarda hangi sayfalar görünsün: kapalı ana özelliğin sayfası hiç görünmez
+    /// Kenar çubuğunda hangi sekmeler görünsün
     static func pageVisible(_ p: SettingsPage) -> Bool {
-        switch p {
-        case .switcher: return Feature.switcher.isOn
-        case .shortcuts: return ShortcutDemo.allCases.contains { $0.enabled }
-        default: return true
-        }
+        if let f = Feature.allCases.first(where: { $0.page == p }) { return f.isOn }
+        if p == .shortcuts { return ShortcutDemo.allCases.contains { $0.enabled } }
+        return true
     }
 }
 
@@ -95,7 +112,7 @@ struct FeaturesPage: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text(L("Kullanmadığını kapat: kapattığın özellik ne izin ister ne çalışır, Ayarlar'da da görünmez."))
+            Text(L("Kullanmadığın sekmeyi kapat: içindeki hiçbir şey çalışmaz, izin istemez ve Ayarlar'da görünmez. Açınca ayarların kaldığı gibi geri gelir."))
                 .font(.system(size: 12.5))
                 .foregroundStyle(.white.opacity(0.6))
                 .fixedSize(horizontal: false, vertical: true)
@@ -122,7 +139,10 @@ struct FeatureTile: View {
                 .saturation(on ? 1 : 0)
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
-                    KeyCombo(keys: feature.keys, size: 10.5)
+                    Image(systemName: feature.icon)
+                        .font(.system(size: 12, weight: .semibold))
+                        .frame(width: 26, height: 26)
+                        .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(on ? Brand.red : Color.white.opacity(0.12)))
                     Spacer()
                     BrandToggle(isOn: Binding(get: { feature.isOn }, set: { feature.set($0, model: model) }))
                 }

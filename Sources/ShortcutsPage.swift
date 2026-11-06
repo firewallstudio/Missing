@@ -487,11 +487,12 @@ struct DemoScene: View {
     }
 
     private var search: some View {
-        let query = "rapor"
+        let tr = AppLanguage.active == .tr
+        let query = tr ? "rapor" : "report"
         let typed = Int(min(Double(query.count), max(0, (t - 0.25) / 0.06)))
         let text = String(query.prefix(typed))
         let showResults = typed >= 3
-        let names = ["Rapor 2026.pdf", "rapor-taslak.docx", "Raporlar"]
+        let names = tr ? ["Rapor 2026.pdf", "rapor-taslak.docx", "Raporlar"] : ["Report 2026.pdf", "report-draft.docx", "Reports"]
         let icons = ["doc.richtext.fill", "doc.text.fill", "folder.fill"]
         return ZStack(alignment: .topLeading) {
             finderWindow
