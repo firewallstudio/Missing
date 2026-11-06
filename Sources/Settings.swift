@@ -888,6 +888,17 @@ struct SettingsView: View {
              }),
              subtitle: L("⌘< ile pencereleri bölmelere yerleştir")) {
             if TileSettings.enabled {
+                Row(L("Düzen seçince"), TileSettings.autoFill
+                    ? L("Bölmeler bulunduğun ekrandaki en son kullanılan pencerelerle kendiliğinden dolar")
+                    : L("Hangi pencerenin hangi bölmeye gideceğini sen seçersin")) {
+                    Picker("", selection: model.bind({ TileSettings.autoFill }, { TileSettings.autoFill = $0 })) {
+                        Text(L("Ben seçeyim")).tag(false)
+                        Text(L("Son kullanılanlar")).tag(true)
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .frame(width: 250)
+                }
                 Row(L("Hedef monitör"), L("Birden fazla monitör varken. Panelde Tab ile her zaman değiştirebilirsin.")) {
                     Picker("", selection: model.bind({ TileSettings.askMonitor }, { TileSettings.askMonitor = $0 })) {
                         Text(L("Farenin olduğu")).tag(false)

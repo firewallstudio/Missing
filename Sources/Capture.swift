@@ -467,10 +467,22 @@ final class ScreenRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
     var onUnexpectedStop: (() -> Void)?
 
     /// rect: monitörün sol üst köşesine göre, nokta cinsinden. nil = tüm monitör.
-    func start(displayID: CGDirectDisplayID, rect: CGRect?, scale: CGFloat, url: URL,
+    func start(displayID: CGDirectDisplayID, rect: CGRect?, windowID: CGWindowID? = nil, scale: CGFloat, url: URL,
                fps requestedFPS: Int, quality: Int, format: VideoFormat = .h264, audio: Bool, cursor: Bool) async throws {
-        let (display, filter) = try await SCHelper.filter(displayID: displayID)
-        let r = rect ?? CGRect(x: 0, y: 0, width: CGFloat(display.width), height: CGFloat(display.height))
+        let filter: SCContentFilter
+        let base: CGSize
+        if let wid = windowID {
+            // Sadece bu pencere: diğer pencereler üstüne gelse de kayda girmez
+            let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+            guard let w = content.windows.first(where: { $0.windowID == wid }) else { throw CaptureError.noDisplay }
+            filter = SCContentFilter(desktopIndependentWindow: w)
+            base = w.frame.size
+        } else {
+            let (display, f) = try await SCHelper.filter(displayID: displayID)
+            filter = f
+            base = CGSize(width: CGFloat(display.width), height: CGFloat(display.height))
+        }
+        let r = rect ?? CGRect(origin: .zero, size: base)
         guard r.width >= 16, r.height >= 16 else { throw CaptureError.tooSmall }
 
         let share = quality == 3 && format.usesQuality
@@ -766,7 +778,7 @@ struct RecordingBadge: View {
 // MARK: - ⌘⇧5 çekim paleti
 
 enum CaptureAction: Int, CaseIterable {
-    case screen = 1, area, scroll, recordScreen, recordArea
+    case screen = 1, area, scroll, recordScreen, recordArea, window, recordWindow
 
     var title: String {
         switch self {
@@ -775,6 +787,8 @@ enum CaptureAction: Int, CaseIterable {
         case .scroll: return L("Kaydırmalı")
         case .recordScreen: return L("Monitörü kaydet")
         case .recordArea: return L("Alanı kaydet")
+        case .window: return L("Pencere")
+        case .recordWindow: return L("Pencereyi kaydet")
         }
     }
     /// Paletteki iki satırlı ad
@@ -785,6 +799,8 @@ enum CaptureAction: Int, CaseIterable {
         case .scroll: return L("Kaydırmalı\ngörüntü")
         case .recordScreen: return L("Monitörü\nkaydet")
         case .recordArea: return L("Alanı\nkaydet")
+        case .window: return L("Sadece\npencere")
+        case .recordWindow: return L("Pencereyi\nkaydet")
         }
     }
     var symbol: String {
@@ -794,6 +810,8 @@ enum CaptureAction: Int, CaseIterable {
         case .scroll: return "scroll"
         case .recordScreen: return "record.circle"
         case .recordArea: return "rectangle.dashed.badge.record"
+        case .window: return "macwindow"
+        case .recordWindow: return "macwindow.badge.plus"
         }
     }
 }
@@ -805,9 +823,9 @@ struct CapturePaletteView: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 14) {
-            group(L("Görüntü"), [.screen, .area, .scroll])
+            group(L("Görüntü"), [.screen, .window, .area, .scroll])
             Rectangle().fill(.white.opacity(0.12)).frame(width: 1, height: 96).padding(.top, 18)
-            group(L("Kayıt"), [.recordScreen, .recordArea])
+            group(L("Kayıt"), [.recordScreen, .recordWindow, .recordArea])
             Button(action: onClose) {
                 Image(systemName: "xmark").font(.system(size: 10, weight: .bold))
                     .frame(width: 22, height: 22)
@@ -958,6 +976,8 @@ struct CapturePaletteView: View {
     private(set) var isRecording = false
     var onRecordingChanged: ((Bool) -> Void)?
 
+    private let windowPicker = WindowPicker()
+
     init(hud: HUDController) {
         self.hud = hud
         palette.onAction = { [weak self] a in self?.perform(a) }
@@ -974,6 +994,25 @@ struct CapturePaletteView: View {
         case .scroll: scrollingScreenshot()
         case .recordScreen: startRecording(area: false)
         case .recordArea: startRecording(area: true)
+        case .window: screenshotWindow()
+        case .recordWindow: startRecordingWindow()
+        }
+    }
+
+    // MARK: Sadece pencere
+
+    /// macOS'un kendi pencere seçicisi: üstüne gelinen pencere vurgulanır, tıklanan pencere çekilir (gölgesiz)
+    func screenshotWindow() {
+        guard ensurePermission() else { return }
+        let url = CaptureFiles.newURL(.area, prefix: L("Pencere"), ext: "png")
+        runScreencapture(["-i", "-W", "-o", "-x"], url: url, label: L("Pencere görüntüsü"), preview: false, shutterOnSuccess: true)
+    }
+
+    /// Bir pencere seç, sadece o pencereyi kaydet (üstüne başka pencere gelse de görünmez)
+    func startRecordingWindow() {
+        guard !isRecording, ensurePermission() else { return }
+        windowPicker.begin(hint: L("Kaydedilecek pencereye tıkla · Esc iptal")) { [weak self] wid, screen in
+            self?.record(screen: screen, rect: nil, windowID: wid)
         }
     }
 
@@ -1164,7 +1203,7 @@ struct CapturePaletteView: View {
         }
     }
 
-    private func record(screen: NSScreen, rect: CGRect?) {
+    private func record(screen: NSScreen, rect: CGRect?, windowID: CGWindowID? = nil) {
         let url = CaptureFiles.newURL(.video, prefix: L("Ekran Kaydı"), ext: CaptureSettings.format.ext)
         let id = displayID(of: screen)
         let scale = screen.backingScaleFactor
@@ -1172,7 +1211,7 @@ struct CapturePaletteView: View {
         onRecordingChanged?(true)
         Task { @MainActor in
             do {
-                try await self.recorder.start(displayID: id, rect: rect, scale: scale, url: url,
+                try await self.recorder.start(displayID: id, rect: rect, windowID: windowID, scale: scale, url: url,
                                               fps: CaptureSettings.fps, quality: CaptureSettings.quality,
                                               format: CaptureSettings.format,
                                               audio: CaptureSettings.recordAudio, cursor: CaptureSettings.showCursor)
@@ -1370,5 +1409,137 @@ struct CaptureToastView: View {
         p.appearance = NSAppearance(named: .darkAqua)
         p.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient, .ignoresCycle]
         return p
+    }
+}
+
+
+// MARK: - Pencere seçici (pencere kaydı için)
+
+/// Ekranın üstünde saydam katman: fare hangi pencerenin üstündeyse kırmızı çerçeveyle vurgulanır,
+/// tıklayınca o pencere seçilir. Esc iptal eder.
+@MainActor final class WindowPicker {
+    private var panels: [NSPanel] = []
+    private var monitors: [Any] = []
+    private var onPick: ((CGWindowID, NSScreen) -> Void)?
+    private var current: (id: CGWindowID, rect: NSRect)?
+
+    func begin(hint: String, onPick: @escaping (CGWindowID, NSScreen) -> Void) {
+        end()
+        self.onPick = onPick
+        for screen in NSScreen.screens {
+            let p = NSPanel(contentRect: screen.frame, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+            p.isOpaque = false
+            p.backgroundColor = .clear
+            p.level = .screenSaver
+            p.ignoresMouseEvents = false
+            p.acceptsMouseMovedEvents = true
+            p.sharingType = .none
+            p.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+            let v = PickerView(frame: NSRect(origin: .zero, size: screen.frame.size))
+            v.hint = hint
+            v.onMove = { [weak self] in self?.track() }
+            v.onClick = { [weak self] in self?.pick() }
+            p.contentView = v
+            p.orderFrontRegardless()
+            panels.append(p)
+        }
+        NSCursor.pointingHand.push()
+        if let m = NSEvent.addLocalMonitorForEvents(matching: .keyDown, handler: { [weak self] e in
+            if e.keyCode == 53 { self?.end(); return nil }
+            return e
+        }) { monitors.append(m) }
+        if let m = NSEvent.addGlobalMonitorForEvents(matching: .keyDown, handler: { [weak self] e in
+            if e.keyCode == 53 { MainActor.assumeIsolated { self?.end() } }
+        }) { monitors.append(m) }
+        NSApp.activate(ignoringOtherApps: true)
+        track()
+    }
+
+    func end() {
+        if !panels.isEmpty { NSCursor.pop() }
+        panels.forEach { $0.orderOut(nil) }
+        panels.removeAll()
+        monitors.forEach { NSEvent.removeMonitor($0) }
+        monitors.removeAll()
+        current = nil
+    }
+
+    /// İmlecin altındaki en üstteki normal pencere (kendi pencerelerimiz hariç)
+    private func track() {
+        let m = NSEvent.mouseLocation
+        let primaryH = NSScreen.screens.first?.frame.height ?? 0
+        let cg = CGPoint(x: m.x, y: primaryH - m.y)
+        let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []
+        var found: (CGWindowID, NSRect)?
+        for w in list {
+            guard (w[kCGWindowLayer as String] as? Int) == 0,
+                  (w[kCGWindowOwnerPID as String] as? Int).map({ pid_t($0) }) != getpid(),
+                  let n = w[kCGWindowNumber as String] as? Int,
+                  let b = w[kCGWindowBounds as String] as? [String: CGFloat] else { continue }
+            let r = CGRect(x: b["X"] ?? 0, y: b["Y"] ?? 0, width: b["Width"] ?? 0, height: b["Height"] ?? 0)
+            guard r.width > 40, r.height > 40, r.contains(cg) else { continue }
+            found = (CGWindowID(n), NSRect(x: r.minX, y: primaryH - r.maxY, width: r.width, height: r.height))
+            break
+        }
+        current = found.map { (id: $0.0, rect: $0.1) }
+        for p in panels {
+            guard let v = p.contentView as? PickerView else { continue }
+            v.highlight = current.map { NSRect(x: $0.rect.minX - p.frame.minX, y: $0.rect.minY - p.frame.minY,
+                                               width: $0.rect.width, height: $0.rect.height) }
+            v.needsDisplay = true
+        }
+    }
+
+    private func pick() {
+        track()
+        guard let c = current else { NSSound.beep(); return }
+        let screen = NSScreen.screens.first { $0.frame.intersects(c.rect) } ?? NSScreen.main!
+        let cb = onPick
+        end()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { cb?(c.id, screen) }
+    }
+}
+
+private final class PickerView: NSView {
+    var hint = ""
+    var highlight: NSRect?
+    var onMove: (() -> Void)?
+    var onClick: (() -> Void)?
+    private var tracking: NSTrackingArea?
+
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let t = tracking { removeTrackingArea(t) }
+        let t = NSTrackingArea(rect: bounds, options: [.mouseMoved, .activeAlways, .inVisibleRect], owner: self, userInfo: nil)
+        addTrackingArea(t)
+        tracking = t
+    }
+
+    override func mouseMoved(with event: NSEvent) { onMove?() }
+    override func mouseDown(with event: NSEvent) { onClick?() }
+
+    override func draw(_ dirtyRect: NSRect) {
+        NSColor.black.withAlphaComponent(0.18).setFill()
+        bounds.fill()
+        if let h = highlight {
+            NSGraphicsContext.current?.compositingOperation = .clear
+            NSBezierPath(roundedRect: h, xRadius: 10, yRadius: 10).fill()
+            NSGraphicsContext.current?.compositingOperation = .sourceOver
+            Brand.nsRed.withAlphaComponent(0.12).setFill()
+            NSBezierPath(roundedRect: h, xRadius: 10, yRadius: 10).fill()
+            Brand.nsRed.setStroke()
+            let path = NSBezierPath(roundedRect: h.insetBy(dx: 1.5, dy: 1.5), xRadius: 10, yRadius: 10)
+            path.lineWidth = 3
+            path.stroke()
+        }
+        let attrs: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 14, weight: .semibold), .foregroundColor: NSColor.white]
+        let s = NSAttributedString(string: hint, attributes: attrs)
+        let size = s.size()
+        let box = NSRect(x: (bounds.width - size.width) / 2 - 16, y: bounds.height - 120, width: size.width + 32, height: size.height + 14)
+        NSColor.black.withAlphaComponent(0.7).setFill()
+        NSBezierPath(roundedRect: box, xRadius: box.height / 2, yRadius: box.height / 2).fill()
+        s.draw(at: NSPoint(x: box.minX + 16, y: box.minY + 7))
     }
 }
