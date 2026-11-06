@@ -16,6 +16,16 @@ struct ChangelogEntry {
 
 enum Changelog {
     static let entries: [ChangelogEntry] = [
+        ChangelogEntry(version: "3.0.3", items: [
+            ("Dosya arama: seçili sonuç sağda önizleniyor; fareyle üstüne gelince önizlenir, Space Finder'daki gibi Hızlı Bakış açar",
+             "File search: the selected result is previewed on the right; hover to preview, Space opens Quick Look like in Finder"),
+            ("Aramadan anında sil: ⌘⌫ ya da çöp düğmesi dosyayı Çöp Sepeti'ne atar, satır hemen listeden kalkar",
+             "Delete right from search: ⌘⌫ or the trash button moves the file to the Trash and the row disappears at once"),
+            ("Klasör jetonu büyütecin yanında, gerçek klasör ikonuyla; altta kısayol çubuğu",
+             "The folder token sits next to the magnifier with the real folder icon; a shortcut bar runs along the bottom"),
+            ("Finder sekmeleri Windows gibi: belli genişlikte, çoğaldıkça daralır, sığmayınca kayar (Hızlı Özellikler)",
+             "Windows-style Finder tabs: a set width that shrinks as you add more and scrolls when they don't fit (Quick Features)"),
+        ]),
         ChangelogEntry(version: "3.0.2", items: [
             ("Özellikler paneli artık sekmeleri açıp kapatıyor: Pencere Değiştirici, Ses, Ekran, Hızlı Özellikler. Kapalı sekme kenar çubuğundan ve menü panelinden kalkar, içindeki hiçbir şey çalışmaz",
              "The Features panel now turns whole tabs on or off: Window Switcher, Sound, Screen, Quick Features. A tab you turn off leaves the sidebar and the menu bar panel, and nothing in it runs"),
