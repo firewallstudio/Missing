@@ -2,6 +2,10 @@
 
 Also shown in the app: **Settings › Versions**.
 
+## 3.0.8
+
+- Battery and charging profiles: switching from the menu changes the power mode too (set up once in Settings › Screen)
+
 ## 3.0.7
 
 - Equalizer: 10 bands and a preamp (dB) for system audio, with presets; no eqMac needed (Settings › Sound, macOS 14.2+)

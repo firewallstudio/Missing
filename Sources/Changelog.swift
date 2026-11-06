@@ -16,6 +16,10 @@ struct ChangelogEntry {
 
 enum Changelog {
     static let entries: [ChangelogEntry] = [
+        ChangelogEntry(version: "3.0.8", items: [
+            ("Pil ve şarj profilleri: menüden elle geçişte güç modu da değişir (bir kez Ayarlar › Ekran › Ayarla)",
+             "Battery and charging profiles: switching from the menu changes the power mode too (set up once in Settings › Screen)"),
+        ]),
         ChangelogEntry(version: "3.0.7", items: [
             ("Ekolayzır: sistemin sesi için 10 bant ve ön kazanç (dB), hazır ayarlar; eqMac gerekmez (Ayarlar › Ses, macOS 14.2+)",
              "Equalizer: 10 bands and a preamp (dB) for system audio, with presets; no eqMac needed (Settings › Sound, macOS 14.2+)"),
