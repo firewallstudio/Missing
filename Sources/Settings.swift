@@ -296,7 +296,7 @@ struct SettingsView: View {
                  store.hotkeyEnabled = v
                  model.onHotkeyChanged()
              }),
-             subtitle: L("%@ ile çıkış cihazını değiştir", key.symbol)) {
+             subtitle: L("%@ ile çıkış cihazını değiştir", key.symbol), hidesWhenOff: true) {
             Row(L("Tuş kombinasyonu"),
                 key == .cmdShift ? L("⌘ basılıyken ⇧'ye dokun. ⌘⇧4 gibi kısayolları bozmaz.") : "⌘ + Caps Lock") {
                 Picker("", selection: model.bind({ store.hotkeyChoice }, { v in
@@ -876,7 +876,7 @@ struct SettingsView: View {
                  TileSettings.enabled = v
                  model.onShortcutsChanged()
              }),
-             subtitle: L("⌘< ile pencereleri bölmelere yerleştir")) {
+             subtitle: L("⌘< ile pencereleri bölmelere yerleştir"), hidesWhenOff: true) {
             if TileSettings.enabled {
                 Row(L("Hedef monitör"), L("Birden fazla monitör varken. Panelde Tab ile her zaman değiştirebilirsin.")) {
                     Picker("", selection: model.bind({ TileSettings.askMonitor }, { TileSettings.askMonitor = $0 })) {
@@ -902,7 +902,7 @@ struct SettingsView: View {
                  CaptureSettings.enabled = v
                  model.onShortcutsChanged()
              }),
-             subtitle: L("⌘⇧3 · ⌘⇧4 · ⌘⇧5 · ⌘⇧6")) {
+             subtitle: L("⌘⇧3 · ⌘⇧4 · ⌘⇧5 · ⌘⇧6"), hidesWhenOff: true) {
             if CaptureSettings.enabled {
                 captureRow(.screen, key: "⌘⇧3", title: L("Bu monitörün görüntüsü"), detail: L("Sadece farenin olduğu monitör"),
                            isOn: model.bind({ CaptureSettings.screenKey }, { v in CaptureSettings.screenKey = v; model.onShortcutsChanged() }))
@@ -1392,15 +1392,19 @@ struct Card<Content: View>: View {
     let icon: String
     let isOn: Binding<Bool>?
     let subtitle: String?
+    /// true: ana özelliğin kartı; kapalıyken hiç görünmez, aç/kapa Özellikler'de.
+    /// false: başlıkta kendi düğmesi var (alt ve hızlı özellikler).
+    let hidesWhenOff: Bool
     let content: Content
     @State private var expanded: Bool
 
     init(title: String, icon: String, isOn: Binding<Bool>? = nil, subtitle: String? = nil,
-         startOpen: Bool = false, @ViewBuilder content: () -> Content) {
+         hidesWhenOff: Bool = false, startOpen: Bool = false, @ViewBuilder content: () -> Content) {
         self.title = title
         self.icon = icon
         self.isOn = isOn
         self.subtitle = subtitle
+        self.hidesWhenOff = hidesWhenOff
         self.content = content()
         let remembered = CardMemory.open.contains(title)
         _expanded = State(initialValue: remembered || (startOpen && !CardMemory.open.contains("-" + title)))
@@ -1410,8 +1414,8 @@ struct Card<Content: View>: View {
     private var showsBody: Bool { expanded && enabled }
 
     var body: some View {
-        // Özelliği kapalıysa kart hiç görünmez (aç/kapa Ayarlar › Özellikler'de)
-        if enabled { card }
+        // Ana özellik kapalıysa kart hiç görünmez (aç/kapa Ayarlar › Özellikler'de)
+        if enabled || !hidesWhenOff { card }
     }
 
     private var card: some View {
@@ -1446,6 +1450,7 @@ struct Card<Content: View>: View {
                 }
             }
             Spacer(minLength: 8)
+            if let isOn, !hidesWhenOff { BrandToggle(isOn: isOn) }
             Image(systemName: "chevron.right")
                 .font(.system(size: 11, weight: .bold))
                 .foregroundStyle(.white.opacity(enabled ? 0.45 : 0.15))
