@@ -22,6 +22,7 @@ import UserNotifications
     private let updatePopup = UpdatePopupController()
     private let onboarding = OnboardingController()
     private let menuPanel = MenuBarPanelController()
+    private let finderTabs = FinderTabsController()
     private var model: SettingsModel!
     private var fileSearch: FileSearchController!
     private var permTimer: Timer?
@@ -62,6 +63,10 @@ import UserNotifications
         let model = SettingsModel(store: store)
         self.model = model
         model.onOpenSetup = { [weak self] in self?.showSetup() }
+        model.onFinderTabsChanged = { [weak self] in
+            guard let self else { return }
+            if FinderTabsSettings.enabled, self.switcher.isRunning { self.finderTabs.start() } else { self.finderTabs.stop() }
+        }
         model.onNativeTabChanged = { [weak self] in self?.switcher.applyNative() }
         model.onDeepScanChanged = { [weak self] in self?.switcher.deepScopeChanged() }
         model.onDockDragChanged = { [weak self] in self?.dockDrag.start() }
@@ -177,6 +182,7 @@ import UserNotifications
         if switcher.isRunning { switcher.applyNative() }
         applyExtraNative()
         dockDrag.start()
+        model.onFinderTabsChanged()
         if !model.anyPreviews { switcher.clearThumbs() }
         if FileSearchSettings.enabled { FileIndex.shared.start() } else {
             fileSearch.close(restore: true)
@@ -212,6 +218,7 @@ import UserNotifications
     }
 
     private func startInput() {
+        if FinderTabsSettings.enabled { finderTabs.start() }
         switcher.start()
         applyExtraNative()
         dockDrag.start()

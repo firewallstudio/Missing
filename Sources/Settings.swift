@@ -32,6 +32,8 @@ final class SettingsModel: ObservableObject {
     /// ⌘⇧3/4/5/6 veya ⌘< açılıp kapandı → macOS kısayollarını güncelle
     var onShortcutsChanged: () -> Void = {}
     var onFileSearchChanged: () -> Void = {}
+    /// Finder sekme şeridi açılıp kapandı
+    var onFinderTabsChanged: () -> Void = {}
     /// Genel › Kurulum: ilk kurulum ekranını yeniden aç
     var onOpenSetup: () -> Void = {}
     /// Dock'a sürükle-bırak hızlandırma açılıp kapandı
@@ -558,6 +560,14 @@ struct SettingsView: View {
              }),
              subtitle: L("⌘Tab'da Tarayıcılar · Projeler · Uygulamalar · Klasörler bölümleri")) {
             groupedRows
+        }
+        Card(title: L("Finder sekmeleri"), icon: "rectangle.topthird.inset.filled",
+             isOn: model.bind({ FinderTabsSettings.enabled }, { v in
+                 FinderTabsSettings.enabled = v
+                 model.onFinderTabsChanged()
+             }),
+             subtitle: L("Windows'taki gibi: sekmeler soldan, belli genişlikte; çoğalınca daralır")) {
+            note(L("Finder'ın sekme çubuğunda sekmeler tüm genişliğe yayılmaz; her biri en fazla 220 pt olur, çoğaldıkça daralır, sığmayınca yana kayar. Seçili sekmenin altında kırmızı çizgi, üstüne gelince kapatma düğmesi, sonunda + ile yeni sekme."))
         }
         Card(title: L("Finder'da fare tuşları"), icon: "computermouse",
              isOn: model.bind({ FinderMouseNav.enabled }, { FinderMouseNav.enabled = $0 }),
