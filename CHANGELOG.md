@@ -2,6 +2,13 @@
 
 Also shown in the app: **Settings › Versions**.
 
+## 3.0.3
+
+- File search: the selected result is previewed on the right; hover to preview, Space opens Quick Look like in Finder
+- Delete right from search: ⌘⌫ or the trash button moves the file to the Trash and the row disappears at once
+- The folder token sits next to the magnifier with the real folder icon; a shortcut bar runs along the bottom
+- Windows-style Finder tabs: a set width that shrinks as you add more and scrolls when they don't fit (Quick Features)
+
 ## 3.0.2
 
 - The Features panel now turns whole tabs on or off: Window Switcher, Sound, Screen, Quick Features. A tab you turn off leaves the sidebar and the menu bar panel, and nothing in it runs
