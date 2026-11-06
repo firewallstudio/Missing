@@ -6,7 +6,7 @@
 
 **The features your Mac left out, in one light menu bar app.**
 
-[**Download**](https://github.com/firewallstudio/Missing/releases/latest) · [Install](#install) · [Shortcuts](#shortcuts) · [Suggest a feature](https://github.com/firewallstudio/Missing/issues/new?template=feature_request.yml) · [**Türkçe**](README.tr.md)
+[**Download**](https://github.com/firewallstudio/Missing/releases/latest) · [▶ Video](design/Missing-promo.mp4) · [Install](#install) · [Shortcuts](#shortcuts) · [Suggest a feature](https://github.com/firewallstudio/Missing/issues/new?template=feature_request.yml) · [**Türkçe**](README.tr.md)
 
 <img src="assets/switcher.gif" alt="Missing's ⌘Tab: every window, with live previews" width="900">
 
@@ -52,7 +52,7 @@ Drag a window to the top of the screen. On MacBooks with a notch, the notch grow
 
 Hold **⌘** and tap **⇧** to move to the next output: speakers → AirPods → display. Assign a device per app, and sound follows when that app comes forward.
 
-## A simple equalizer, no eqMac
+## A simple equalizer
 
 <div align="center"><img src="assets/settings-eq.png" alt="Equalizer" width="560"></div>
 

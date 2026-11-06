@@ -6,7 +6,7 @@
 
 **Mac'te eksik kalan özellikler, menü çubuğunda tek hafif bir uygulamada.**
 
-[**İndir**](https://github.com/firewallstudio/Missing/releases/latest) · [Kurulum](#kurulum) · [Kısayollar](#kısayollar) · [Özellik öner](https://github.com/firewallstudio/Missing/issues/new?template=feature_request.yml) · [**English**](README.md)
+[**İndir**](https://github.com/firewallstudio/Missing/releases/latest) · [▶ Video](design/Missing-promo.mp4) · [Kurulum](#kurulum) · [Kısayollar](#kısayollar) · [Özellik öner](https://github.com/firewallstudio/Missing/issues/new?template=feature_request.yml) · [**English**](README.md)
 
 <img src="assets/switcher.gif" alt="Missing ⌘Tab: tüm pencereler, canlı önizlemeyle" width="900">
 
@@ -46,7 +46,7 @@ Finder sekmelerini, iki tane bile olsa bütün pencereye yayar. Missing onları 
 
 Bir pencereyi ekranın üstüne sürükle. Çentikli MacBook'larda çentik, iki yanında düzenler olan bir adaya dönüşür. En çok kullandığın iki düzen çentiğin hemen altında durur ve kullandıkça güncellenir. Pencereyi bir bölmeye bırak, oraya yerleşsin. Ya da **⌘<** ile düzen seç: pencere pencere doldur ya da bölmeleri o ekrandaki son kullanılan pencerelerle Missing doldursun (Ayarlar › Ekran).
 
-## eqMac'siz basit ekolayzır
+## Basit ekolayzır
 
 <div align="center"><img src="assets/settings-eq.png" alt="Ekolayzır" width="560"></div>
 
