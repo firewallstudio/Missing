@@ -588,33 +588,11 @@ private final class Generation: @unchecked Sendable {
             return
         }
 
-        var q = FileIndex.Query(tokens: [])
-        var tokens: [[UInt8]] = []
-        let words = trimmed.split(whereSeparator: { $0 == " " }).map(String.init)
-        for w in words {
-            if w == "/" { q.dirsOnly = true; continue }
-            if w.hasPrefix("."), w.count > 1, w.count <= 8, !w.dropFirst().contains(".") {
-                q.ext = FileIndex.fold(String(w.dropFirst()))
-                continue
-            }
-            if words.count > 1, Self.knownExts.contains(w.lowercased()), q.ext == nil {
-                q.ext = w.lowercased()
-                continue
-            }
-            tokens.append(Array(FileIndex.fold(w).utf8))
-        }
-        // Sadece uzantı yazıldıysa ("pdf") uzantıyı ad gibi ara
-        if tokens.isEmpty, let e = q.ext, !q.dirsOnly {
-            tokens = [Array(("." + e).utf8)]
-            q.ext = nil
-        }
-        if tokens.isEmpty && q.dirsOnly {
+        guard let q = Self.makeQuery(trimmed, scope: scope) else {
+            // Sadece "/" yazıldı: klasördeki klasörler
             if let s = scope { show(Self.listFolder(s).filter(\.isDir), query: "") } else { show([], query: trimmed) }
             return
         }
-        q.tokens = tokens
-        q.scope = scope
-        q.boosts = SearchMemory.boosts(for: trimmed)
         let gen = self.gen
         FileIndex.shared.queue.async {
             guard gen.isCurrent(g) else { return }
@@ -627,6 +605,36 @@ private final class Generation: @unchecked Sendable {
             }
         }
         if case .scanning = indexState { updateStatus(searching: true) }
+    }
+
+    /// Yazılan metinden indeks sorgusu (⌘Space araması ve Finder'ın arama kutusu aynı mantığı kullanır).
+    /// nil: aranacak ad yok (sadece "/" yazıldı).
+    static func makeQuery(_ trimmed: String, scope: String?) -> FileIndex.Query? {
+        var q = FileIndex.Query(tokens: [])
+        var tokens: [[UInt8]] = []
+        let words = trimmed.split(whereSeparator: { $0 == " " }).map(String.init)
+        for w in words {
+            if w == "/" { q.dirsOnly = true; continue }
+            if w.hasPrefix("."), w.count > 1, w.count <= 8, !w.dropFirst().contains(".") {
+                q.ext = FileIndex.fold(String(w.dropFirst()))
+                continue
+            }
+            if words.count > 1, knownExts.contains(w.lowercased()), q.ext == nil {
+                q.ext = w.lowercased()
+                continue
+            }
+            tokens.append(Array(FileIndex.fold(w).utf8))
+        }
+        // Sadece uzantı yazıldıysa ("pdf") uzantıyı ad gibi ara
+        if tokens.isEmpty, let e = q.ext, !q.dirsOnly {
+            tokens = [Array(("." + e).utf8)]
+            q.ext = nil
+        }
+        if tokens.isEmpty { return nil }
+        q.tokens = tokens
+        q.scope = scope
+        q.boosts = SearchMemory.boosts(for: trimmed)
+        return q
     }
 
     static let knownExts: Set<String> = FileIndex.docExts.union(["swift", "py", "js", "ts", "html", "css", "json", "app", "dmg", "pkg"])
@@ -1456,14 +1464,19 @@ final class SearchPreviewPane: NSView {
 
 // MARK: - Finder'ın kendi arama kutusu
 
-/// Finder'ın sağ üstteki arama kutusuna tıklanınca Finder'ın aramasını bırakıp bizimkini açar.
-/// Sadece Finder öndeyken, odak değişikliklerini dinler (AXObserver).
+/// Finder'ın sağ üstteki arama kutusuna yazdıkça, kutunun hemen altında Missing'in anında sonuçları çıkar
+/// (aynı arama mantığı: sadece dosya adları, bulunduğun klasörde). Yazma odağı Finder'da kalır;
+/// ↓↑ listede gezer, ↩ açar, ⌘↩ Finder'da gösterir, Esc kapatır.
 @MainActor final class FinderSearchHook {
-    var onSearch: () -> Void = {}
     private var observer: AXObserver?
     private var pid: pid_t = 0
     private var running = false
-    private var lastFire = Date.distantPast
+    private var field: AXUIElement?
+    private var scope: String?
+    private let dropdown = FinderSearchDropdown()
+    private let gen = Generation()
+
+    var isShowingResults: Bool { dropdown.isVisible }
 
     func start() {
         guard !running else { return }
@@ -1477,10 +1490,15 @@ final class SearchPreviewPane: NSView {
         running = false
         NSWorkspace.shared.notificationCenter.removeObserver(self)
         detach()
+        dropdown.hide()
     }
 
     @objc private func appChanged() {
-        guard running, let app = NSWorkspace.shared.frontmostApplication, app.bundleIdentifier == "com.apple.finder" else { return }
+        guard running else { return }
+        guard let app = NSWorkspace.shared.frontmostApplication, app.bundleIdentifier == "com.apple.finder" else {
+            if NSWorkspace.shared.frontmostApplication?.processIdentifier != getpid() { dropdown.hide() }
+            return
+        }
         attach(app.processIdentifier)
     }
 
@@ -1488,14 +1506,17 @@ final class SearchPreviewPane: NSView {
         guard pid != p else { return }
         detach()
         var obs: AXObserver?
-        let cb: AXObserverCallback = { _, element, _, refcon in
+        let cb: AXObserverCallback = { _, element, note, refcon in
             guard let refcon else { return }
             let me = Unmanaged<FinderSearchHook>.fromOpaque(refcon).takeUnretainedValue()
-            MainActor.assumeIsolated { me.focusChanged(element) }
+            let n = note as String
+            MainActor.assumeIsolated { me.changed(element, n) }
         }
         guard AXObserverCreate(p, cb, &obs) == .success, let obs else { return }
         let app = AXUIElementCreateApplication(p)
-        AXObserverAddNotification(obs, app, kAXFocusedUIElementChangedNotification as CFString, Unmanaged.passUnretained(self).toOpaque())
+        let ref = Unmanaged.passUnretained(self).toOpaque()
+        AXObserverAddNotification(obs, app, kAXFocusedUIElementChangedNotification as CFString, ref)
+        AXObserverAddNotification(obs, app, kAXValueChangedNotification as CFString, ref)
         CFRunLoopAddSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(obs), .commonModes)
         observer = obs
         pid = p
@@ -1505,26 +1526,199 @@ final class SearchPreviewPane: NSView {
         if let obs = observer { CFRunLoopRemoveSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(obs), .commonModes) }
         observer = nil
         pid = 0
+        field = nil
     }
 
-    private func focusChanged(_ el: AXUIElement) {
-        guard FileSearchSettings.enabled, NSWorkspace.shared.frontmostApplication?.bundleIdentifier == "com.apple.finder" else { return }
+    private static func isSearchField(_ el: AXUIElement) -> Bool {
         let role: String = AX.attr(el, kAXRoleAttribute) ?? ""
         let sub: String = AX.attr(el, kAXSubroleAttribute) ?? ""
-        guard role == kAXTextFieldRole as String, sub == kAXSearchFieldSubrole as String else { return }
-        guard Date().timeIntervalSince(lastFire) > 0.6 else { return }
-        lastFire = Date()
-        // Finder'ın aramasını bırak (Esc): odak dosya listesine döner, kutuya bir dahaki tıklama yine yakalanır
-        Self.sendEscape(to: pid)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
-            MainActor.assumeIsolated { self?.onSearch() }
+        return role == kAXTextFieldRole as String && sub == kAXSearchFieldSubrole as String
+    }
+
+    private func changed(_ el: AXUIElement, _ note: String) {
+        guard FileSearchSettings.enabled, NSWorkspace.shared.frontmostApplication?.bundleIdentifier == "com.apple.finder" else { return }
+        if note == kAXFocusedUIElementChangedNotification as String {
+            if Self.isSearchField(el) {
+                // Arama kutusuna girildi: aranacak klasör o anki klasör (Finder aramaya geçmeden önce)
+                if field == nil { scope = FinderLocation.current() }
+                field = el
+                update()
+            } else {
+                field = nil
+                dropdown.hide()
+            }
+            return
+        }
+        guard let f = field, CFEqual(el, f) else { return }
+        update()
+    }
+
+    /// Kutudaki metinle ara ve sonuçları kutunun altında göster
+    private func update() {
+        guard let f = field else { return }
+        let text: String = AX.attr(f, kAXValueAttribute) ?? ""
+        let trimmed = text.trimmingCharacters(in: .whitespaces)
+        let g = gen.next()
+        guard !trimmed.isEmpty, let q = FileSearchController.makeQuery(trimmed, scope: scope) else { dropdown.hide(); return }
+        let anchor = Self.frame(of: f)
+        let gen = self.gen
+        FileIndex.shared.queue.async {
+            guard gen.isCurrent(g) else { return }
+            let r = FileIndex.shared.search(q, isStale: { !gen.isCurrent(g) })
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    guard gen.isCurrent(g), let anchor else { return }
+                    self.dropdown.show(Array(r.prefix(10)), below: anchor, query: trimmed)
+                }
+            }
         }
     }
 
-    private static func sendEscape(to pid: pid_t) {
-        let src = CGEventSource(stateID: .hidSystemState)
-        for down in [true, false] {
-            CGEvent(keyboardEventSource: src, virtualKey: 53, keyDown: down)?.postToPid(pid)
+    private static func frame(of el: AXUIElement) -> NSRect? {
+        guard let pv: AXValue = AX.attr(el, kAXPositionAttribute), let sv: AXValue = AX.attr(el, kAXSizeAttribute) else { return nil }
+        var p = CGPoint.zero, s = CGSize.zero
+        guard AXValueGetValue(pv, .cgPoint, &p), AXValueGetValue(sv, .cgSize, &s) else { return nil }
+        let top = NSScreen.screens.first?.frame.maxY ?? 0
+        return NSRect(x: p.x, y: top - p.y - s.height, width: s.width, height: s.height)
+    }
+
+    /// Tuş yakalayıcıdan: liste açıkken ↓↑↩ Esc bizim (yazma odağı Finder'da kalır). true → tuş yutuldu.
+    func handleKey(_ code: Int64, _ flags: CGEventFlags) -> Bool {
+        guard dropdown.isVisible, field != nil else { return false }
+        let cmd = flags.contains(.maskCommand)
+        switch code {
+        case 125: dropdown.move(1); return true                 // ↓
+        case 126: dropdown.move(-1); return true                // ↑
+        case 36, 76:                                            // ↩
+            guard dropdown.hasSelection else { return false }
+            if cmd { dropdown.revealSelected() } else { dropdown.openSelected() }
+            return true
+        case 53: dropdown.hide(); return false                  // Esc: Finder da kendi aramasını bıraksın
+        default: return false
         }
     }
+}
+
+/// Finder'ın arama kutusunun altındaki sonuç listesi (öne gelmez; Finder'da yazmaya devam edilir)
+@MainActor final class FinderSearchDropdown: NSObject, NSTableViewDataSource, NSTableViewDelegate {
+    private let panel: NSPanel
+    private let table = HoverTableView()
+    private let scroll = NSScrollView()
+    private var results: [FileResult] = []
+    private var query = ""
+    private static let rowH: CGFloat = 38
+    private static let width: CGFloat = 460
+
+    var isVisible: Bool { panel.isVisible }
+    var hasSelection: Bool { table.selectedRow >= 0 && table.selectedRow < results.count }
+
+    override init() {
+        panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: Self.width, height: 100),
+                        styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        super.init()
+        panel.isOpaque = false
+        panel.backgroundColor = .clear
+        panel.hasShadow = true
+        panel.level = .popUpMenu
+        panel.hidesOnDeactivate = false
+        panel.isReleasedWhenClosed = false
+        panel.becomesKeyOnlyIfNeeded = true
+        panel.acceptsMouseMovedEvents = true
+        panel.appearance = NSAppearance(named: .darkAqua)
+        panel.collectionBehavior = [.fullScreenAuxiliary, .transient, .ignoresCycle]
+
+        let glass = NSVisualEffectView()
+        glass.material = .hudWindow
+        glass.blendingMode = .behindWindow
+        glass.state = .active
+        glass.wantsLayer = true
+        glass.layer?.cornerRadius = 14
+        glass.layer?.cornerCurve = .continuous
+        glass.layer?.masksToBounds = true
+        glass.layer?.borderWidth = 0.75
+        glass.layer?.borderColor = NSColor.white.withAlphaComponent(0.2).cgColor
+        panel.contentView = glass
+
+        let col = NSTableColumn(identifier: .init("main"))
+        col.resizingMask = .autoresizingMask
+        table.addTableColumn(col)
+        table.headerView = nil
+        table.rowHeight = Self.rowH
+        table.intercellSpacing = .zero
+        table.backgroundColor = .clear
+        table.style = .plain
+        table.dataSource = self
+        table.delegate = self
+        table.target = self
+        table.action = #selector(clicked)
+        table.refusesFirstResponder = true
+        table.onHoverRow = { [weak self] r in
+            self?.table.selectRowIndexes(IndexSet(integer: r), byExtendingSelection: false)
+        }
+        scroll.documentView = table
+        scroll.drawsBackground = false
+        scroll.hasVerticalScroller = false
+        scroll.automaticallyAdjustsContentInsets = false
+        scroll.contentInsets = NSEdgeInsets(top: 5, left: 0, bottom: 5, right: 0)
+        scroll.frame = glass.bounds
+        scroll.autoresizingMask = [.width, .height]
+        glass.addSubview(scroll)
+    }
+
+    func show(_ r: [FileResult], below field: NSRect, query: String) {
+        self.query = query
+        results = r.filter { FileManager.default.fileExists(atPath: $0.path) }
+        guard !results.isEmpty else { hide(); return }
+        table.reloadData()
+        table.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
+        let h = CGFloat(results.count) * Self.rowH + 10
+        // Kutunun altında, sağ kenarı kutunun sağıyla hizalı; ekrandan taşmasın
+        var x = field.maxX - Self.width
+        if let s = NSScreen.screens.first(where: { $0.frame.intersects(field) }) {
+            x = min(max(x, s.visibleFrame.minX + 6), s.visibleFrame.maxX - Self.width - 6)
+        }
+        panel.setFrame(NSRect(x: x, y: field.minY - 6 - h, width: Self.width, height: h), display: true)
+        if !panel.isVisible { panel.orderFrontRegardless() }
+    }
+
+    func hide() { panel.orderOut(nil) }
+
+    func move(_ d: Int) {
+        guard !results.isEmpty else { return }
+        let n = max(0, min((table.selectedRow < 0 ? 0 : table.selectedRow) + d, results.count - 1))
+        table.selectRowIndexes(IndexSet(integer: n), byExtendingSelection: false)
+        table.scrollRowToVisible(n)
+    }
+
+    private var selected: FileResult? { hasSelection ? results[table.selectedRow] : nil }
+
+    func openSelected() {
+        guard let r = selected else { return }
+        SearchMemory.record(query: query, path: r.path)
+        hide()
+        NSWorkspace.shared.open(URL(fileURLWithPath: r.path))
+    }
+
+    func revealSelected() {
+        guard let r = selected else { return }
+        SearchMemory.record(query: query, path: r.path)
+        hide()
+        NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: r.path)])
+    }
+
+    @objc private func clicked() {
+        guard table.clickedRow >= 0 else { return }
+        table.selectRowIndexes(IndexSet(integer: table.clickedRow), byExtendingSelection: false)
+        openSelected()
+    }
+
+    func numberOfRows(in tableView: NSTableView) -> Int { results.count }
+
+    func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
+        let cell = (tableView.makeView(withIdentifier: ResultCell.id, owner: nil) as? ResultCell) ?? ResultCell()
+        cell.configure(results[row], showPath: true)
+        return cell
+    }
+
+    func tableView(_ tableView: NSTableView, rowViewForRow row: Int) -> NSTableRowView? { ResultRowView() }
 }

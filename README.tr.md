@@ -32,7 +32,7 @@ Uygulamalar değil pencereler, canlı önizlemeyle. Tüm tarayıcı profilleri, 
 
 **Finder öndeyken ⌘Space**'e bas: Spotlight tarzı bir çubuk açılır. Yazdıkça baktığın klasörün içinde dosya adlarını süzer; **Tab** ile tüm Mac'e geçer. Sonuçlar Spotlight gibi gruplanır: En İyi Sonuç, Klasörler, Belgeler, Görüntüler…
 
-Seçili sonuç sağda önizlenir; fareyle bir satırın üstüne gelince o önizlenir. **Space** Finder'daki gibi Hızlı Bakış açar, **⌘⌫** dosyayı anında Çöp Sepeti'ne atar, **Enter** açar, **⌘Enter** Finder'da gösterir. Başka her yerde ⌘Space yine Spotlight'ı açar.
+Seçili sonuç sağda önizlenir; fareyle bir satırın üstüne gelince o önizlenir. **Space** Finder'daki gibi Hızlı Bakış açar, **⌘⌫** dosyayı anında Çöp Sepeti'ne atar, **Enter** açar, **⌘Enter** Finder'da gösterir. Finder'ın kendi arama kutusuna yazınca da kutunun altında aynı anında sonuçlar çıkar. Başka her yerde ⌘Space yine Spotlight'ı açar.
 
 ## Çentikten ekran bölme
 

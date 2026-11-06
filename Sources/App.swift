@@ -105,10 +105,7 @@ import UserNotifications
         // ⌘Space dosya arama (indeks arka planda hazırlanır)
         fileSearch = FileSearchController()
         extraKeys.onFileSearch = { [weak self] in self?.fileSearch.toggle() }
-        finderSearch.onSearch = { [weak self] in
-            guard let self, !self.fileSearch.isVisible else { return }
-            self.fileSearch.show()
-        }
+        gFinderSearch = finderSearch
         model.onFileSearchChanged = { [weak self] in
             if FileSearchSettings.enabled {
                 if self?.switcher.isRunning == true { self?.finderSearch.start() }

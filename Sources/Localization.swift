@@ -558,4 +558,10 @@ private let englishStrings: [String: String] = [
     "Hangi pencerenin hangi bölmeye gideceğini sen seçersin": "You choose which window goes into each zone",
     "Ben seçeyim": "I'll choose",
     "Son kullanılanlar": "Most recent",
+    "Pencere Kaydı": "Window Recording",
+    "Pencere görüntüleri": "Window screenshots",
+    "Pencere kayıtları": "Window recordings",
+    "⌘⇧5 › Sadece pencere": "⌘⇧5 › Window only",
+    "⌘⇧5 › Pencereyi kaydet": "⌘⇧5 › Record window",
+    "Finder'ın sağ üstteki arama kutusuna yazınca da kutunun altında aynı anında sonuçlar çıkar.": "Typing in Finder's own search box also shows the same instant results right below it.",
 ]

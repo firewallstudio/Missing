@@ -49,8 +49,6 @@ import Cocoa
             }
         } else if code == Self.keySpace && FileSearchSettings.enabled && Self.finderInFront {
             action = onFileSearch
-        } else if code == Self.keyF && FileSearchSettings.enabled && Self.finderInFront {
-            action = onFileSearch   // Finder'da ⌘F de bizim aramayı açar
         } else if TileSettings.enabled && Self.isLessThan(event) {
             action = onTile
         }

@@ -32,7 +32,7 @@ Windows, not just apps, with live previews. Every browser profile, every Space a
 
 Press **⌘Space while Finder is in front** and a Spotlight-style bar opens. It matches file names as you type, inside the folder you're looking at; **Tab** widens the search to the whole Mac. Results are grouped like Spotlight: Top Hit, Folders, Documents, Images and more.
 
-The selected result is previewed on the right; hover a row to preview it. **Space** opens Quick Look just like in Finder, **⌘⌫** moves the file to the Trash right away, **Enter** opens and **⌘Enter** shows it in Finder. Everywhere else, ⌘Space still opens Spotlight.
+The selected result is previewed on the right; hover a row to preview it. **Space** opens Quick Look just like in Finder, **⌘⌫** moves the file to the Trash right away, **Enter** opens and **⌘Enter** shows it in Finder. Typing in Finder's own search box shows the same instant results right below it. Everywhere else, ⌘Space still opens Spotlight.
 
 ## Split the screen from the notch
 
