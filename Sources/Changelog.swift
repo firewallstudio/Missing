@@ -17,8 +17,8 @@ struct ChangelogEntry {
 enum Changelog {
     static let entries: [ChangelogEntry] = [
         ChangelogEntry(version: "3.0.6", items: [
-            ("MacBook Pro 14" M4 Pro: fişten çekince ekran 600 nit ve 60 Hz, düşük güç; şarja takınca 1600 nit, ProMotion, yüksek güç (Ayarlar › Ekran, menüde düğme)",
-             "MacBook Pro 14" M4 Pro: unplugged drops the display to 600 nits and 60 Hz with Low Power; plugged in returns to 1600 nits, ProMotion and High Power (Settings › Screen, button in the menu)"),
+            ("MacBook Pro 14 inç M4 Pro: fişten çekince ekran 600 nit ve 60 Hz, düşük güç; şarja takınca 1600 nit, ProMotion, yüksek güç (Ayarlar › Ekran, menüde düğme)",
+             "14-inch MacBook Pro M4 Pro: unplugged drops the display to 600 nits and 60 Hz with Low Power; plugged in returns to 1600 nits, ProMotion and High Power (Settings › Screen, button in the menu)"),
             ("Finder sekmeleri Finder'ın kendi çubuk malzemesini kullanır ve sağ tıkta kaybolmaz",
              "Finder tabs use Finder's own bar material and no longer vanish on right-click"),
             ("Alan ve pencere görüntülerinden sonra da sağ altta önizleme kartı çıkar",
