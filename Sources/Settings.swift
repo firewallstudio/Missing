@@ -296,7 +296,7 @@ struct SettingsView: View {
                  store.hotkeyEnabled = v
                  model.onHotkeyChanged()
              }),
-             subtitle: L("%@ ile çıkış cihazını değiştir", key.symbol), hidesWhenOff: true) {
+             subtitle: L("%@ ile çıkış cihazını değiştir", key.symbol)) {
             Row(L("Tuş kombinasyonu"),
                 key == .cmdShift ? L("⌘ basılıyken ⇧'ye dokun. ⌘⇧4 gibi kısayolları bozmaz.") : "⌘ + Caps Lock") {
                 Picker("", selection: model.bind({ store.hotkeyChoice }, { v in
@@ -876,7 +876,7 @@ struct SettingsView: View {
                  TileSettings.enabled = v
                  model.onShortcutsChanged()
              }),
-             subtitle: L("⌘< ile pencereleri bölmelere yerleştir"), hidesWhenOff: true) {
+             subtitle: L("⌘< ile pencereleri bölmelere yerleştir")) {
             if TileSettings.enabled {
                 Row(L("Hedef monitör"), L("Birden fazla monitör varken. Panelde Tab ile her zaman değiştirebilirsin.")) {
                     Picker("", selection: model.bind({ TileSettings.askMonitor }, { TileSettings.askMonitor = $0 })) {
@@ -902,7 +902,7 @@ struct SettingsView: View {
                  CaptureSettings.enabled = v
                  model.onShortcutsChanged()
              }),
-             subtitle: L("⌘⇧3 · ⌘⇧4 · ⌘⇧5 · ⌘⇧6"), hidesWhenOff: true) {
+             subtitle: L("⌘⇧3 · ⌘⇧4 · ⌘⇧5 · ⌘⇧6")) {
             if CaptureSettings.enabled {
                 captureRow(.screen, key: "⌘⇧3", title: L("Bu monitörün görüntüsü"), detail: L("Sadece farenin olduğu monitör"),
                            isOn: model.bind({ CaptureSettings.screenKey }, { v in CaptureSettings.screenKey = v; model.onShortcutsChanged() }))

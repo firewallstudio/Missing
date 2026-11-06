@@ -63,7 +63,7 @@ Menü çubuğundaki yaprağa tıkla: üstte ses çıkışı, altında hızlı ey
 <img src="assets/settings-quick.png" alt="Hızlı Özellikler" width="440">
 </div>
 
-**Ayarlar › Özellikler** ana kısayolları (⌘Tab, ses, ekran görüntüsü, ekranı böl) canlı önizleme ve tek düğmeyle gösterir. Kapattığın her şey tamamen kaybolur: Ayarlar'dan, menü panelinden, kısayol listesinden ve izinler sayfasından. Ne izin ister ne çalışır. Küçük seçenekler ve hızlı özellikler kendi sayfalarında kendi düğmeleriyle durur; ayrıntılar ihtiyacın olana kadar kapalı kalır.
+**Ayarlar › Özellikler** sekmelerin tamamını açıp kapatır: Pencere Değiştirici, Ses, Ekran ve Hızlı Özellikler, her biri canlı önizlemeyle. Kapattığın sekme tamamen kaybolur: kenar çubuğundan, menü panelinden, kısayol listesinden ve izinler sayfasından. İçindeki hiçbir şey çalışmaz, izin istemez. Tekrar açınca ayarların kaldığı gibi geri gelir. Sekmelerin içinde her seçeneğin yine kendi düğmesi var.
 
 ## Kısayollar
 

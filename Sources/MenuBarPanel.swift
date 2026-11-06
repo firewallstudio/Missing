@@ -133,7 +133,7 @@ struct MenuBarView: View {
             header
             if updater.updateAvailable, let v = updater.latest?.version { updateBanner(v) }
             if needsAccess { accessBanner }
-            audioSection
+            if Feature.sound.isOn { audioSection }
             quickGrid
             if MonitorSettings.showInMenu, !monitors.displays.isEmpty { monitorSection }
             footer

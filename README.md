@@ -63,7 +63,7 @@ Click the leaf in the menu bar for a glass panel: sound output at the top, then 
 <img src="assets/settings-quick.png" alt="Quick Features settings" width="440">
 </div>
 
-**Settings › Features** shows the main shortcuts (⌘Tab, sound, screenshots, split screen) with a live preview and one switch each. Anything you turn off disappears completely: from Settings, the menu bar panel, the shortcut list and the permissions page. It never asks for a permission and never runs. Smaller options and quick features have their own switches on their pages, and details fold away until you need them.
+**Settings › Features** turns whole tabs on or off: Window Switcher, Sound, Screen and Quick Features, each with a live preview. A tab you turn off disappears completely: from the sidebar, the menu bar panel, the shortcut list and the permissions page. Nothing in it runs or asks for a permission. Turn it back on and your settings come back as they were. Inside each tab, every option still has its own switch.
 
 ## Shortcuts
 
