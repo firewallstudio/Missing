@@ -1,0 +1,94 @@
+name: Release
+
+# main'e her gönderimde Mac'te derler (derleme hatası varsa burada görünür).
+# VERSION dosyasındaki sürüm henüz yayınlanmadıysa ve imza sertifikası tanımlıysa:
+# imzalar ve GitHub Releases'e Missing.zip olarak yayınlar. Uygulamadaki güncelleyici bunu bulur.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-15
+    env:
+      HAS_CERT: ${{ secrets.CERT_P12 != '' }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Sürüm
+        id: ver
+        run: |
+          VERSION="$(tr -d '[:space:]' < VERSION)"
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then echo "Geçersiz VERSION: $VERSION"; exit 1; fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          if gh release view "v$VERSION" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # İmza anahtarı yalnızca main'e push'ta açılır (PR / elle tetiklemede ad-hoc derlenir)
+      - name: İmza sertifikasını yükle
+        if: env.HAS_CERT == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          CERT_P12: ${{ secrets.CERT_P12 }}
+          CERT_PASSWORD: ${{ secrets.CERT_PASSWORD }}
+        run: |
+          echo "$CERT_P12" | tr -d '[:space:]' | base64 --decode > cert.p12
+          KC_PW="$(openssl rand -hex 24)"
+          echo "::add-mask::$KC_PW"
+          security create-keychain -p "$KC_PW" build.keychain
+          security list-keychains -d user -s build.keychain $(security list-keychains -d user | tr -d '"')
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "$KC_PW" build.keychain
+          security set-keychain-settings -t 3600 -u build.keychain
+          security import cert.p12 -k build.keychain -P "$(echo -n "$CERT_PASSWORD" | tr -d '[:space:]')" -T /usr/bin/codesign -x
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KC_PW" build.keychain
+          sudo security add-trusted-cert -d -r trustRoot -p codeSign -k /Library/Keychains/System.keychain signing/AudioTab.pem || true
+          rm cert.p12
+          IDENTITY=$(security find-identity -p codesigning build.keychain | awk '/AudioTab/ {print $2; exit}')
+          if [ -z "$IDENTITY" ]; then
+            IDENTITY=$(security find-identity build.keychain | awk '/AudioTab/ {print $2; exit}')
+          fi
+          echo "SIGN_IDENTITY=$IDENTITY" >> "$GITHUB_ENV"
+          echo "İmza kimliği: $IDENTITY"
+
+      - name: Derle
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          chmod +x build.sh
+          ./build.sh --universal --version "$VERSION"
+          codesign -dv --verbose=2 Missing.app 2>&1 | grep -E "Identifier|Authority|Signature" || true
+
+      - name: Paketle
+        run: ditto -c -k --keepParent Missing.app Missing.zip
+
+      - name: Derleme çıktısı
+        uses: actions/upload-artifact@v4
+        with:
+          name: Missing
+          path: Missing.zip
+
+      - name: Sürümü yayınla
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && env.HAS_CERT == 'true' && env.SIGN_IDENTITY != '' && steps.ver.outputs.exists == 'false'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.ver.outputs.version }}
+          name: Missing ${{ steps.ver.outputs.version }}
+          target_commitish: ${{ github.sha }}
+          files: Missing.zip
+          generate_release_notes: true
