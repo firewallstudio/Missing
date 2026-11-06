@@ -91,6 +91,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>CFBundleVersion</key><string>$BUILD_NUMBER</string>
   <key>LSMinimumSystemVersion</key><string>13.0</string>
   <key>LSUIElement</key><true/>
+  <key>NSAudioCaptureUsageDescription</key><string>Ekolayzır sistemin sesini işleyip hoparlöre geri verir; hiçbir şey kaydedilmez · The equalizer processes system audio and plays it back to your speakers; nothing is recorded</string>
   <key>NSAppleEventsUsageDescription</key><string>Finder'da açık klasörün içinde dosya aramak için · To search inside the folder open in Finder</string>
   <key>NSHighResolutionCapable</key><true/>
   <key>NSSupportsAutomaticGraphicsSwitching</key><true/>

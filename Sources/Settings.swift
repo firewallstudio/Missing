@@ -36,6 +36,8 @@ final class SettingsModel: ObservableObject {
     var onFinderTabsChanged: () -> Void = {}
     /// Pil / şarj profilleri açılıp kapandı
     var onPowerChanged: () -> Void = {}
+    /// Ekolayzır açılıp kapandı
+    var onEQChanged: () -> Void = {}
     /// Genel › Kurulum: ilk kurulum ekranını yeniden aç
     var onOpenSetup: () -> Void = {}
     /// Dock'a sürükle-bırak hızlandırma açılıp kapandı
@@ -411,6 +413,7 @@ struct SettingsView: View {
         }
 
         appAudioCard
+        if Equalizer.available { eqCard }
     }
 
     // MARK: Uygulamaya göre ses
@@ -487,6 +490,61 @@ struct SettingsView: View {
             .fixedSize()
             .disabled(candidates.isEmpty)
         }
+    }
+
+    // MARK: Ekolayzır
+
+    @ViewBuilder private var eqCard: some View {
+        let eq = Equalizer.shared
+        Card(title: L("Ekolayzır"), icon: "slider.vertical.3",
+             isOn: model.bind({ EQSettings.enabled }, { v in
+                 EQSettings.enabled = v
+                 model.onEQChanged()
+             }),
+             subtitle: L("Sistemin sesi için 10 bant; eqMac gerekmez")) {
+            if let err = eq.lastError, EQSettings.enabled {
+                Label(err, systemImage: "exclamationmark.triangle.fill")
+                    .font(.system(size: 11.5)).foregroundStyle(.orange)
+            }
+            Row(L("Ön kazanç"), L("Bütün sesi yükseltir ya da kısar. Bantları çok artırdıysan biraz düşür, ses bozulmasın.")) {
+                HStack(spacing: 8) {
+                    Slider(value: model.bind({ EQSettings.preamp }, { v in
+                        EQSettings.preamp = (v * 2).rounded() / 2
+                        eq.settingsChanged()
+                    }), in: -12...12)
+                    .frame(width: 200)
+                    Text(Self.db(EQSettings.preamp))
+                        .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                        .frame(width: 58, alignment: .trailing)
+                }
+            }
+            EQBandsView(model: model)
+            HStack(spacing: 8) {
+                ForEach(EQSettings.presets.indices, id: \.self) { i in
+                    let p = EQSettings.presets[i]
+                    Button(p.name) {
+                        EQSettings.gains = p.gains
+                        eq.settingsChanged()
+                        model.refresh()
+                    }
+                    .buttonStyle(GlassButtonStyle())
+                }
+                Spacer()
+                Button(L("Sıfırla")) {
+                    EQSettings.gains = Array(repeating: 0, count: EQSettings.frequencies.count)
+                    EQSettings.preamp = 0
+                    eq.settingsChanged()
+                    model.refresh()
+                }
+                .buttonStyle(GlassButtonStyle())
+            }
+            note(L("İlk açılışta macOS ses kaydı izni sorar: ekolayzır sistemin sesini işleyip hoparlöre geri verir, hiçbir şey kaydedilmez."))
+        }
+    }
+
+    static func db(_ v: Double) -> String {
+        let s = String(format: "%.1f dB", v)
+        return v > 0.05 ? "+" + s : s
     }
 
     /// "Tümü" modundayken bir cihazın işaretini kaldırmak: o cihaz hariç hepsini seçili yap.
@@ -1643,6 +1701,88 @@ struct FlowChips: View {
                 .padding(.horizontal, 10).padding(.vertical, 5)
                 .background(Capsule().fill(.white.opacity(0.10)))
             }
+        }
+    }
+}
+
+
+// MARK: - Ekolayzır bantları
+
+/// 10 dikey sürgü: üstte kazanç, altta frekans; çift tıklayınca o bant sıfırlanır
+struct EQBandsView: View {
+    @ObservedObject var model: SettingsModel
+
+    var body: some View {
+        let gains = EQSettings.gains
+        HStack(alignment: .bottom, spacing: 0) {
+            ForEach(EQSettings.frequencies.indices, id: \.self) { i in
+                VStack(spacing: 6) {
+                    Text(Self.short(gains[i]))
+                        .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(abs(gains[i]) < 0.05 ? Color.white.opacity(0.45) : Brand.red)
+                    VerticalSlider(value: Binding(get: { EQSettings.gains[i] }, set: { v in
+                        var g = EQSettings.gains
+                        g[i] = (v * 2).rounded() / 2
+                        EQSettings.gains = g
+                        Equalizer.shared.settingsChanged()
+                        model.refresh()
+                    }))
+                    .frame(width: 26, height: 130)
+                    .onTapGesture(count: 2) {
+                        var g = EQSettings.gains
+                        g[i] = 0
+                        EQSettings.gains = g
+                        Equalizer.shared.settingsChanged()
+                        model.refresh()
+                    }
+                    Text(Self.freq(EQSettings.frequencies[i]))
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.6))
+                }
+                .frame(maxWidth: .infinity)
+            }
+        }
+        .padding(.vertical, 8)
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(.white.opacity(0.04)))
+    }
+
+    private static func short(_ v: Double) -> String {
+        abs(v) < 0.05 ? "0" : (v > 0 ? String(format: "+%.1f", v) : String(format: "%.1f", v))
+    }
+
+    private static func freq(_ f: Double) -> String {
+        f >= 1000 ? "\(Int(f / 1000))k" : "\(Int(f))"
+    }
+}
+
+/// Dikey sürgü (-12…+12 dB): ortada sıfır çizgisi, değer kırmızı dolgu
+struct VerticalSlider: View {
+    @Binding var value: Double
+    var range: ClosedRange<Double> = -12...12
+
+    var body: some View {
+        GeometryReader { geo in
+            let h = geo.size.height
+            let span = range.upperBound - range.lowerBound
+            let y = h * CGFloat(1 - (value - range.lowerBound) / span)
+            let mid = h / 2
+            ZStack(alignment: .top) {
+                Capsule().fill(.white.opacity(0.12)).frame(width: 4).frame(maxHeight: .infinity)
+                Rectangle().fill(.white.opacity(0.25)).frame(width: 12, height: 1).offset(y: mid)
+                Capsule().fill(Brand.red)
+                    .frame(width: 4, height: abs(mid - y))
+                    .offset(y: min(mid, y))
+                Circle().fill(.white)
+                    .frame(width: 14, height: 14)
+                    .shadow(color: .black.opacity(0.35), radius: 1.5, y: 1)
+                    .offset(y: y - 7)
+            }
+            .frame(maxWidth: .infinity)
+            .contentShape(Rectangle())
+            .gesture(DragGesture(minimumDistance: 0).onChanged { g in
+                let k = 1 - min(max(g.location.y / h, 0), 1)
+                value = range.lowerBound + Double(k) * span
+            })
         }
     }
 }
