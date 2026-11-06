@@ -2,6 +2,14 @@
 
 Also shown in the app: **Settings › Versions**.
 
+## 3.0.1
+
+- Features panel: the main shortcuts (⌘Tab, sound, screenshots, split screen) with live previews in one place; anything you turn off disappears from Settings, the menu bar panel and the shortcut list
+- Suggest a Feature: tell us what your Mac is missing on GitHub (Settings › Suggest a Feature)
+- ⌘Tab: keys no longer wait while the window list is prepared; windows that don't fit scroll into view
+- Notch island: your two most-used layouts sit right under the notch
+- Full Disk Access is detected correctly; ⌘Space opens file search only while Finder is active
+
 ## 3.0.0
 
 - AudioTab is now Missing: the features the Mac left out, in one app
