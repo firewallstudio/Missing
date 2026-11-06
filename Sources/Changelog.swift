@@ -16,6 +16,16 @@ struct ChangelogEntry {
 
 enum Changelog {
     static let entries: [ChangelogEntry] = [
+        ChangelogEntry(version: "4.0.0", items: [
+            ("Missing 4.0: Mac'te eksik kalan özellikler artık tam bir set",
+             "Missing 4.0: the features the Mac left out, now a complete set"),
+            ("Yeni Sürümler sayfası: kullandığın sürüm kırmızı kutuda, diğerleri kutu kutu; tıklayınca bütün notlar",
+             "New Versions page: your version in a red box, the rest as cards; tap one for all its notes"),
+            ("⌘Tab'da seçili kart Missing kırmızısıyla vurgulanır",
+             "The selected card in ⌘Tab is highlighted in Missing red"),
+            ("Ayarlar düzenlendi: ekolayzır Hızlı Özellikler'de, pil ve şarj profilleri kendi sayfasında (sadece 14 inç MacBook Pro M4 Pro)",
+             "Settings reorganized: the equalizer moved to Quick Features, battery and charging profiles have their own page (14-inch MacBook Pro M4 Pro only)"),
+        ]),
         ChangelogEntry(version: "3.0.8", items: [
             ("Pil ve şarj profilleri: menüden elle geçişte güç modu da değişir (bir kez Ayarlar › Ekran › Ayarla)",
              "Battery and charging profiles: switching from the menu changes the power mode too (set up once in Settings › Screen)"),

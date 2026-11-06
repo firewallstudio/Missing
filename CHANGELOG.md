@@ -2,6 +2,13 @@
 
 Also shown in the app: **Settings › Versions**.
 
+## 4.0.0
+
+- Missing 4.0: the features the Mac left out, now a complete set
+- New Versions page: your version in a red box, the rest as cards; tap one for all its notes
+- The selected card in ⌘Tab is highlighted in Missing red
+- Settings reorganized: the equalizer moved to Quick Features, battery and charging profiles have their own page (14-inch MacBook Pro M4 Pro only)
+
 ## 3.0.8
 
 - Battery and charging profiles: switching from the menu changes the power mode too (set up once in Settings › Screen)

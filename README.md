@@ -34,11 +34,17 @@ Press **⌘Space while Finder is in front** and a Spotlight-style bar opens. It 
 
 The selected result is previewed on the right; hover a row to preview it. **Space** opens Quick Look just like in Finder, **⌘⌫** moves the file to the Trash right away, **Enter** opens and **⌘Enter** shows it in Finder. Typing in Finder's own search box shows the same instant results right below it. Everywhere else, ⌘Space still opens Spotlight.
 
+## Finder tabs, like Windows
+
+<div align="center"><img src="assets/finder-tabs.png" alt="Windows-style Finder tabs" width="820"></div>
+
+Finder stretches its tabs across the whole window, even when there are only two. Missing lays them out like Windows: from the left, each one up to a set width, shrinking as you open more and scrolling when they don't fit. Hover a tab to close it, click **+** for a new one. It blends into Finder's own bar and stays put when you switch apps or right-click.
+
 ## Split the screen from the notch
 
 <div align="center"><img src="assets/notch.gif" alt="Notch tiling island" width="900"></div>
 
-Drag a window to the top of the screen. On MacBooks with a notch, the notch grows into an island with layouts on both sides. Your two most-used layouts sit right under the notch and update as you use them. Drop the window on a zone and it snaps there. Or press **⌘<** to pick a layout and fill it window by window.
+Drag a window to the top of the screen. On MacBooks with a notch, the notch grows into an island with layouts on both sides. Your two most-used layouts sit right under the notch and update as you use them. Drop the window on a zone and it snaps there. Or press **⌘<** to pick a layout: fill it window by window, or let Missing fill the zones with the most recently used windows on that screen (Settings › Screen).
 
 ## One key for sound output
 
@@ -46,15 +52,27 @@ Drag a window to the top of the screen. On MacBooks with a notch, the notch grow
 
 Hold **⌘** and tap **⇧** to move to the next output: speakers → AirPods → display. Assign a device per app, and sound follows when that app comes forward.
 
+## A simple equalizer, no eqMac
+
+<div align="center"><img src="assets/settings-eq.png" alt="Equalizer" width="560"></div>
+
+Ten bands from 32 Hz to 16 kHz (±12 dB) and a preamp for all system audio, with presets (Flat, Bass, Treble, Voice, Night). Missing uses macOS's own audio tap (macOS 14.2+): no driver, no extra app. It follows you when you switch output devices, and the first time macOS asks once for audio recording permission. Nothing is recorded.
+
+## Battery and charging profiles
+
+*Only on the 14-inch MacBook Pro with M4 Pro; on every other Mac this doesn't appear at all.*
+
+Unplug and the display drops to the **600-nit** preset at **60 Hz** with **Low Power Mode**. Plug back in and it returns to **1600 nits (XDR)**, **ProMotion** and **High Power Mode**. It happens automatically, or switch by hand from the menu bar.
+
 ## Everything else, one click away
 
 <div align="center"><img src="assets/menu.png" alt="Menu bar panel" width="560"></div>
 
 Click the leaf in the menu bar for a glass panel: sound output at the top, then quick actions (split screen, screenshot, record, scrolling capture, black out displays) and brightness sliders for external displays.
 
-- **Screenshots and recording:** ⌘⇧3 captures the display you're on, ⌘⇧4 an area, ⌘⇧6 a whole scrolling page, ⌘⇧5 records MP4.
+- **Screenshots and recording:** ⌘⇧3 captures the display you're on, ⌘⇧4 an area, ⌘⇧6 a whole scrolling page, ⌘⇧5 records MP4. Capture or record **just one window** from the ⌘⇧5 palette, with its own save folder.
 - **Black out displays** with ⌘⇧<, and bring them back the same way.
-- **Quick features:** Windows-style Finder tabs (a set width that shrinks as you add more, instead of stretching across the window), grouped ⌘Tab view, back/forward with mouse buttons in Finder, instant Dock opening while dragging a file.
+- **Quick features:** equalizer, Windows-style Finder tabs, grouped ⌘Tab view, back/forward with mouse buttons in Finder, instant Dock opening while dragging a file.
 
 ## Only what you use
 
