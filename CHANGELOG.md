@@ -1,0 +1,15 @@
+# Changelog
+
+Also shown in the app: **Settings › Versions**.
+
+## 3.0.0
+
+- AudioTab is now Missing: the features the Mac left out, in one app
+- New settings: sidebar, collapsible cards, an on/off switch for every feature
+- Quick Features: grouped view, Finder mouse buttons, Dock drag and drop, always find windows, file search and monitor blackout in one place
+- Shortcuts page: every shortcut shows what it does with an animation
+- File search looks like Spotlight and opens with ⌘Space only while Finder is in front
+- New glass panel in the menu bar: sound output, quick actions, displays
+- The notch tiling island now shows a live preview under the notch
+- Drop a file on an app in the ⌘Tab panel to open it there (drop on a Finder window to move it into that folder)
+- Features you turn off never ask for permissions; first launch asks what you'll use
