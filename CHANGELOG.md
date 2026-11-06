@@ -2,6 +2,14 @@
 
 Also shown in the app: **Settings › Versions**.
 
+## 3.0.4
+
+- Finder's search box and ⌘F open Missing's search too
+- Videos no longer autoplay in the search preview; search stays open after closing Quick Look with Space
+- Capture just a window: pick a single window for screenshots or recordings (⌘⇧5 palette)
+- Split screen: fill zones with that screen's most recent windows automatically, or choose them yourself (Settings › Screen)
+- Finder tabs: × always closes, the strip slides in from the top and matches Finder's colour
+
 ## 3.0.3
 
 - File search: the selected result is previewed on the right; hover to preview, Space opens Quick Look like in Finder
