@@ -54,7 +54,7 @@ Menü çubuğundaki yaprağa tıkla: üstte ses çıkışı, altında hızlı ey
 
 - **Ekran görüntüsü ve kayıt:** ⌘⇧3 bulunduğun ekran, ⌘⇧4 alan, ⌘⇧6 kaydırmalı sayfa, ⌘⇧5 MP4 kayıt.
 - **Ekranları karart:** ⌘⇧< ile karart, aynı kısayolla geri aç.
-- **Hızlı özellikler:** gruplu ⌘Tab görünümü, Finder'da fare tuşlarıyla geri/ileri, dosya sürüklerken Dock'ta anında açılma.
+- **Hızlı özellikler:** Windows tarzı Finder sekmeleri (pencereye yayılmak yerine belli bir genişlikte, çoğaldıkça daralır), gruplu ⌘Tab görünümü, Finder'da fare tuşlarıyla geri/ileri, dosya sürüklerken Dock'ta anında açılma.
 
 ## Sadece kullandıkların
 

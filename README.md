@@ -54,7 +54,7 @@ Click the leaf in the menu bar for a glass panel: sound output at the top, then 
 
 - **Screenshots and recording:** ⌘⇧3 captures the display you're on, ⌘⇧4 an area, ⌘⇧6 a whole scrolling page, ⌘⇧5 records MP4.
 - **Black out displays** with ⌘⇧<, and bring them back the same way.
-- **Quick features:** grouped ⌘Tab view, back/forward with mouse buttons in Finder, instant Dock opening while dragging a file.
+- **Quick features:** Windows-style Finder tabs (a set width that shrinks as you add more, instead of stretching across the window), grouped ⌘Tab view, back/forward with mouse buttons in Finder, instant Dock opening while dragging a file.
 
 ## Only what you use
 

@@ -31,7 +31,7 @@ enum Onboarding {
         if DeviceStore.shared.hotkeyEnabled { return true }
         if CaptureSettings.enabled || TileSettings.enabled || SnapBarSettings.enabled { return true }
         if FileSearchSettings.enabled || MonitorSettings.blackoutKey { return true }
-        return DockDragSettings.enabled || FinderMouseNav.enabled
+        return DockDragSettings.enabled || FinderMouseNav.enabled || FinderTabsSettings.enabled
     }
 
     /// Pencere önizlemeleri ya da ekran çekimi açık mı (Ekran Kaydı gerekir)
