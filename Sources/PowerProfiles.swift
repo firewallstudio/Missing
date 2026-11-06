@@ -92,20 +92,35 @@ enum PowerProfile {
         let ac = !onBattery
         guard ac != lastOnAC else { return }   // pil yüzdesi değişimi vb. değil, sadece fiş
         lastOnAC = ac
+        // Elle yapılmış güç modu değişikliği varsa pil / şarj ayarı yerine otursun
+        Self.sudoPmset([["-b", "powermode", "1"], ["-c", "powermode", "2"]])
         guard PowerProfileSettings.auto else { return }
         apply(ac ? .performance : .saver)
     }
 
-    /// Menüden elle: diğer profile geç
+    /// Menüden elle: diğer profile geç (güç modu dahil)
     func toggle() {
-        apply(current == .saver ? .performance : .saver)
+        apply(current == .saver ? .performance : .saver, manual: true)
     }
 
-    func apply(_ p: PowerProfile) {
+    /// manual: menüden ya da Ayarlar'dan; o anki güç kaynağının güç modu da değişir
+    func apply(_ p: PowerProfile, manual: Bool = false) {
         guard Self.supported else { return }
         setPreset(p)
         setRefreshRate(p.hz)
         current = p
+        if manual {
+            let mode = p == .saver ? "1" : "2"
+            Self.sudoPmset([[onBattery ? "-b" : "-c", "powermode", mode]])
+        }
+    }
+
+    /// Kurulumda eklenen dar izinle (sadece pmset powermode) şifresiz çalıştır; izin yoksa sessizce geç
+    private static func sudoPmset(_ commands: [[String]]) {
+        guard FileManager.default.fileExists(atPath: sudoersPath) else { return }
+        DispatchQueue.global(qos: .userInitiated).async {
+            for c in commands { _ = run("/usr/bin/sudo", ["-n", "/usr/bin/pmset"] + c) }
+        }
     }
 
     // MARK: Ekran ayarı (MonitorPanel)
@@ -164,10 +179,38 @@ enum PowerProfile {
         return battery == "1" && ac == "2"
     }
 
-    /// Bir kez: pilde düşük güç, şarjda yüksek güç (macOS yönetici şifresini kendi penceresinde sorar)
+    static let sudoersPath = "/etc/sudoers.d/missing-pmset"
+
+    /// Kurulum tam mı: güç modları ayarlı ve elle geçiş için izin kuralı yerinde
+    var fullyConfigured: Bool { powerModesConfigured && FileManager.default.fileExists(atPath: Self.sudoersPath) }
+
+    /// Bir kez: pilde düşük güç, şarjda yüksek güç + elle geçiş için dar izin kuralı
+    /// (sadece bu kullanıcı, sadece "pmset -b/-c powermode 0/1/2"). macOS yönetici şifresini kendi penceresinde sorar.
+    /// Kural visudo ile doğrulanmadan yerleştirilmez.
     @discardableResult
     func configurePowerModes() -> Bool {
-        let src = "do shell script \"/usr/bin/pmset -b powermode 1; /usr/bin/pmset -c powermode 2\" with administrator privileges"
+        let raw = NSUserName()
+        let user = raw.allSatisfy { $0.isLetter || $0.isNumber || "._-".contains($0) } && !raw.isEmpty ? raw : "%admin"
+        let cmds = ["-b", "-c"].flatMap { s in ["0", "1", "2"].map { "/usr/bin/pmset \(s) powermode \($0)" } }
+        let rule = "\(user) ALL=(root) NOPASSWD: " + cmds.joined(separator: ", ")
+        let script = """
+        #!/bin/sh
+        set -e
+        /usr/bin/pmset -b powermode 1
+        /usr/bin/pmset -c powermode 2
+        TMP=$(/usr/bin/mktemp)
+        /bin/cat > "$TMP" <<'RULE'
+        # Missing: pil / şarj güç modunu elle değiştirmek için (sadece pmset powermode)
+        \(rule)
+        RULE
+        /usr/sbin/visudo -c -f "$TMP" >/dev/null
+        /usr/bin/install -o root -g wheel -m 0440 "$TMP" \(Self.sudoersPath)
+        /bin/rm -f "$TMP"
+        """
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("missing-power-\(UUID().uuidString).sh")
+        guard (try? script.write(to: url, atomically: true, encoding: .utf8)) != nil else { return false }
+        defer { try? FileManager.default.removeItem(at: url) }
+        let src = "do shell script \"/bin/sh '\(url.path)'\" with administrator privileges"
         var err: NSDictionary?
         _ = NSAppleScript(source: src)?.executeAndReturnError(&err)
         objectWillChange.send()
