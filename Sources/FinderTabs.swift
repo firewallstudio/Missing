@@ -152,14 +152,19 @@ private final class TabsHostingView<Content: View>: NSHostingView<Content> {
         if err == .cannotComplete { return }
         guard err == .success, let v, CFGetTypeID(v) == AXUIElementGetTypeID() else { hide(); return }
         let win = v as! AXUIElement
+        // Sağ tık menüsü açıkken Finder "odaktaki pencere" olarak menüyü verebilir: pencere değilse dokunma
+        guard (AX.attr(win, kAXRoleAttribute) as String?) == kAXWindowRole as String,
+              (AX.attr(win, kAXSubroleAttribute) as String?) == kAXStandardWindowSubrole as String else { return }
         if (AX.attr(win, kAXMinimizedAttribute) as Bool?) == true { hide(); return }
-        let wid = axWindowID(win) ?? 0
+        guard let wid = axWindowID(win) else { return }
         guard let group = Self.tabGroup(in: win), let frame = Self.frame(of: group) else {
             // Başka pencereye geçildiyse gizle; aynı pencerede grup okunamadıysa (menü açık vb.) şerit kalsın,
             // pencere cevap veriyor ama sekme yoksa çubuk gerçekten kapanmıştır
             if wid != lastWindow { hide(); return }
+            // Aynı pencere: araç çubuğu okunabiliyor ama sekme grubu yoksa çubuk gerçekten kapandı
             let kids: [AXUIElement] = AX.attr(win, kAXChildrenAttribute) ?? []
-            if !kids.isEmpty { hide() }
+            let hasToolbar = kids.contains { (AX.attr($0, kAXRoleAttribute) as String?) == kAXToolbarRole as String }
+            if hasToolbar { hide() }
             return
         }
         let kids: [AXUIElement] = AX.attr(group, kAXChildrenAttribute) ?? []
@@ -185,7 +190,6 @@ private final class TabsHostingView<Content: View>: NSHostingView<Content> {
         lastWindow = wid
         lastHadTabs = true
         place(frame, window: wid, animate: appeared)
-        sampleBarColor(window: win, tabs: els, selected: tabs.map(\.selected))
     }
 
     private func hide() {
@@ -397,10 +401,10 @@ struct FinderTabsView: View {
         if let s = model.tabs.first(where: \.selected) { proxy.scrollTo(s.id) }
     }
 
-    /// Finder'ın sekme çubuğuyla aynı ton (açık / koyu görünüm)
+    /// Finder'ın kendi çubuğuyla aynı malzeme (başlık çubuğu camı): açık / koyu görünümde ve
+    /// pencere önde / arkadayken tonu Finder'ınkiyle birlikte değişir
     private var barBackground: some View {
-        Rectangle()
-            .fill(model.barColor.map { Color(nsColor: $0) } ?? (scheme == .dark ? Color(white: 0.13) : Color(white: 0.86)))
+        TitlebarMaterial()
             .overlay(alignment: .bottom) {
                 Rectangle().fill(Color.primary.opacity(0.12)).frame(height: 0.5)
             }
@@ -481,4 +485,17 @@ private struct UnevenTop: Shape {
         p.closeSubpath()
         return p
     }
+}
+
+
+/// macOS'un başlık çubuğu malzemesi (Finder'ın araç ve sekme çubuğu bununla çizilir)
+private struct TitlebarMaterial: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let v = NSVisualEffectView()
+        v.material = .titlebar
+        v.blendingMode = .behindWindow
+        v.state = .active
+        return v
+    }
+    func updateNSView(_ v: NSVisualEffectView, context: Context) {}
 }
