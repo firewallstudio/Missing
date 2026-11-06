@@ -85,16 +85,18 @@ private final class TabsHostingView<Content: View>: NSHostingView<Content> {
 
     // MARK: Finder'ı izleme
 
+    /// Finder öne gelince ya da arkaya geçince: şerit gizlenmez, sadece katmanı değişir
+    /// (önde: Finder'ın üstünde yüzer; arkada: Finder penceresinin hemen üstüne yapışık kalır)
     @objc private func appChanged() {
         guard running else { return }
-        let front = NSWorkspace.shared.frontmostApplication
-        if front?.bundleIdentifier == Self.finderID, let pid = front?.processIdentifier {
-            attach(pid)
-            refresh()
-        } else if front?.processIdentifier != getpid() {
-            panel?.orderOut(nil)
+        if observedPid == 0 || NSRunningApplication(processIdentifier: observedPid)?.isTerminated != false,
+           let f = NSRunningApplication.runningApplications(withBundleIdentifier: Self.finderID).first {
+            attach(f.processIdentifier)
         }
+        refresh()
     }
+
+    private var finderFront: Bool { NSWorkspace.shared.frontmostApplication?.bundleIdentifier == Self.finderID }
 
     private func attach(_ pid: pid_t) {
         guard observedPid != pid else { return }
@@ -136,18 +138,28 @@ private final class TabsHostingView<Content: View>: NSHostingView<Content> {
 
     // MARK: Okuma ve yerleştirme
 
+    /// Son yerleştirilen pencere ve o pencerede sekme çubuğu var mıydı (yeni belirince yerine oturur)
+    private var lastWindow: CGWindowID = 0
+    private var lastHadTabs = false
+
     private func refresh() {
-        guard running, NSWorkspace.shared.frontmostApplication?.bundleIdentifier == Self.finderID, observedPid != 0 else {
-            if NSWorkspace.shared.frontmostApplication?.processIdentifier != getpid() { panel?.orderOut(nil) }
-            return
-        }
+        guard running, observedPid != 0 else { return }
         let app = AXUIElementCreateApplication(observedPid)
         AXUIElementSetMessagingTimeout(app, 0.1)
-        guard let win: AXUIElement = AX.attr(app, kAXFocusedWindowAttribute),
-              (AX.attr(win, kAXMinimizedAttribute) as Bool?) != true,
-              let group = Self.tabGroup(in: win),
-              let frame = Self.frame(of: group) else {
-            panel?.orderOut(nil)
+        var v: CFTypeRef?
+        let err = AXUIElementCopyAttributeValue(app, (finderFront ? kAXFocusedWindowAttribute : kAXMainWindowAttribute) as CFString, &v)
+        // Finder bir an cevap veremedi (ör. sağ tık menüsü açıkken): olduğu gibi bırak
+        if err == .cannotComplete { return }
+        guard err == .success, let v, CFGetTypeID(v) == AXUIElementGetTypeID() else { hide(); return }
+        let win = v as! AXUIElement
+        if (AX.attr(win, kAXMinimizedAttribute) as Bool?) == true { hide(); return }
+        let wid = axWindowID(win) ?? 0
+        guard let group = Self.tabGroup(in: win), let frame = Self.frame(of: group) else {
+            // Başka pencereye geçildiyse gizle; aynı pencerede grup okunamadıysa (menü açık vb.) şerit kalsın,
+            // pencere cevap veriyor ama sekme yoksa çubuk gerçekten kapanmıştır
+            if wid != lastWindow { hide(); return }
+            let kids: [AXUIElement] = AX.attr(win, kAXChildrenAttribute) ?? []
+            if !kids.isEmpty { hide() }
             return
         }
         let kids: [AXUIElement] = AX.attr(group, kAXChildrenAttribute) ?? []
@@ -165,11 +177,20 @@ private final class TabsHostingView<Content: View>: NSHostingView<Content> {
                 newTabButton = k
             }
         }
-        guard !tabs.isEmpty else { panel?.orderOut(nil); return }
+        guard !tabs.isEmpty else { return }
         tabElements = els
         if model.tabs != tabs { model.tabs = tabs }
-        place(frame)
+        // Aynı pencerede sekme çubuğu şimdi belirdiyse yerine oturarak gelsin; başka her durumda anında
+        let appeared = wid == lastWindow && !lastHadTabs && finderFront
+        lastWindow = wid
+        lastHadTabs = true
+        place(frame, window: wid, animate: appeared)
         sampleBarColor(window: win, tabs: els, selected: tabs.map(\.selected))
+    }
+
+    private func hide() {
+        lastHadTabs = false
+        panel?.orderOut(nil)
     }
 
     // MARK: Renk
@@ -186,9 +207,10 @@ private final class TabsHostingView<Content: View>: NSHostingView<Content> {
         guard sampledFor != key else { return }
         sampledFor = key
         let idx = selected.firstIndex(of: false) ?? 0
-        guard let tabRect = Self.axRect(tabs[idx]), let winRect = Self.axRect(window) else { return }
-        // Pencereye göre nokta (sol üst başlangıçlı), sekmenin sol üst köşesine yakın boşluk
-        let pt = CGPoint(x: tabRect.minX - winRect.minX + 6, y: tabRect.minY - winRect.minY + 4)
+        guard let tabRect = Self.axRect(tabs[idx]), let winRect = Self.axRect(window) else { sampledFor = nil; return }
+        // Pencereye göre nokta (sol üst başlangıçlı): seçili olmayan sekmenin sağ tarafındaki boşluk, dikeyde ortası
+        // (kenar çizgileri ve yazıdan uzak)
+        let pt = CGPoint(x: tabRect.maxX - winRect.minX - 12, y: tabRect.midY - winRect.minY)
         Task { [weak self] in
             guard let content = try? await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true),
                   let w = content.windows.first(where: { $0.windowID == wid }) else { return }
@@ -201,9 +223,17 @@ private final class TabsHostingView<Content: View>: NSHostingView<Content> {
                                                                          configuration: cfg) else { return }
             let sx = CGFloat(img.width) / w.frame.width, sy = CGFloat(img.height) / w.frame.height
             let rep = NSBitmapImageRep(cgImage: img)
-            let px = Int(pt.x * sx), py = Int(pt.y * sy)
-            guard px >= 0, py >= 0, px < rep.pixelsWide, py < rep.pixelsHigh, let c = rep.colorAt(x: px, y: py) else { return }
-            await MainActor.run { self?.model.barColor = c.withAlphaComponent(1) }
+            // 5×5'lik küçük alanın ortalaması: tek piksel yanıltmasın
+            var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, n: CGFloat = 0
+            for dx in -2...2 { for dy in -2...2 {
+                let px = Int(pt.x * sx) + dx, py = Int(pt.y * sy) + dy
+                guard px >= 0, py >= 0, px < rep.pixelsWide, py < rep.pixelsHigh,
+                      let c = rep.colorAt(x: px, y: py)?.usingColorSpace(.sRGB) else { continue }
+                r += c.redComponent; g += c.greenComponent; b += c.blueComponent; n += 1
+            } }
+            guard n > 0 else { await MainActor.run { self?.sampledFor = nil }; return }
+            let color = NSColor(srgbRed: r / n, green: g / n, blue: b / n, alpha: 1)
+            await MainActor.run { self?.model.barColor = color }
         }
     }
 
@@ -237,17 +267,26 @@ private final class TabsHostingView<Content: View>: NSHostingView<Content> {
         return NSRect(x: p.x, y: top - p.y - s.height, width: s.width, height: s.height)
     }
 
-    private func place(_ frame: NSRect) {
+    private func place(_ frame: NSRect, window wid: CGWindowID, animate: Bool) {
         let p = panel ?? make()
         panel = p
         if p.frame != frame { p.setFrame(frame, display: true) }
-        if !p.isVisible {
-            // Yukarıdan aşağı kayarak gel (ani beliriş göz yormasın)
+        if finderFront {
+            p.level = .floating
+            if !p.isVisible { p.orderFrontRegardless() }
+        } else {
+            // Finder arkada: şerit Finder penceresinin hemen üstünde kalsın; öndeki uygulamanın pencereleri onu örter
+            p.level = .normal
+            if wid != 0 { p.order(.above, relativeTo: Int(wid)) } else { p.orderOut(nil) }
+        }
+        if animate {
+            // Sekme çubuğu yeni açıldı: Finder'ınki gibi yerine oturur
             model.shown = false
-            p.orderFrontRegardless()
             DispatchQueue.main.async { [weak self] in
-                withAnimation(.easeOut(duration: 0.2)) { self?.model.shown = true }
+                withAnimation(.spring(response: 0.28, dampingFraction: 0.9)) { self?.model.shown = true }
             }
+        } else if !model.shown {
+            model.shown = true
         }
     }
 
@@ -262,7 +301,7 @@ private final class TabsHostingView<Content: View>: NSHostingView<Content> {
         p.becomesKeyOnlyIfNeeded = true
         p.isReleasedWhenClosed = false
         p.animationBehavior = .none
-        p.collectionBehavior = [.fullScreenAuxiliary, .moveToActiveSpace, .ignoresCycle, .transient]
+        p.collectionBehavior = [.fullScreenAuxiliary, .ignoresCycle]
         p.contentView = TabsHostingView(rootView: FinderTabsView(model: model))
         return p
     }
@@ -349,7 +388,7 @@ struct FinderTabsView: View {
                     Spacer(minLength: 0)
                 }
             }
-            .offset(y: model.shown ? 0 : -geo.size.height)
+            .offset(y: model.shown ? 0 : -geo.size.height * 0.6)
             .opacity(model.shown ? 1 : 0)
         }
     }

@@ -603,6 +603,7 @@ struct SettingsView: View {
                 }
             }
             note(L("Başka bir uygulama öndeyken ⌘Space her zamanki gibi Spotlight'ı açar."))
+            note(L("Finder'ın sağ üstteki arama kutusuna yazınca da kutunun altında aynı anında sonuçlar çıkar."))
         }
         Card(title: L("Monitörleri karart"), icon: "moon.fill",
              isOn: model.bind({ MonitorSettings.blackoutKey }, { MonitorSettings.blackoutKey = $0 }),
@@ -933,6 +934,8 @@ struct SettingsView: View {
                            isOn: model.bind({ CaptureSettings.scrollKey }, { v in CaptureSettings.scrollKey = v; model.onShortcutsChanged() }))
                 captureRow(.video, key: "⌘⇧5", title: L("Ekran kaydı (MP4 · H.264)"), detail: L("Çekim paleti; kayıt sırasında ⌘⇧5 durdurur"),
                            isOn: model.bind({ CaptureSettings.videoKey }, { v in CaptureSettings.videoKey = v; model.onShortcutsChanged() }))
+                folderRow(.window, title: L("Pencere görüntüleri"), detail: L("⌘⇧5 › Sadece pencere"))
+                folderRow(.windowVideo, title: L("Pencere kayıtları"), detail: L("⌘⇧5 › Pencereyi kaydet"))
                 HStack {
                     Spacer()
                     Button(L("Hepsini tek klasöre kaydet…")) { pickFolderForAll() }
@@ -1022,6 +1025,30 @@ struct SettingsView: View {
             Spacer(minLength: 8)
             Button(L("Klasör…")) { pickFolder(kind) }
             BrandToggle(isOn: isOn)
+        }
+        .padding(.vertical, 4)
+    }
+
+    /// Kısayolu olmayan çekimler (pencere): sadece kayıt klasörü
+    private func folderRow(_ kind: CaptureKind, title: String, detail: String) -> some View {
+        let folder = CaptureSettings.folder(kind)
+        return HStack(spacing: 10) {
+            Image(systemName: kind == .window ? "macwindow" : "macwindow.badge.plus")
+                .font(.system(size: 12, weight: .semibold))
+                .frame(width: 46, height: 22)
+                .background(RoundedRectangle(cornerRadius: 6).fill(.white.opacity(0.12)))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(.system(size: 13, weight: .medium)).help(detail)
+                Button { NSWorkspace.shared.open(folder) } label: {
+                    Label((folder.path as NSString).abbreviatingWithTildeInPath, systemImage: "folder")
+                        .font(.system(size: 10.5)).lineLimit(1).truncationMode(.middle)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(Brand.red)
+                .help(L("Klasörü Finder'da aç"))
+            }
+            Spacer(minLength: 8)
+            Button(L("Klasör…")) { pickFolder(kind) }
         }
         .padding(.vertical, 4)
     }

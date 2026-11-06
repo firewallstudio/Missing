@@ -627,12 +627,15 @@ enum Thumbs {
 @MainActor var gSwitcher: Switcher?
 @MainActor var gAudioKeys: AudioKeys?
 @MainActor var gExtraKeys: ExtraKeys?
+@MainActor var gFinderSearch: FinderSearchHook?
 
 let tapCallback: CGEventTapCallBack = { _, type, event, _ in
     let code = event.getIntegerValueField(.keyboardEventKeycode)
     let flags = event.flags
     let swallow = MainActor.assumeIsolated { () -> Bool in
         gAudioKeys?.handle(type, code, flags)              // ses kısayolu (hiçbir tuşu yutmaz)
+        // Finder'ın arama kutusunun altındaki liste açıkken ↓↑↩ listeye
+        if type == .keyDown, gFinderSearch?.handleKey(code, flags) == true { return true }
         if gExtraKeys?.handle(type, code, flags, event) == true { return true }   // ⌘⇧3/4/5/6, ⌘<, ⌘⇧<
         // Harici ekranlar karartılmışken tuşlar arkadaki pencerelere gitmesin (⌘⇧< yukarıda zaten işlendi)
         if (type == .keyDown || type == .keyUp), Monitors.shared.isBlackedOut, MonitorSettings.lockKeysWhenDark { return true }

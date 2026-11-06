@@ -10,8 +10,16 @@ import UniformTypeIdentifiers
 // MARK: - Ayarlar
 
 enum CaptureKind: String, CaseIterable {
-    case screen, area, scroll, video
+    case screen, area, scroll, video, window, windowVideo
     var folderKey: String { "capture.folder.\(rawValue)" }
+    /// Klasör seçilmemişse kullanılacak tür (pencere görüntüsü → alan, pencere kaydı → video)
+    var fallback: CaptureKind? {
+        switch self {
+        case .window: return .area
+        case .windowVideo: return .video
+        default: return nil
+        }
+    }
 }
 
 /// Ekran kaydı biçimi
@@ -92,6 +100,7 @@ enum CaptureSettings {
 
     static func folder(_ kind: CaptureKind) -> URL {
         if let p = d.string(forKey: kind.folderKey), !p.isEmpty { return URL(fileURLWithPath: p, isDirectory: true) }
+        if let f = kind.fallback { return folder(f) }
         return FileManager.default.urls(for: .desktopDirectory, in: .userDomainMask).first
             ?? URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
     }
@@ -1004,7 +1013,7 @@ struct CapturePaletteView: View {
     /// macOS'un kendi pencere seçicisi: üstüne gelinen pencere vurgulanır, tıklanan pencere çekilir (gölgesiz)
     func screenshotWindow() {
         guard ensurePermission() else { return }
-        let url = CaptureFiles.newURL(.area, prefix: L("Pencere"), ext: "png")
+        let url = CaptureFiles.newURL(.window, prefix: L("Pencere"), ext: "png")
         runScreencapture(["-i", "-W", "-o", "-x"], url: url, label: L("Pencere görüntüsü"), preview: false, shutterOnSuccess: true)
     }
 
@@ -1204,7 +1213,9 @@ struct CapturePaletteView: View {
     }
 
     private func record(screen: NSScreen, rect: CGRect?, windowID: CGWindowID? = nil) {
-        let url = CaptureFiles.newURL(.video, prefix: L("Ekran Kaydı"), ext: CaptureSettings.format.ext)
+        let url = windowID == nil
+            ? CaptureFiles.newURL(.video, prefix: L("Ekran Kaydı"), ext: CaptureSettings.format.ext)
+            : CaptureFiles.newURL(.windowVideo, prefix: L("Pencere Kaydı"), ext: CaptureSettings.format.ext)
         let id = displayID(of: screen)
         let scale = screen.backingScaleFactor
         isRecording = true
