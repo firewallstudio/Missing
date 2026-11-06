@@ -116,6 +116,7 @@ if [[ $INSTALL == 1 ]]; then
   sleep 0.5
   rm -rf "/Applications/$APP" /Applications/AudioTab.app
   cp -R "$APP" /Applications/
+  rm -rf "$APP"   # proje klasöründe ikinci bir kopya kalmasın (Spotlight / Launchpad'de çift görünmesin)
   open "/Applications/$APP"
   echo ""
   echo "✅ /Applications/$APP kuruldu ve açıldı."
