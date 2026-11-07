@@ -580,7 +580,7 @@ private let englishStrings: [String: String] = [
     "Ayarla…": "Set Up…",
     "Güç: %@": "Power: %@",
     "Ekolayzır": "Equalizer",
-    "Sistemin sesi için 10 bant; eqMac gerekmez": "10 bands for system audio; no eqMac needed",
+    "Sistemin sesi için 10 bant; sürücü gerekmez": "10 bands for system audio; no driver needed",
     "Ön kazanç": "Preamp",
     "Bütün sesi yükseltir ya da kısar. Bantları çok artırdıysan biraz düşür, ses bozulmasın.": "Raises or lowers all audio. If you boosted bands a lot, lower it a little to avoid distortion.",
     "Sıfırla": "Reset",

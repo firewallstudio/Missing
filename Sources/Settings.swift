@@ -503,7 +503,7 @@ struct SettingsView: View {
                  EQSettings.enabled = v
                  model.onEQChanged()
              }),
-             subtitle: L("Sistemin sesi için 10 bant; eqMac gerekmez")) {
+             subtitle: L("Sistemin sesi için 10 bant; sürücü gerekmez")) {
             if let err = eq.lastError, EQSettings.enabled {
                 Label(err, systemImage: "exclamationmark.triangle.fill")
                     .font(.system(size: 11.5)).foregroundStyle(.orange)
