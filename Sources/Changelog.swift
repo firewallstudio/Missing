@@ -17,8 +17,8 @@ struct ChangelogEntry {
 enum Changelog {
     static let entries: [ChangelogEntry] = [
         ChangelogEntry(version: "4.1.0", items: [
-            ("Yeni Mouse penceresi: LinearMouse ve Mos'un yaptıkları tek yerde, ikisini kurmaya gerek yok (menüden ya da Ayarlar › Özellikler'den aç)",
-             "New Mouse window: what LinearMouse and Mos do, in one place, so you need neither (open it from the menu or Settings › Features)"),
+            ("Yeni Mouse penceresi: fare için ayrı uygulama kurmaya gerek yok (menüden ya da Ayarlar › Özellikler'den aç)",
+             "New Mouse window: no separate mouse app needed (open it from the menu or Settings › Features)"),
             ("Yumuşak kaydırma: adım, hız çarpanı ve süre; trackpad gibi kaydırma; dikey ve yatay için ayrı yumuşatma ve ters çevirme",
              "Smooth scrolling: step, speed gain and duration; trackpad-style scrolling; separate smoothing and reverse for vertical and horizontal"),
             ("Kaydırma modları (ivmeli, satır, piksel) yumuşatmayla birlikte; basılı tutunca hızlandıran, yön değiştiren ya da yumuşatmayı kapatan tuşlar",
@@ -27,8 +27,8 @@ enum Changelog {
              "Pointer: turn off acceleration, separate acceleration and speed; returns to the system setting when Missing quits or crashes"),
             ("Tuşlar: evrensel geri/ileri, sol↔sağ değişimi, çift tıklama koruması, orta tuşla otomatik kaydırma, hareketler, tuş eşlemeleri ve eylemler",
              "Buttons: universal back/forward, left↔right switch, click debouncing, middle-button autoscroll, gestures, button mappings and actions"),
-            ("Her ayar tüm farelere, bir cihaza, bir ekrana ya da bir uygulamaya göre; LinearMouse ve Mos ayarları içe aktarılır",
-             "Every setting can apply to all mice, one device, one display or one app; LinearMouse and Mos settings can be imported"),
+            ("Her ayar tüm farelere, bir cihaza, bir ekrana ya da bir uygulamaya göre; başka fare uygulamalarının ayarları içe aktarılır",
+             "Every setting can apply to all mice, one device, one display or one app; settings from other mouse apps can be imported"),
         ]),
         ChangelogEntry(version: "4.0.0", items: [
             ("Missing 4.0: Mac'te eksik kalan özellikler artık tam bir set",
