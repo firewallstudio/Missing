@@ -201,6 +201,7 @@ import UserNotifications
 
     /// İzinleri yalnızca açık özellikler gerektiriyorsa iste, sonra dinleyicileri başlat
     private func startFeatures() {
+        startMouse()   // imleç ayarları izin istemez; kaydırma ve tuşlar izin gelince başlar
         if FileSearchSettings.enabled { FileIndex.shared.start() }
         PowerProfiles.shared.start()   // sadece MacBook Pro 14" M4 Pro'da bir şey yapar
         if EQSettings.enabled { Equalizer.shared.apply() }
@@ -270,6 +271,7 @@ import UserNotifications
     // MARK: Mouse
 
     private var mouseWired = false
+    private var mouseWarned = false
     private var mouseDisplay: String?
 
     private func startMouse() {
@@ -284,6 +286,12 @@ import UserNotifications
             ws.addObserver(forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main) { _ in
                 MainActor.assumeIsolated { MousePointer.shared.apply() }
             }
+            ws.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { _ in
+                MainActor.assumeIsolated {
+                    MouseDevices.shared.refresh()
+                    MousePointer.shared.reapply()
+                }
+            }
             NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { _ in
                 MainActor.assumeIsolated { MouseScreens.refresh(); MousePointer.shared.apply() }
             }
@@ -294,9 +302,9 @@ import UserNotifications
         }
         guard MouseEngine.shared.config.enabled else { return }
         MouseEngine.shared.start()
-        let others = MouseConflicts.running().compactMap { MouseConflicts.ids[$0.bundleIdentifier ?? ""] }
-        if !others.isEmpty {
-            hud.show(name: L("Şu da çalışıyor: %@ · Mouse ayarları çakışabilir", others.joined(separator: ", ")),
+        if !mouseWarned, !MouseConflicts.running().isEmpty {
+            mouseWarned = true
+            hud.show(name: L("Başka bir fare uygulaması da çalışıyor · Mouse ayarları çakışabilir"),
                      symbol: "exclamationmark.triangle.fill")
         }
     }
@@ -316,8 +324,8 @@ import UserNotifications
     private func guardTick() {
         mouseDisplayTick()
         // İzin var ama dinleyici kurulamamışsa yeniden dene
-        if Onboarding.done, !MouseEngine.shared.isRunning, MouseEngine.shared.config.enabled, AXIsProcessTrusted() {
-            startMouse()
+        if Onboarding.done, MouseEngine.shared.config.enabled, !MouseEngine.shared.isRunning, AXIsProcessTrusted() {
+            startMouse()   // izin sonradan verildi: olay yakalayıcıyı da başlat
         }
         if Onboarding.done, !switcher.isRunning, permTimer == nil, AXIsProcessTrusted() {
             switcher.start()
@@ -423,7 +431,7 @@ import UserNotifications
         a.stopRecording = { [weak self] in self?.capture.stopRecording() }
         a.blackout = { [weak self] in self?.extraKeys.onBlackout?() }
         a.openSettings = { [weak self] page in self?.settings.show(page: page) }
-        a.openMouse = { MouseWindowController.shared.show() }
+        a.openMouse = { [weak self] in self?.settings.show(page: .mouse) }
         a.checkUpdates = { [weak self] in self?.showUpdatePopup(check: true) }
         a.installUpdate = { [weak self] in self?.installUpdate() }
         a.quit = { NSApp.terminate(nil) }

@@ -151,7 +151,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
 // MARK: - Görünüm
 
 enum SettingsPage: CaseIterable {
-    case features, general, switcher, audio, screen, power, quick, permissions, shortcuts, request, versions, about
+    case features, general, switcher, audio, screen, power, quick, mouse, permissions, shortcuts, request, versions, about
 
     var title: String {
         switch self {
@@ -162,6 +162,7 @@ enum SettingsPage: CaseIterable {
         case .screen: return L("Ekran")
         case .power: return L("Pil ve Şarj")
         case .quick: return L("Hızlı Özellikler")
+        case .mouse: return L("Mouse")
         case .permissions: return L("İzinler")
         case .shortcuts: return L("Kısayollar")
         case .versions: return L("Sürümler")
@@ -179,6 +180,7 @@ enum SettingsPage: CaseIterable {
         case .screen: return "camera.viewfinder"
         case .power: return "battery.75percent"
         case .quick: return "bolt.fill"
+        case .mouse: return "computermouse.fill"
         case .permissions: return "lock.shield.fill"
         case .shortcuts: return "keyboard"
         case .versions: return "clock.arrow.circlepath"
@@ -249,6 +251,7 @@ struct SettingsView: View {
         case .screen: screenTab
         case .power: powerCard
         case .quick: quickTab
+        case .mouse: MouseSettingsPage(model: MouseModel.shared, devices: MouseDevices.shared)
         case .permissions: permissionsTab
         case .shortcuts: ShortcutsPage()
         case .versions: versionsTab

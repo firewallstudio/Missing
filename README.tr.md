@@ -54,7 +54,7 @@ Sistemin bütün sesi için 32 Hz – 16 kHz arası 10 bant (±12 dB) ve ön kaz
 
 ## LinearMouse ve Mos'suz fare
 
-Menü çubuğu panelinden **Mouse**'u aç. Mos gibi hissettiren yumuşak kaydırma (adım, hız çarpanı, süre, trackpad gibi), LinearMouse'un kaydırma modları (ivmeli, satır, piksel; bunlar da yumuşatılabilir) ve basılı tutunca hızlandıran, yön değiştiren ya da yumuşatmayı kapatan tuşlar.
+**Ayarlar › Mouse**'u aç. Mos gibi hissettiren yumuşak kaydırma (adım, hız çarpanı, süre, trackpad gibi), LinearMouse'un kaydırma modları (ivmeli, satır, piksel; bunlar da yumuşatılabilir) ve basılı tutunca hızlandıran, yön değiştiren ya da yumuşatmayı kapatan tuşlar.
 
 - **İmleç:** ivmeyi kapat ya da ivme ve hızı ayrı ayarla. Missing kapanınca ya da çökerse imleç sistem ayarına döner.
 - **Tuşlar:** evrensel geri/ileri, sol ve sağ tuşu değiştirme, çift tıklama koruması, orta tuşla otomatik kaydırma, hareketler ve herhangi bir tuşu ya da kısayolu bir eyleme bağlama (Mission Control, masaüstleri, ekran görüntüsü, medya tuşları, uygulama ya da dosya açma, komut çalıştırma).

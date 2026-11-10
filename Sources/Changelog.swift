@@ -16,6 +16,16 @@ struct ChangelogEntry {
 
 enum Changelog {
     static let entries: [ChangelogEntry] = [
+        ChangelogEntry(version: "4.1.1", items: [
+            ("Mouse artık Ayarlar'da kendi sayfasında (kenar çubuğunda Mouse)",
+             "Mouse now has its own page in Settings (Mouse in the sidebar)"),
+            ("Düzeltme: Missing arka plandayken yumuşak kaydırma ve tuş ayarları çalışmıyordu",
+             "Fix: smooth scrolling and button settings didn't work while Missing was in the background"),
+            ("İmleç ayarları erişilebilirlik izni olmadan da uygulanır; uykudan dönünce yeniden yazılır",
+             "Pointer settings apply without Accessibility permission too, and are written again after sleep"),
+            ("Mouse ilk açıldığında başka fare uygulamalarının ayarlarını kendiliğinden alır",
+             "Mouse imports settings from other mouse apps by itself the first time you turn it on"),
+        ]),
         ChangelogEntry(version: "4.1.0", items: [
             ("Yeni Mouse penceresi: fare için ayrı uygulama kurmaya gerek yok (menüden ya da Ayarlar › Özellikler'den aç)",
              "New Mouse window: no separate mouse app needed (open it from the menu or Settings › Features)"),

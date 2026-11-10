@@ -25,7 +25,13 @@ final class MouseEngine: @unchecked Sendable {
     private var thread: Thread?
     private var runLoop: CFRunLoop?
     private var tap: CFMachPort?
+    /// Olay yakalayıcı çalışıyor (kaydırma ve tuşlar; erişilebilirlik izni ister)
     private(set) var isRunning = false
+    /// Cihazlar izleniyor ve imleç ayarları uygulanıyor (izin istemez)
+    private(set) var isActive = false
+    /// Missing arka plandayken macOS onu uyutmasın (App Nap): uyursa yakalayıcı ve kare zamanlayıcısı gecikir,
+    /// kaydırma takılır ya da macOS yakalayıcıyı kapatıp olayları değiştirmeden geçirir
+    private var noNap: NSObjectProtocol?
 
     let scroller = SmoothScroller()
 
@@ -62,19 +68,31 @@ final class MouseEngine: @unchecked Sendable {
         os_unfair_lock_unlock(&lock)
         MouseStore.save(c)
         MouseKeys.refresh()
-        if c.enabled && !isRunning { start() }
-        else if !c.enabled && isRunning { stop() }
-        else if isRunning { MousePointer.shared.apply() }
+        if c.enabled { start(); MousePointer.shared.apply() }
+        else if isActive { stop() }
     }
 
     // MARK: Başlat / durdur
 
+    /// Açıksa: cihazları izle ve imleç ayarlarını uygula; izin varsa olay yakalayıcıyı da başlat. Tekrar çağrılabilir.
     @MainActor func start() {
-        guard !isRunning, config.enabled, AXIsProcessTrusted() else { return }
+        guard config.enabled else { return }
+        if !isActive {
+            isActive = true
+            noNap = ProcessInfo.processInfo.beginActivity(options: [.userInitiatedAllowingIdleSystemSleep, .latencyCritical],
+                                                          reason: "Mouse: scrolling and buttons must respond while Missing is in the background")
+            MouseScreens.refresh()
+            MouseKeys.refresh()
+            MouseDevices.shared.start()
+            MousePointer.shared.apply()
+            perfLog.notice("mouse: started, \(MouseDevices.shared.devices.count, privacy: .public) pointing devices")
+        }
+        guard !isRunning else { return }
+        guard AXIsProcessTrusted() else {
+            perfLog.notice("mouse: no accessibility permission, event tap not started (pointer settings still apply)")
+            return
+        }
         isRunning = true
-        MouseScreens.refresh()
-        MouseKeys.refresh()
-        MouseDevices.shared.start()
         let t = Thread { [weak self] in self?.threadMain() }
         t.name = "com.firewallstudio.missing.mouse"
         t.qualityOfService = .userInteractive
@@ -84,8 +102,11 @@ final class MouseEngine: @unchecked Sendable {
     }
 
     @MainActor func stop() {
-        guard isRunning else { return }
+        guard isActive else { return }
+        isActive = false
         isRunning = false
+        if let n = noNap { ProcessInfo.processInfo.endActivity(n); noNap = nil }
+        perfLog.notice("mouse: stopped")
         scroller.stop()
         if let rl = runLoop {
             CFRunLoopPerformBlock(rl, CFRunLoopMode.commonModes.rawValue) { [weak self] in
@@ -118,9 +139,11 @@ final class MouseEngine: @unchecked Sendable {
         let me = Unmanaged.passUnretained(self).toOpaque()
         guard let t = CGEvent.tapCreate(tap: .cgAnnotatedSessionEventTap, place: .headInsertEventTap, options: .defaultTap,
                                         eventsOfInterest: mask, callback: mouseTapCallback, userInfo: me) else {
+            perfLog.error("mouse: event tap could not be created")
             isRunning = false
             return
         }
+        perfLog.notice("mouse: event tap running")
         tap = t
         let src = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, t, 0)
         CFRunLoopAddSource(CFRunLoopGetCurrent(), src, .commonModes)
@@ -171,6 +194,7 @@ final class MouseEngine: @unchecked Sendable {
     func handle(_ type: CGEventType, _ e: CGEvent) -> CGEvent? {
         switch type {
         case .tapDisabledByTimeout, .tapDisabledByUserInput:
+            perfLog.notice("mouse: tap disabled by \(type == .tapDisabledByTimeout ? "timeout" : "user input", privacy: .public), re-enabling")
             if let tap { CGEvent.tapEnable(tap: tap, enable: true) }
             return e
         default: break

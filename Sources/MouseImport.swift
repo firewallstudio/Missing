@@ -10,6 +10,30 @@ enum MouseImport {
     struct Report {
         var ok: Bool
         var text: String
+        var count = 0
+        var notes: [String] = []
+    }
+
+    /// Bu Mac'teki başka fare uygulamalarının ayarlarını sırayla al (arayüzde adları geçmez)
+    static func fromOtherApps(into c: inout MouseConfig) -> Report {
+        var rules = 0, apps = 0, notes: [String] = []
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        let lmPaths = [home.appendingPathComponent(".config/linearmouse/linearmouse.json"),
+                       home.appendingPathComponent("Library/Application Support/linearmouse/linearmouse.json")]
+        if let url = lmPaths.first(where: { FileManager.default.fileExists(atPath: $0.path) }),
+           let d = try? Data(contentsOf: url) {
+            let r = fromLinearMouse(d, into: &c)
+            if r.ok { rules += r.count } else { notes.append(r.text) }
+            notes.append(contentsOf: r.notes)
+        }
+        let m = fromMos(into: &c)
+        if m.ok { rules += 1; apps += m.count; notes.append(contentsOf: m.notes) }
+        guard rules > 0 else {
+            return Report(ok: false, text: L("Bu Mac'te başka bir fare uygulamasının ayarı bulunamadı."))
+        }
+        var text = L("Önceki fare ayarların alındı: %d kural, %d uygulama.", rules, apps)
+        if !notes.isEmpty { text += " " + notes.joined(separator: " ") }
+        return Report(ok: true, text: text)
     }
 
     // MARK: LinearMouse
@@ -17,7 +41,7 @@ enum MouseImport {
     static func fromLinearMouse(_ data: Data, into c: inout MouseConfig) -> Report {
         guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let schemes = root["schemes"] as? [[String: Any]] else {
-            return Report(ok: false, text: L("Bu dosya bir LinearMouse ayarı değil."))
+            return Report(ok: false, text: L("Bu dosya tanınan bir fare ayarı değil."))
         }
         var used = 0, skipped: [String] = []
         for s in schemes {
@@ -49,10 +73,9 @@ enum MouseImport {
             c.setLayer(scope, l, name: name, path: path)
             used += 1
         }
-        var text = L("LinearMouse'tan %d kural alındı.", used)
         let uniq = Array(Set(skipped)).sorted()
-        if !uniq.isEmpty { text += " " + L("Alınamayanlar: %@.", uniq.joined(separator: ", ")) }
-        return Report(ok: used > 0, text: text)
+        let note = uniq.isEmpty ? [] : [L("Alınamayanlar: %@.", uniq.joined(separator: ", "))]
+        return Report(ok: used > 0, text: L("%d kural alındı.", used) + (note.first.map { " " + $0 } ?? ""), count: used, notes: note)
     }
 
     private static func int(_ v: Any?) -> Int {
@@ -112,7 +135,7 @@ enum MouseImport {
         let (smv, smh) = axes(s["smoothed"])
         if let d = smv as? [String: Any] { l.vSmooth = (d["enabled"] as? Bool) ?? true }
         if let d = smh as? [String: Any] { l.hSmooth = (d["enabled"] as? Bool) ?? true }
-        if smv != nil || smh != nil { skipped.append(L("yumuşatma eğrileri (Mos ayarlarına çevrildi)")) }
+        if smv != nil || smh != nil { skipped.append(L("yumuşatma eğrileri (Missing'in yumuşatmasına çevrildi)")) }
         // Modifier tuşları (dikey olanlar; yatayda ayrı liste tutulmuyor)
         let (mv, _) = axes(s["modifiers"])
         if let m = mv as? [String: Any] {
@@ -241,7 +264,7 @@ enum MouseImport {
 
     static func fromMos(into c: inout MouseConfig) -> Report {
         guard let d = UserDefaults(suiteName: "com.caldis.Mos"), d.object(forKey: "smooth") != nil || d.object(forKey: "step") != nil else {
-            return Report(ok: false, text: L("Mos ayarı bulunamadı."))
+            return Report(ok: false, text: "")
         }
         var l = c.global
         let smooth = d.object(forKey: "smooth") as? Bool ?? true
@@ -287,11 +310,11 @@ enum MouseImport {
                 apps += 1
             }
         }
-        var text = L("Mos ayarları alındı (%d uygulama).", apps)
+        var notes: [String] = []
         if d.object(forKey: "allowlist") as? Bool == true {
-            text += " " + L("Mos'ta beyaz liste açıktı; Missing'de listedeki uygulamalar kendi ayarını kullanır, diğerleri genel ayarı.")
+            notes.append(L("Önceki uygulamada beyaz liste açıktı; Missing'de listedeki uygulamalar kendi ayarını kullanır, diğerleri genel ayarı."))
         }
-        return Report(ok: true, text: text)
+        return Report(ok: true, text: L("%d uygulama alındı.", apps), count: apps, notes: notes)
     }
 
     /// Mos kısayolu: eski biçim tuş kodu (0 = yok), yeni biçim {type, code} JSON

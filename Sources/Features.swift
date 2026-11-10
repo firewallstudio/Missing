@@ -124,16 +124,18 @@ struct FeaturesPage: View {
             LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
                 ForEach(Feature.allCases) { f in FeatureTile(feature: f, model: model) }
             }
-            MouseFeatureRow()
+            MouseFeatureRow(settings: model)
         }
     }
 }
 
-/// Mouse ayrı penceresinde: buradan açılır, açık/kapalı durumu görünür
+/// Mouse: Ayarlar'da kendi sayfası var; buradan açılıp kapanır
 struct MouseFeatureRow: View {
-    @State private var on = MouseEngine.shared.config.enabled
+    @ObservedObject var settings: SettingsModel
+    @ObservedObject private var mouse = MouseModel.shared
 
     var body: some View {
+        let on = mouse.config.enabled
         HStack(spacing: 12) {
             Image(systemName: "computermouse.fill")
                 .font(.system(size: 13, weight: .semibold))
@@ -145,13 +147,13 @@ struct MouseFeatureRow: View {
                     .font(.system(size: 11)).foregroundStyle(.white.opacity(0.55))
             }
             Spacer()
-            Button(L("Mouse penceresini aç")) { MouseWindowController.shared.show() }
+            Button(L("Ayarlar")) { settings.page = .mouse }
+            BrandToggle(isOn: Binding(get: { mouse.config.enabled }, set: { mouse.setEnabled($0) }))
         }
         .padding(12)
         .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(.white.opacity(0.06)))
         .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous)
             .strokeBorder(on ? Brand.red.opacity(0.55) : Color.white.opacity(0.10), lineWidth: 1))
-        .onAppear { on = MouseEngine.shared.config.enabled }
     }
 }
 

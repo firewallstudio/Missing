@@ -60,7 +60,7 @@ Ten bands from 32 Hz to 16 kHz (±12 dB) and a preamp for all system audio, with
 
 ## Mouse, without LinearMouse or Mos
 
-Open **Mouse** from the menu bar panel. Smooth scrolling that feels like Mos (step, speed gain, duration, trackpad-style), scrolling modes from LinearMouse (accelerated, by lines, by pixels) that can be smoothed too, and keys that speed up, switch direction or turn off smoothing while held.
+Open **Settings › Mouse**. Smooth scrolling that feels like Mos (step, speed gain, duration, trackpad-style), scrolling modes from LinearMouse (accelerated, by lines, by pixels) that can be smoothed too, and keys that speed up, switch direction or turn off smoothing while held.
 
 - **Pointer:** turn off acceleration, or set acceleration and speed separately. When Missing quits or crashes, the pointer goes back to the system setting.
 - **Buttons:** universal back/forward, switch left and right, click debouncing, middle-button autoscroll, gestures, and mappings from any button or shortcut to an action (Mission Control, Spaces, screenshots, media keys, open an app or file, run a command).

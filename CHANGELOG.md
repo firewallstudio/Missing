@@ -2,6 +2,13 @@
 
 Also shown in the app: **Settings › Versions**.
 
+## 4.1.1
+
+- Mouse now has its own page in Settings (Mouse in the sidebar)
+- Fix: smooth scrolling and button settings didn't work while Missing was in the background
+- Pointer settings apply without Accessibility permission too, and are written again after sleep
+- Mouse imports settings from other mouse apps by itself the first time you turn it on
+
 ## 4.1.0
 
 - New Mouse window: no separate mouse app needed (open it from the menu or Settings › Features)

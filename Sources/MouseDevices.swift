@@ -187,7 +187,7 @@ struct PointerOriginal: Codable {
     /// Öndeki uygulama + imlecin altındaki ekrana göre her cihazın imleç ayarını uygula
     func apply() {
         let engine = MouseEngine.shared
-        guard engine.isRunning else { return }
+        guard engine.isActive else { return }
         let cfg = engine.config
         let app = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
         let display = MouseScreens.nameUnderCursor()
@@ -210,6 +210,8 @@ struct PointerOriginal: Codable {
             capture(s, dev)
             write(s, disable: disable, custom: mode == .custom, accel: accel, speed: speed, original: originals[dev.key]?.accel)
             applied[key] = want
+            let now = IOHIDServiceClientCopyProperty(s, (originals[dev.key]?.accelKey ?? "HIDMouseAcceleration") as CFString) as? Int ?? -1
+            perfLog.notice("mouse: pointer \(dev.name, privacy: .public) mode=\(mode.rawValue, privacy: .public) disable=\(disable, privacy: .public) accel=\(accel, privacy: .public) speed=\(speed, privacy: .public) → read back \(now, privacy: .public)")
         }
         // Hiçbir cihazda sistem dışı ayar kalmadıysa orijinal kaydını sil
         let anyCustom = applied.values.contains { $0.mode == .custom || $0.disable }
@@ -257,6 +259,12 @@ struct PointerOriginal: Codable {
         if #available(macOS 14, *) { set("HIDUseLinearScalingMouseAcceleration", o.linear ?? 0) }
         set(kIOHIDPointerResolutionKey, o.resolution ?? 400 * 65536)
         if let a = o.accel { set(o.accelKey, a) }
+    }
+
+    /// Uykudan dönünce macOS cihaz özelliklerini sıfırlayabilir: hepsini yeniden yaz
+    func reapply() {
+        applied.removeAll()
+        apply()
     }
 
     /// Tüm cihazları değiştirmeden önceki haline döndür (özellik kapanınca, Missing kapanırken)

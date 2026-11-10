@@ -1,12 +1,12 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
-// MARK: - Mouse penceresi
+// MARK: - Mouse sayfası (Ayarlar › Mouse)
 //
-// Ayarlardan ayrı pencere. Bölümler: Kaydırma, İmleç, Tuşlar, Uygulamalar, Genel.
-// Üstteki "Uygulanacak yer" seçicisi hangi katmanın düzenlendiğini belirler (Tüm fareler / bir cihaz /
-// bir ekran / bir uygulama). Global dışındaki katmanlarda değiştirilen her ayarın yanında ↺ çıkar;
-// ona basınca ayar yeniden alttaki katmandan gelir.
+// Üstte bölümler: Kaydırma, İmleç, Tuşlar, Uygulamalar, Genel. Yanındaki "Uygulanacak yer" seçicisi
+// hangi katmanın düzenlendiğini belirler (Tüm fareler / bir cihaz / bir ekran / bir uygulama).
+// Global dışındaki katmanlarda değiştirilen her ayarın yanında ↺ çıkar; ona basınca ayar yeniden
+// alttaki katmandan gelir.
 
 enum MouseSection: String, CaseIterable {
     case scrolling, pointer, buttons, apps, general
@@ -21,20 +21,12 @@ enum MouseSection: String, CaseIterable {
         }
     }
 
-    var icon: String {
-        switch self {
-        case .scrolling: return "scroll"
-        case .pointer: return "cursorarrow.motionlines"
-        case .buttons: return "computermouse"
-        case .apps: return "app.badge"
-        case .general: return "gearshape"
-        }
-    }
-
     var scoped: Bool { self == .scrolling || self == .pointer || self == .buttons }
 }
 
 @MainActor final class MouseModel: ObservableObject {
+    static let shared = MouseModel()
+
     @Published var config = MouseEngine.shared.config
     @Published var section: MouseSection = .scrolling
     @Published var scope: MouseScope = .global
@@ -56,6 +48,29 @@ enum MouseSection: String, CaseIterable {
         let w = DispatchWorkItem { MouseEngine.shared.update(c) }
         saveWork = w
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.12, execute: w)
+    }
+
+    /// Özelliği aç/kapat. İlk açılışta bilgisayardaki başka fare uygulamalarının ayarları kendiliğinden alınır.
+    func setEnabled(_ on: Bool) {
+        var c = config
+        c.enabled = on
+        if on, !UserDefaults.standard.bool(forKey: "mouse.autoImported") {
+            UserDefaults.standard.set(true, forKey: "mouse.autoImported")
+            let r = MouseImport.fromOtherApps(into: &c)
+            if r.ok { message = r.text }
+        }
+        commit(c)
+        // Kaydırma ve tuşlar için erişilebilirlik izni gerekir (imleç ayarları izinsiz de çalışır)
+        if on, !AXIsProcessTrusted() {
+            _ = AXIsProcessTrustedWithOptions(["AXTrustedCheckOptionPrompt": true] as CFDictionary)
+        }
+    }
+
+    func importOthers() {
+        var c = config
+        let r = MouseImport.fromOtherApps(into: &c)
+        if r.ok { scope = .global; commit(c) }
+        message = r.text
     }
 
     var layer: MouseLayer { config.layer(scope) }
@@ -136,121 +151,53 @@ enum MouseSection: String, CaseIterable {
     }
 }
 
+/// Fareyi aynı anda değiştiren başka uygulamalar (adları arayüzde gösterilmez)
 enum MouseConflicts {
-    static let ids = ["com.lujjjh.LinearMouse": "LinearMouse", "com.caldis.Mos": "Mos"]
+    static let ids: Set<String> = ["com.lujjjh.LinearMouse", "com.caldis.Mos"]
 
     static func running() -> [NSRunningApplication] {
-        NSWorkspace.shared.runningApplications.filter { ids[$0.bundleIdentifier ?? ""] != nil }
-    }
-}
-
-final class MouseWindowController: NSObject, NSWindowDelegate {
-    @MainActor static let shared = MouseWindowController()
-    private var window: NSWindow?
-    @MainActor let model = MouseModel()
-
-    @MainActor func show(_ section: MouseSection? = nil) {
-        if let section { model.section = section }
-        model.reload()
-        let w = window ?? make()
-        window = w
-        NSApp.activate(ignoringOtherApps: true)
-        w.makeKeyAndOrderFront(nil)
-    }
-
-    @MainActor private func make() -> NSWindow {
-        let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 820, height: 640),
-                         styleMask: [.titled, .closable, .miniaturizable, .fullSizeContentView],
-                         backing: .buffered, defer: false)
-        w.titlebarAppearsTransparent = true
-        w.titleVisibility = .hidden
-        w.title = L("Mouse")
-        w.isMovableByWindowBackground = true
-        w.isOpaque = false
-        w.backgroundColor = .clear
-        w.appearance = NSAppearance(named: .darkAqua)
-        w.isReleasedWhenClosed = false
-        w.delegate = self
-        w.contentView = NSHostingView(rootView: MouseView(model: model, devices: MouseDevices.shared))
-        w.center()
-        return w
+        NSWorkspace.shared.runningApplications.filter { ids.contains($0.bundleIdentifier ?? "") }
     }
 }
 
 // MARK: - Görünüm
 
-struct MouseView: View {
+struct MouseSettingsPage: View {
     @ObservedObject var model: MouseModel
     @ObservedObject var devices: MouseDevices
 
     var body: some View {
-        HStack(spacing: 0) {
-            sidebar
-            Divider().opacity(0.3)
-            VStack(alignment: .leading, spacing: 0) {
-                HStack {
-                    Text(model.section.title).font(.system(size: 22, weight: .bold))
-                    Spacer()
-                    if model.section.scoped { scopePicker }
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                Picker("", selection: $model.section) {
+                    ForEach(MouseSection.allCases, id: \.self) { s in Text(s.title).tag(s) }
                 }
-                .padding(.horizontal, 26).padding(.top, 36).padding(.bottom, 10)
-                if !model.config.enabled && model.section != .general { offBanner.padding(.horizontal, 26).padding(.bottom, 8) }
-                if !model.conflicts.isEmpty { conflictBanner.padding(.horizontal, 26).padding(.bottom, 8) }
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 10) { content }
-                        .padding(.horizontal, 26).padding(.bottom, 26)
-                        .id("\(model.section)-\(model.scope)-\(model.vertical)")
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .fixedSize()
+                Spacer()
+                if model.section.scoped { scopePicker }
+            }
+            if !model.config.enabled && model.section != .general { offBanner }
+            if !model.conflicts.isEmpty { conflictBanner }
+            if model.config.enabled, !MouseEngine.shared.isRunning, !AXIsProcessTrusted(), model.section != .general { permissionBanner }
+            Group {
+                switch model.section {
+                case .scrolling: MouseScrollingPage(model: model)
+                case .pointer: MousePointerPage(model: model)
+                case .buttons: MouseButtonsPage(model: model)
+                case .apps: MouseAppsPage(model: model)
+                case .general: MouseGeneralPage(model: model)
                 }
             }
-        }
-        .frame(width: 820, height: 640)
-        .background(ZStack { GlassBlur(material: .hudWindow); Color.black.opacity(0.32) }.ignoresSafeArea())
-        .foregroundStyle(Color.white)
-        .tint(Brand.red)
-        .environment(\.colorScheme, .dark)
-        .onAppear { MouseScreens.refresh(); devices.refresh() }
-    }
-
-    @ViewBuilder private var content: some View {
-        switch model.section {
-        case .scrolling: MouseScrollingPage(model: model)
-        case .pointer: MousePointerPage(model: model)
-        case .buttons: MouseButtonsPage(model: model)
-        case .apps: MouseAppsPage(model: model)
-        case .general: MouseGeneralPage(model: model)
-        }
-    }
-
-    private var sidebar: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            HStack(spacing: 8) {
-                Image(systemName: "computermouse.fill").font(.system(size: 16, weight: .semibold)).foregroundStyle(Brand.red)
-                Text(L("Mouse")).font(.system(size: 15, weight: .bold))
+            .id("\(model.section)-\(model.scope)-\(model.vertical)")
+            if model.section.scoped {
+                Text(L("Öncelik: uygulama › ekran › cihaz › tüm fareler"))
+                    .font(.system(size: 10.5)).foregroundStyle(.white.opacity(0.4))
+                    .padding(.top, 4)
             }
-            .padding(.horizontal, 10).padding(.top, 40).padding(.bottom, 14)
-            ForEach(MouseSection.allCases, id: \.self) { s in
-                if s == .apps || s == .general { Spacer().frame(height: 10) }
-                Button { model.section = s } label: {
-                    HStack(spacing: 9) {
-                        Image(systemName: s.icon).font(.system(size: 12, weight: .semibold)).frame(width: 18)
-                            .foregroundStyle(model.section == s ? Color.white : Color.white.opacity(0.6))
-                        Text(s.title).font(.system(size: 13, weight: model.section == s ? .semibold : .regular))
-                        Spacer()
-                    }
-                    .padding(.horizontal, 10).padding(.vertical, 6)
-                    .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(model.section == s ? Brand.red.opacity(0.85) : .clear))
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-            }
-            Spacer()
-            Text(L("Öncelik: uygulama › ekran › cihaz › tüm fareler"))
-                .font(.system(size: 10.5)).foregroundStyle(.white.opacity(0.4))
-                .padding(.horizontal, 10).padding(.bottom, 14)
         }
-        .padding(.horizontal, 10)
-        .frame(width: 210)
-        .background(Color.black.opacity(0.18))
+        .onAppear { MouseScreens.refresh(); devices.refresh(); model.reload() }
     }
 
     private var scopePicker: some View {
@@ -309,34 +256,36 @@ struct MouseView: View {
         }
     }
 
-    private var offBanner: some View {
+    private func banner(_ icon: String, _ color: Color, _ text: String, _ button: String?, _ action: @escaping () -> Void = {}) -> some View {
         HStack {
-            Image(systemName: "pause.circle.fill").foregroundStyle(.orange)
-            Text(L("Mouse kapalı; ayarlar kaydediliyor ama uygulanmıyor."))
-                .font(.system(size: 12))
+            Image(systemName: icon).foregroundStyle(color)
+            Text(text).font(.system(size: 12)).fixedSize(horizontal: false, vertical: true)
             Spacer()
-            Button(L("Aç")) {
-                var c = model.config; c.enabled = true; model.commit(c)
-            }
+            if let button { Button(button, action: action) }
         }
         .padding(10)
-        .background(RoundedRectangle(cornerRadius: 10).fill(.orange.opacity(0.15)))
+        .background(RoundedRectangle(cornerRadius: 10).fill(color.opacity(0.15)))
+    }
+
+    private var offBanner: some View {
+        banner("pause.circle.fill", .orange, L("Mouse kapalı; ayarlar kaydediliyor ama uygulanmıyor."), L("Aç")) {
+            model.setEnabled(true)
+        }
     }
 
     private var conflictBanner: some View {
-        HStack {
-            Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.yellow)
-            Text(L("Şu da çalışıyor: %@. İkisi aynı anda fareyi değiştirirse ayarlar çakışır.",
-                   model.conflicts.compactMap { MouseConflicts.ids[$0.bundleIdentifier ?? ""] }.joined(separator: ", ")))
-                .font(.system(size: 12))
-            Spacer()
-            Button(L("Kapat")) {
-                for a in model.conflicts { a.terminate() }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { model.reload() }
-            }
+        banner("exclamationmark.triangle.fill", .yellow,
+               L("Başka bir fare uygulaması da çalışıyor; ikisi aynı anda fareyi değiştirirse ayarlar çakışır."), L("Onu kapat")) {
+            for a in model.conflicts { a.terminate() }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { model.reload() }
         }
-        .padding(10)
-        .background(RoundedRectangle(cornerRadius: 10).fill(.yellow.opacity(0.13)))
+    }
+
+    private var permissionBanner: some View {
+        banner("lock.fill", .orange, L("Kaydırma ve tuş ayarları için erişilebilirlik izni gerekiyor. İmleç ayarları izinsiz de çalışır."),
+               L("Ayarları aç")) {
+            NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
+        }
     }
 }
 
@@ -376,7 +325,7 @@ struct MouseSlider: View {
     let range: ClosedRange<Double>
     var step: Double = 0.01
     var format: String = "%.2f"
-    var width: CGFloat = 220
+    var width: CGFloat = 200
 
     var body: some View {
         HStack(spacing: 8) {
@@ -404,7 +353,7 @@ struct TriggerRecorder: View {
         } label: {
             Text(recording ? L("Bir tuşa bas…") : trigger.title)
                 .font(.system(size: 12, weight: .semibold))
-                .frame(minWidth: 110)
+                .frame(minWidth: 96)
                 .padding(.horizontal, 10).padding(.vertical, 4)
                 .background(Capsule().fill(recording ? Brand.red.opacity(0.7) : Color.white.opacity(0.12)))
         }
@@ -636,7 +585,7 @@ struct MouseScrollingPage: View {
         }
 
         let sim = m.bind(\.simTrackpad, false).wrappedValue
-        Card(title: L("Yumuşatma"), icon: "wind", subtitle: L("İki eksen için ortak; Mos'taki ayarlar"), startOpen: true) {
+        Card(title: L("Yumuşatma"), icon: "wind", subtitle: L("İki eksen için ortak"), startOpen: true) {
             LayerRow(m, L("Adım"), L("Bir çentiğin en az ne kadar kaydıracağı. Küçük hareketler bu değere yükseltilir."), \.step) {
                 MouseSlider(value: m.bind(\.step, 33.6), range: 0.01...100)
             }
@@ -654,7 +603,7 @@ struct MouseScrollingPage: View {
             }
             HStack {
                 Spacer()
-                Button(L("Mos varsayılanları")) {
+                Button(L("Varsayılanlar")) {
                     var l = m.layer
                     l.step = 33.6; l.gain = 2.7; l.duration = 4.35; l.simTrackpad = false
                     m.setLayer(l)
@@ -686,10 +635,10 @@ struct ScrollModifierList: View {
                     Text(L("Kaydırma yok")).tag(ScrollModifierAction.block)
                     Text(L("Yakınlaştır / uzaklaştır")).tag(ScrollModifierAction.zoom)
                 }
-                .labelsHidden().frame(width: 210)
+                .labelsHidden().frame(width: 180)
                 if list.wrappedValue[i].action == .faster {
                     MouseSlider(value: Binding(get: { list.wrappedValue[i].scale }, set: { list.wrappedValue[i].scale = $0 }),
-                                range: 0.1...10, step: 0.1, format: "×%.1f", width: 110)
+                                range: 0.1...10, step: 0.1, format: "×%.1f", width: 80)
                 }
                 Spacer()
                 Button { list.wrappedValue.remove(at: i) } label: { Image(systemName: "minus.circle.fill") }
@@ -935,18 +884,18 @@ struct MouseGeneralPage: View {
 
     var body: some View {
         Card(title: L("Mouse"), icon: "computermouse.fill",
-             isOn: Binding(get: { model.config.enabled }, set: { v in
-                 var c = model.config; c.enabled = v; model.commit(c)
-                 if v, !AXIsProcessTrusted() {
-                     _ = AXIsProcessTrustedWithOptions(["AXTrustedCheckOptionPrompt": true] as CFDictionary)
-                 }
-             }),
+             isOn: Binding(get: { model.config.enabled }, set: { model.setEnabled($0) }),
              subtitle: L("Kaydırma, imleç ve tuş ayarlarının hepsi"), startOpen: true) {
             Text(L("Kapatınca Missing fareye hiç dokunmaz; imleç ayarları sistemdekine döner. Ayarların silinmez."))
                 .font(.system(size: 11.5)).foregroundStyle(.white.opacity(0.55))
-            if model.config.enabled, !AXIsProcessTrusted() {
-                Label(L("Erişilebilirlik izni gerekiyor (Sistem Ayarları › Gizlilik ve Güvenlik › Erişilebilirlik)."),
-                      systemImage: "exclamationmark.circle.fill").font(.system(size: 11.5)).foregroundStyle(.orange)
+            if model.config.enabled {
+                Row(L("Durum"), nil) {
+                    let tap = MouseEngine.shared.isRunning
+                    Label(tap ? L("Çalışıyor") : L("Erişilebilirlik izni yok: sadece imleç ayarları çalışıyor"),
+                          systemImage: tap ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
+                        .font(.system(size: 11.5, weight: .semibold))
+                        .foregroundStyle(tap ? Color.green : Color.orange)
+                }
             }
         }
 
@@ -967,16 +916,12 @@ struct MouseGeneralPage: View {
             HStack {
                 Button(L("Dışa aktar…")) { exportConfig() }
                 Button(L("İçe aktar…")) { importConfig() }
+                Button(L("Diğer fare uygulamalarından al")) { model.importOthers() }
                 Spacer()
             }
-            Divider().opacity(0.4)
-            HStack {
-                Button(L("LinearMouse ayarlarını al")) { importLinearMouse() }
-                Button(L("Mos ayarlarını al")) { report(MouseImport.fromMos(into: &workingConfig)) }
-                Spacer()
-            }
-            Text(L("Alınan ayarlar şimdikilerin üstüne yazılır."))
+            Text(L("Bu Mac'te başka bir fare uygulamasının ayarları varsa alır; şimdiki ayarların üstüne yazılır. Mouse ilk açıldığında bunu kendiliğinden yapar."))
                 .font(.system(size: 11)).foregroundStyle(.white.opacity(0.45))
+                .fixedSize(horizontal: false, vertical: true)
             if let msg = model.message {
                 Text(msg).font(.system(size: 11.5)).foregroundStyle(.white.opacity(0.8))
                     .fixedSize(horizontal: false, vertical: true)
@@ -992,20 +937,6 @@ struct MouseGeneralPage: View {
             }
             Spacer()
         }
-        Text(L("LinearMouse (MIT) ve Mos'un yaptıklarını bir araya getirir. LinearMouse'tan alınan parçalar lisans notuyla birlikte; Mos'tan kod alınmadı, davranışı yeniden yazıldı."))
-            .font(.system(size: 10.5)).foregroundStyle(.white.opacity(0.35))
-            .fixedSize(horizontal: false, vertical: true)
-            .padding(.top, 8)
-    }
-
-    private var workingConfig: MouseConfig {
-        get { model.config }
-        nonmutating set { model.commit(newValue) }
-    }
-
-    private func report(_ r: MouseImport.Report) {
-        model.message = r.text
-        if r.ok { model.scope = .global }
     }
 
     private func exportConfig() {
@@ -1026,28 +957,11 @@ struct MouseGeneralPage: View {
             model.commit(c)
             model.message = L("İçe aktarıldı: %@", url.lastPathComponent)
         } else {
-            // Missing dosyası değilse LinearMouse ayarı olabilir
+            // Missing dosyası değilse başka bir fare uygulamasının ayar dosyası olabilir
             var c = model.config
             let r = MouseImport.fromLinearMouse(d, into: &c)
-            if r.ok { model.commit(c) }
-            report(r)
+            if r.ok { model.scope = .global; model.commit(c) }
+            model.message = r.text
         }
-    }
-
-    private func importLinearMouse() {
-        let home = FileManager.default.homeDirectoryForCurrentUser
-        let paths = [home.appendingPathComponent(".config/linearmouse/linearmouse.json"),
-                     home.appendingPathComponent("Library/Application Support/linearmouse/linearmouse.json")]
-        var url = paths.first { FileManager.default.fileExists(atPath: $0.path) }
-        if url == nil {
-            let p = NSOpenPanel()
-            p.allowedContentTypes = [.json]
-            url = p.runModal() == .OK ? p.url : nil
-        }
-        guard let url, let d = try? Data(contentsOf: url) else { return }
-        var c = model.config
-        let r = MouseImport.fromLinearMouse(d, into: &c)
-        if r.ok { model.commit(c) }
-        report(r)
     }
 }
