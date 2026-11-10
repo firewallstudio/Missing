@@ -2,6 +2,15 @@
 
 Also shown in the app: **Settings › Versions**.
 
+## 4.1.0
+
+- New Mouse window: what LinearMouse and Mos do, in one place, so you need neither (open it from the menu or Settings › Features)
+- Smooth scrolling: step, speed gain and duration; trackpad-style scrolling; separate smoothing and reverse for vertical and horizontal
+- Scrolling modes (accelerated, lines, pixels) that work with smoothing; keys that speed up, switch direction or turn off smoothing while held
+- Pointer: turn off acceleration, separate acceleration and speed; returns to the system setting when Missing quits or crashes
+- Buttons: universal back/forward, left↔right switch, click debouncing, middle-button autoscroll, gestures, button mappings and actions
+- Every setting can apply to all mice, one device, one display or one app; LinearMouse and Mos settings can be imported
+
 ## 4.0.0
 
 - Missing 4.0: the features the Mac left out, now a complete set

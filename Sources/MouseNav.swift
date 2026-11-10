@@ -28,6 +28,9 @@ enum FinderMouseNav {
         return true
     }
 
+    /// Mouse özelliğinin evrensel geri/ileri'si Finder'da bunu kullanır
+    @MainActor static func press(back: Bool, pid: pid_t) -> Bool { pressMenu(back: back, pid: pid) }
+
     /// Finder menüsünde ⌘[ (geri) / ⌘] (ileri) kısayollu öğeyi bulup bas
     private static func pressMenu(back: Bool, pid: pid_t) -> Bool {
         if cache?.pid != pid { cache = (pid, nil, nil) }

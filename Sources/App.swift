@@ -229,6 +229,7 @@ import UserNotifications
     }
 
     private func startInput() {
+        startMouse()
         if FinderTabsSettings.enabled { finderTabs.start() }
         if FileSearchSettings.enabled { finderSearch.start() }
         switcher.start()
@@ -245,6 +246,7 @@ import UserNotifications
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        MouseEngine.shared.stop()   // imleç ayarları sistemdekine dönsün
         Equalizer.shared.stop()   // sistem sesi asıl çıkışa geri dönsün
         switcher.stop()
         restoreNativeHotkeys()
@@ -265,8 +267,58 @@ import UserNotifications
         guardTimer?.tolerance = 0.5
     }
 
+    // MARK: Mouse
+
+    private var mouseWired = false
+    private var mouseDisplay: String?
+
+    private func startMouse() {
+        if !mouseWired {
+            mouseWired = true
+            MouseActions.screenshot = { [weak self] in self?.capture.screenshotCurrentScreen() }
+            MouseActions.screenshotArea = { [weak self] in self?.capture.screenshotArea() }
+            MouseActions.record = { [weak self] in self?.capture.paletteOrStop() }
+            MouseActions.scrollingCapture = { [weak self] in self?.capture.scrollingScreenshot() }
+            MouseActions.tile = { [weak self] in self?.tiling.trigger() }
+            let ws = NSWorkspace.shared.notificationCenter
+            ws.addObserver(forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main) { _ in
+                MainActor.assumeIsolated { MousePointer.shared.apply() }
+            }
+            NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { _ in
+                MainActor.assumeIsolated { MouseScreens.refresh(); MousePointer.shared.apply() }
+            }
+            DistributedNotificationCenter.default().addObserver(
+                forName: NSNotification.Name("com.apple.Carbon.TISNotifySelectedKeyboardInputSourceChanged"), object: nil, queue: .main) { _ in
+                MainActor.assumeIsolated { MouseKeys.refresh() }
+            }
+        }
+        guard MouseEngine.shared.config.enabled else { return }
+        MouseEngine.shared.start()
+        let others = MouseConflicts.running().compactMap { MouseConflicts.ids[$0.bundleIdentifier ?? ""] }
+        if !others.isEmpty {
+            hud.show(name: L("Şu da çalışıyor: %@ · Mouse ayarları çakışabilir", others.joined(separator: ", ")),
+                     symbol: "exclamationmark.triangle.fill")
+        }
+    }
+
+    /// İmleç ayarı ekrana göre değişiyorsa: imleç başka ekrana geçince yeniden uygula
+    private func mouseDisplayTick() {
+        let engine = MouseEngine.shared
+        guard engine.isRunning, engine.config.displays.contains(where: {
+            $0.layer.pointerMode != nil || $0.layer.pointerAccel != nil || $0.layer.pointerSpeed != nil || $0.layer.disableAccel != nil
+        }) else { return }
+        let d = MouseScreens.nameUnderCursor()
+        guard d != mouseDisplay else { return }
+        mouseDisplay = d
+        MousePointer.shared.apply()
+    }
+
     private func guardTick() {
+        mouseDisplayTick()
         // İzin var ama dinleyici kurulamamışsa yeniden dene
+        if Onboarding.done, !MouseEngine.shared.isRunning, MouseEngine.shared.config.enabled, AXIsProcessTrusted() {
+            startMouse()
+        }
         if Onboarding.done, !switcher.isRunning, permTimer == nil, AXIsProcessTrusted() {
             switcher.start()
             applyExtraNative()
@@ -371,6 +423,7 @@ import UserNotifications
         a.stopRecording = { [weak self] in self?.capture.stopRecording() }
         a.blackout = { [weak self] in self?.extraKeys.onBlackout?() }
         a.openSettings = { [weak self] page in self?.settings.show(page: page) }
+        a.openMouse = { MouseWindowController.shared.show() }
         a.checkUpdates = { [weak self] in self?.showUpdatePopup(check: true) }
         a.installUpdate = { [weak self] in self?.installUpdate() }
         a.quit = { NSApp.terminate(nil) }
@@ -407,6 +460,13 @@ import UserNotifications
 
 @main enum MissingMain {
     @MainActor static func main() {
+        // Bekçi kipi: ana Missing çökerse imleç ayarlarını sistemdekine geri al
+        let args = CommandLine.arguments
+        if let i = args.firstIndex(of: "--mouse-guard"), i + 1 < args.count, let pid = pid_t(args[i + 1]) {
+            MousePointer.runGuard(parent: pid)
+        }
+        // Önceki çalışma bekçisiz kapandıysa kalan imleç ayarlarını geri al
+        MousePointer.restoreLeftovers()
         Onboarding.prepare()   // eski kurulumlarda ilk kurulum ekranı çıkmasın
         Migration.run()   // eski GlassTab/AudioHop ayarlarını taşı (DeviceStore'dan önce)
         let app = NSApplication.shared

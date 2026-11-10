@@ -16,6 +16,20 @@ struct ChangelogEntry {
 
 enum Changelog {
     static let entries: [ChangelogEntry] = [
+        ChangelogEntry(version: "4.1.0", items: [
+            ("Yeni Mouse penceresi: LinearMouse ve Mos'un yaptıkları tek yerde, ikisini kurmaya gerek yok (menüden ya da Ayarlar › Özellikler'den aç)",
+             "New Mouse window: what LinearMouse and Mos do, in one place, so you need neither (open it from the menu or Settings › Features)"),
+            ("Yumuşak kaydırma: adım, hız çarpanı ve süre; trackpad gibi kaydırma; dikey ve yatay için ayrı yumuşatma ve ters çevirme",
+             "Smooth scrolling: step, speed gain and duration; trackpad-style scrolling; separate smoothing and reverse for vertical and horizontal"),
+            ("Kaydırma modları (ivmeli, satır, piksel) yumuşatmayla birlikte; basılı tutunca hızlandıran, yön değiştiren ya da yumuşatmayı kapatan tuşlar",
+             "Scrolling modes (accelerated, lines, pixels) that work with smoothing; keys that speed up, switch direction or turn off smoothing while held"),
+            ("İmleç: ivmeyi kapat, ivme ve hız ayrı; Missing kapanınca ya da çökerse sistem ayarına döner",
+             "Pointer: turn off acceleration, separate acceleration and speed; returns to the system setting when Missing quits or crashes"),
+            ("Tuşlar: evrensel geri/ileri, sol↔sağ değişimi, çift tıklama koruması, orta tuşla otomatik kaydırma, hareketler, tuş eşlemeleri ve eylemler",
+             "Buttons: universal back/forward, left↔right switch, click debouncing, middle-button autoscroll, gestures, button mappings and actions"),
+            ("Her ayar tüm farelere, bir cihaza, bir ekrana ya da bir uygulamaya göre; LinearMouse ve Mos ayarları içe aktarılır",
+             "Every setting can apply to all mice, one device, one display or one app; LinearMouse and Mos settings can be imported"),
+        ]),
         ChangelogEntry(version: "4.0.0", items: [
             ("Missing 4.0: Mac'te eksik kalan özellikler artık tam bir set",
              "Missing 4.0: the features the Mac left out, now a complete set"),

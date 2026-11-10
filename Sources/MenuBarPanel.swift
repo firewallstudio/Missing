@@ -14,6 +14,7 @@ final class MenuBarActions: ObservableObject {
     var stopRecording: () -> Void = {}
     var blackout: () -> Void = {}
     var openSettings: (SettingsPage) -> Void = { _ in }
+    var openMouse: () -> Void = {}
     var checkUpdates: () -> Void = {}
     var installUpdate: () -> Void = {}
     var quit: () -> Void = {}
@@ -284,6 +285,8 @@ struct MenuBarView: View {
                 if ShortcutDemo.allCases.contains(where: \.enabled) {
                     tile("keyboard", L("Kısayollar"), nil) { controller.run { actions.openSettings(.shortcuts) } }
                 }
+                tile("computermouse.fill", L("Mouse"), MouseEngine.shared.config.enabled ? L("Açık") : L("Kapalı"),
+                     active: false) { controller.run { actions.openMouse() } }
             }
         }
     }

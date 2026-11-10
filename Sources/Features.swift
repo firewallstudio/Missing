@@ -124,7 +124,34 @@ struct FeaturesPage: View {
             LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
                 ForEach(Feature.allCases) { f in FeatureTile(feature: f, model: model) }
             }
+            MouseFeatureRow()
         }
+    }
+}
+
+/// Mouse ayrı penceresinde: buradan açılır, açık/kapalı durumu görünür
+struct MouseFeatureRow: View {
+    @State private var on = MouseEngine.shared.config.enabled
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "computermouse.fill")
+                .font(.system(size: 13, weight: .semibold))
+                .frame(width: 28, height: 28)
+                .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(on ? Brand.red : Color.white.opacity(0.12)))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(L("Mouse")).font(.system(size: 13.5, weight: .semibold))
+                Text(L("Yumuşak kaydırma · imleç hızı · fare tuşları · uygulamaya göre ayar"))
+                    .font(.system(size: 11)).foregroundStyle(.white.opacity(0.55))
+            }
+            Spacer()
+            Button(L("Mouse penceresini aç")) { MouseWindowController.shared.show() }
+        }
+        .padding(12)
+        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(.white.opacity(0.06)))
+        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous)
+            .strokeBorder(on ? Brand.red.opacity(0.55) : Color.white.opacity(0.10), lineWidth: 1))
+        .onAppear { on = MouseEngine.shared.config.enabled }
     }
 }
 

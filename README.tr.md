@@ -52,6 +52,15 @@ Bir pencereyi ekranın üstüne sürükle. Çentikli MacBook'larda çentik, iki 
 
 Sistemin bütün sesi için 32 Hz – 16 kHz arası 10 bant (±12 dB) ve ön kazanç; hazır ayarlar: Düz, Bas, Tiz, Konuşma, Gece. macOS'un kendi ses yakalama özelliğini kullanır (macOS 14.2+): sürücü yok, ek uygulama yok. Çıkış cihazını değiştirince seninle gelir. İlk seferde macOS bir kez ses kaydı izni sorar; hiçbir şey kaydedilmez.
 
+## LinearMouse ve Mos'suz fare
+
+Menü çubuğu panelinden **Mouse**'u aç. Mos gibi hissettiren yumuşak kaydırma (adım, hız çarpanı, süre, trackpad gibi), LinearMouse'un kaydırma modları (ivmeli, satır, piksel; bunlar da yumuşatılabilir) ve basılı tutunca hızlandıran, yön değiştiren ya da yumuşatmayı kapatan tuşlar.
+
+- **İmleç:** ivmeyi kapat ya da ivme ve hızı ayrı ayarla. Missing kapanınca ya da çökerse imleç sistem ayarına döner.
+- **Tuşlar:** evrensel geri/ileri, sol ve sağ tuşu değiştirme, çift tıklama koruması, orta tuşla otomatik kaydırma, hareketler ve herhangi bir tuşu ya da kısayolu bir eyleme bağlama (Mission Control, masaüstleri, ekran görüntüsü, medya tuşları, uygulama ya da dosya açma, komut çalıştırma).
+- **Cihaza, ekrana ve uygulamaya göre:** her ayar tüm farelere, tek bir fareye, bir ekrana ya da bir uygulamaya uygulanabilir. Trackpad ve Magic Mouse'a dokunulmaz.
+- LinearMouse ya da Mos ayarlarını **içe aktar**.
+
 ## Pil ve şarj profilleri
 
 *Sadece 14 inç MacBook Pro M4 Pro'da; diğer Mac'lerde hiç görünmez.*
