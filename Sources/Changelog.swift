@@ -16,6 +16,12 @@ struct ChangelogEntry {
 
 enum Changelog {
     static let entries: [ChangelogEntry] = [
+        ChangelogEntry(version: "4.1.2", items: [
+            ("Düzeltme: seri numarası bildirmeyen farelerde (çoğu Bluetooth fare) cihaza özel ayarlar uygulanmıyordu",
+             "Fix: device-specific settings weren't applied to mice that don't report a serial number (most Bluetooth mice)"),
+            ("Düzeltme: Türkçede Mouse sayfası pencereye sığmayıp kayıyordu",
+             "Fix: in Turkish, the Mouse page didn't fit the window and shifted sideways"),
+        ]),
         ChangelogEntry(version: "4.1.1", items: [
             ("Mouse artık Ayarlar'da kendi sayfasında (kenar çubuğunda Mouse)",
              "Mouse now has its own page in Settings (Mouse in the sidebar)"),

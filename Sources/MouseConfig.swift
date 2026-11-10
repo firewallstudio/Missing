@@ -247,10 +247,24 @@ struct MouseConfig: Codable, Equatable {
     var displays: [MouseDisplayLayer] = []
     var apps: [MouseAppLayer] = []
 
+    /// Cihaz anahtarı "üretici:ürün:seri". Bazı fareler (Bluetooth) seri numarasını bildirmez; o zaman
+    /// üretici ve ürün aynıysa aynı cihaz sayılır. Önce tam eşleşme aranır.
+    static func sameDevice(_ a: String, _ b: String) -> Bool {
+        if a == b { return true }
+        let x = a.split(separator: ":", omittingEmptySubsequences: false)
+        let y = b.split(separator: ":", omittingEmptySubsequences: false)
+        guard x.count == 3, y.count == 3, x[0] == y[0], x[1] == y[1] else { return false }
+        return x[2].isEmpty || y[2].isEmpty
+    }
+
+    func deviceIndex(_ key: String) -> Int? {
+        devices.firstIndex { $0.key == key } ?? devices.firstIndex { MouseConfig.sameDevice($0.key, key) }
+    }
+
     /// Öncelik: uygulama > ekran > cihaz > global
     func resolve(device: String?, display: String?, app: String?) -> MouseResolved {
         var layers = [MouseLayer.defaults, global]
-        if let device, let d = devices.first(where: { $0.key == device }) { layers.append(d.layer) }
+        if let device, let i = deviceIndex(device) { layers.append(devices[i].layer) }
         if let display, let d = displays.first(where: { $0.name == display }) { layers.append(d.layer) }
         if let app, let a = apps.first(where: { $0.bundleID == app }) { layers.append(a.layer) }
         return MouseResolved(MouseLayer.merge(layers))
@@ -269,7 +283,7 @@ struct MouseConfig: Codable, Equatable {
     func layer(_ scope: MouseScope) -> MouseLayer {
         switch scope {
         case .global: return global
-        case .device(let k): return devices.first { $0.key == k }?.layer ?? MouseLayer()
+        case .device(let k): return deviceIndex(k).map { devices[$0].layer } ?? MouseLayer()
         case .display(let n): return displays.first { $0.name == n }?.layer ?? MouseLayer()
         case .app(let b): return apps.first { $0.bundleID == b }?.layer ?? MouseLayer()
         }
@@ -279,7 +293,7 @@ struct MouseConfig: Codable, Equatable {
         switch scope {
         case .global: global = l
         case .device(let k):
-            if let i = devices.firstIndex(where: { $0.key == k }) { devices[i].layer = l }
+            if let i = deviceIndex(k) { devices[i].layer = l }
             else { devices.append(MouseDeviceLayer(key: k, name: name, layer: l)) }
         case .display(let n):
             if let i = displays.firstIndex(where: { $0.name == n }) { displays[i].layer = l }

@@ -115,7 +115,7 @@ enum MouseSection: String, CaseIterable {
         switch scope {
         case .global: return L("Tüm fareler")
         case .device(let k): return MouseDevices.shared.uniqueDevices.first { $0.key == k }?.name
-            ?? config.devices.first { $0.key == k }?.name ?? k
+            ?? config.deviceIndex(k).map { config.devices[$0].name } ?? k
         case .display(let n): return n
         case .app(let b): return config.apps.first { $0.bundleID == b }?.name ?? b
         }
@@ -143,7 +143,7 @@ enum MouseSection: String, CaseIterable {
         var c = config
         switch scope {
         case .global: c.global = MouseLayer()
-        case .device(let k): c.devices.removeAll { $0.key == k }
+        case .device(let k): c.devices.removeAll { MouseConfig.sameDevice($0.key, k) }
         case .display(let n): c.displays.removeAll { $0.name == n }
         case .app(let b): if let i = c.apps.firstIndex(where: { $0.bundleID == b }) { c.apps[i].layer = MouseLayer() }
         }
@@ -168,15 +168,27 @@ struct MouseSettingsPage: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 10) {
-                Picker("", selection: $model.section) {
-                    ForEach(MouseSection.allCases, id: \.self) { s in Text(s.title).tag(s) }
+            Picker("", selection: $model.section) {
+                ForEach(MouseSection.allCases, id: \.self) { s in Text(s.title).tag(s) }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .frame(maxWidth: .infinity)
+            if model.section.scoped {
+                // İkinci satır: (kaydırmada) eksen, sağda uygulanacak yer
+                HStack(spacing: 10) {
+                    if model.section == .scrolling {
+                        Picker("", selection: $model.vertical) {
+                            Text(L("Dikey")).tag(true)
+                            Text(L("Yatay")).tag(false)
+                        }
+                        .pickerStyle(.segmented)
+                        .labelsHidden()
+                        .frame(width: 200)
+                    }
+                    Spacer(minLength: 0)
+                    scopePicker
                 }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .fixedSize()
-                Spacer()
-                if model.section.scoped { scopePicker }
             }
             if !model.config.enabled && model.section != .general { offBanner }
             if !model.conflicts.isEmpty { conflictBanner }
@@ -208,7 +220,7 @@ struct MouseSettingsPage: View {
                 if !devs.isEmpty {
                     Section(L("Cihaz")) {
                         ForEach(devs) { d in
-                            Button(mark(model.config.devices.contains { $0.key == d.key && !$0.layer.isEmpty }) + d.name) {
+                            Button(mark(model.config.deviceIndex(d.key).map { !model.config.devices[$0].layer.isEmpty } ?? false) + d.name) {
                                 model.scope = .device(d.key)
                             }
                         }
@@ -538,15 +550,6 @@ struct MouseScrollingPage: View {
 
     var body: some View {
         let m = model
-        Picker("", selection: $model.vertical) {
-            Text(L("Dikey")).tag(true)
-            Text(L("Yatay")).tag(false)
-        }
-        .pickerStyle(.segmented)
-        .labelsHidden()
-        .frame(width: 220)
-        .padding(.bottom, 4)
-
         let modeKP = m.axis(\.vMode, \.hMode)
         let mode = m.bind(modeKP, ScrollMode.accelerated).wrappedValue
         Card(title: L("Kaydırma modu"), icon: "arrow.up.arrow.down", subtitle: L("Her çentikte ne kadar kayacağı"), startOpen: true) {

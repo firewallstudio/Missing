@@ -191,7 +191,7 @@ struct PointerOriginal: Codable {
         let cfg = engine.config
         let app = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
         let display = MouseScreens.nameUnderCursor()
-        for dev in MouseDevices.shared.devices where dev.category != .trackpad || cfg.devices.contains(where: { $0.key == dev.key }) {
+        for dev in MouseDevices.shared.devices where dev.category != .trackpad || cfg.deviceIndex(dev.key) != nil {
             let r = cfg.resolve(device: dev.key, display: display, app: app)
             let mode = r.l.pointerMode ?? .system
             let disable = r.l.disableAccel ?? false

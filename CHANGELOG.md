@@ -2,6 +2,11 @@
 
 Also shown in the app: **Settings › Versions**.
 
+## 4.1.2
+
+- Fix: device-specific settings weren't applied to mice that don't report a serial number (most Bluetooth mice)
+- Fix: in Turkish, the Mouse page didn't fit the window and shifted sideways
+
 ## 4.1.1
 
 - Mouse now has its own page in Settings (Mouse in the sidebar)
