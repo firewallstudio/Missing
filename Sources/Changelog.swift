@@ -16,6 +16,10 @@ struct ChangelogEntry {
 
 enum Changelog {
     static let entries: [ChangelogEntry] = [
+        ChangelogEntry(version: "4.1.3", items: [
+            ("Mouse sayfası sadeleşti: açıklamalar ve ipuçları kaldırıldı, imlecin yeri ayarı çıkarıldı",
+             "Simpler Mouse page: descriptions and tooltips removed, the pointer location setting is gone"),
+        ]),
         ChangelogEntry(version: "4.1.2", items: [
             ("Düzeltme: seri numarası bildirmeyen farelerde (çoğu Bluetooth fare) cihaza özel ayarlar uygulanmıyordu",
              "Fix: device-specific settings weren't applied to mice that don't report a serial number (most Bluetooth mice)"),

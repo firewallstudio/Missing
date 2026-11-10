@@ -2,6 +2,10 @@
 
 Also shown in the app: **Settings › Versions**.
 
+## 4.1.3
+
+- Simpler Mouse page: descriptions and tooltips removed, the pointer location setting is gone
+
 ## 4.1.2
 
 - Fix: device-specific settings weren't applied to mice that don't report a serial number (most Bluetooth mice)

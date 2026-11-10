@@ -41,7 +41,6 @@ final class MouseEngine: @unchecked Sendable {
     private var scrolledWhileHeld = false
     private var lastDown: [Int: CFAbsoluteTime] = [:]
     private var swallowUp = Set<Int>()
-    private var lastControlTap: CFAbsoluteTime = 0
     private var lastZoom: CFAbsoluteTime = 0
     // Tuş basılıyken sürükleme hareketi
     private var gestureButton: Int?
@@ -208,21 +207,7 @@ final class MouseEngine: @unchecked Sendable {
         }
     }
 
-    private func flags(_ e: CGEvent) -> CGEvent? {
-        let code = Int(e.getIntegerValueField(.keyboardEventKeycode))
-        // ⌃'ye iki kez dokununca imlecin yeri gösterilir
-        if code == 59 || code == 62, e.flags.contains(.maskControl),
-           !e.flags.contains(.maskCommand), !e.flags.contains(.maskAlternate), !e.flags.contains(.maskShift) {
-            let now = CFAbsoluteTimeGetCurrent()
-            if now - lastControlTap < 0.35, config.showPointerLocation {
-                lastControlTap = 0
-                DispatchQueue.main.async { MouseIndicator.showPointer() }
-            } else {
-                lastControlTap = now
-            }
-        }
-        return e
-    }
+    private func flags(_ e: CGEvent) -> CGEvent? { e }
 
     private func key(_ type: CGEventType, _ e: CGEvent) -> CGEvent? {
         let code = Int(e.getIntegerValueField(.keyboardEventKeycode))

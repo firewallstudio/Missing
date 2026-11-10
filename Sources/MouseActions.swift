@@ -233,7 +233,6 @@ enum MouseActions {
 // MARK: - Göstergeler
 
 @MainActor enum MouseIndicator {
-    private static var pointerWindow: NSWindow?
     private static var autoWindow: NSWindow?
 
     private static func overlay(size: CGFloat, at p: CGPoint) -> NSWindow {
@@ -248,42 +247,6 @@ enum MouseActions {
         w.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle]
         w.hasShadow = false
         return w
-    }
-
-    /// ⌃'ye iki kez dokununca imlecin etrafında daralan halka
-    static func showPointer() {
-        pointerWindow?.close()
-        let p = CGEvent(source: nil)?.location ?? .zero
-        let w = overlay(size: 220, at: p)
-        let v = NSView(frame: NSRect(x: 0, y: 0, width: 220, height: 220))
-        v.wantsLayer = true
-        let ring = CAShapeLayer()
-        ring.path = CGPath(ellipseIn: CGRect(x: 10, y: 10, width: 200, height: 200), transform: nil)
-        ring.fillColor = NSColor.clear.cgColor
-        ring.strokeColor = NSColor(Brand.red).cgColor
-        ring.lineWidth = 5
-        ring.frame = v.bounds
-        v.layer?.addSublayer(ring)
-        w.contentView = v
-        w.orderFrontRegardless()
-        pointerWindow = w
-        let scale = CABasicAnimation(keyPath: "transform.scale")
-        scale.fromValue = 1; scale.toValue = 0.12
-        let fade = CABasicAnimation(keyPath: "opacity")
-        fade.fromValue = 1; fade.toValue = 0.2
-        let g = CAAnimationGroup()
-        g.animations = [scale, fade]
-        g.duration = 0.55
-        g.timingFunction = CAMediaTimingFunction(name: .easeIn)
-        g.fillMode = .forwards
-        g.isRemovedOnCompletion = false
-        ring.anchorPoint = CGPoint(x: 0.5, y: 0.5)
-        ring.position = CGPoint(x: 110, y: 110)
-        ring.bounds = v.bounds
-        ring.add(g, forKey: "pulse")
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-            if pointerWindow === w { w.close(); pointerWindow = nil }
-        }
     }
 
     /// Otomatik kaydırmanın başladığı nokta

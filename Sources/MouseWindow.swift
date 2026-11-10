@@ -204,9 +204,6 @@ struct MouseSettingsPage: View {
             }
             .id("\(model.section)-\(model.scope)-\(model.vertical)")
             if model.section.scoped {
-                Text(L("Öncelik: uygulama › ekran › cihaz › tüm fareler"))
-                    .font(.system(size: 10.5)).foregroundStyle(.white.opacity(0.4))
-                    .padding(.top, 4)
             }
         }
         .onAppear { MouseScreens.refresh(); devices.refresh(); model.reload() }
@@ -563,45 +560,45 @@ struct MouseScrollingPage: View {
             }
             switch mode {
             case .accelerated:
-                LayerRow(m, L("İvme"), L("macOS'un tekerlek ivmesinin çarpanı (1 = sistemdeki gibi)"), m.axis(\.vAccel, \.hAccel)) {
+                LayerRow(m, L("İvme"), nil, m.axis(\.vAccel, \.hAccel)) {
                     MouseSlider(value: m.bind(m.axis(\.vAccel, \.hAccel), 1), range: 0...10)
                 }
-                LayerRow(m, L("Hız"), L("Her çentiğe eklenen piksel"), m.axis(\.vSpeed, \.hSpeed)) {
+                LayerRow(m, L("Hız"), nil, m.axis(\.vSpeed, \.hSpeed)) {
                     MouseSlider(value: m.bind(m.axis(\.vSpeed, \.hSpeed), 0), range: 0...128)
                 }
             case .lines:
-                LayerRow(m, L("Satır"), L("Her çentikte kaç satır"), m.axis(\.vLines, \.hLines)) {
+                LayerRow(m, L("Satır"), nil, m.axis(\.vLines, \.hLines)) {
                     MouseSlider(value: m.bind(m.axis(\.vLines, \.hLines), 3), range: 1...10, step: 1, format: "%.0f")
                 }
             case .pixels:
-                LayerRow(m, L("Piksel"), L("Her çentikte kaç piksel"), m.axis(\.vPixels, \.hPixels)) {
+                LayerRow(m, L("Piksel"), nil, m.axis(\.vPixels, \.hPixels)) {
                     MouseSlider(value: m.bind(m.axis(\.vPixels, \.hPixels), 36), range: 1...128, step: 0.1, format: "%.1f")
                 }
             }
             Divider().opacity(0.4)
-            LayerRow(m, L("Yumuşak kaydırma"), L("Bu eksende kaydırmayı yumuşat (seçili mod yumuşatılarak uygulanır)"), m.axis(\.vSmooth, \.hSmooth)) {
+            LayerRow(m, L("Yumuşak kaydırma"), nil, m.axis(\.vSmooth, \.hSmooth)) {
                 BrandToggle(isOn: m.bind(m.axis(\.vSmooth, \.hSmooth), true))
             }
-            LayerRow(m, L("Ters çevir"), L("Bu eksende kaydırma yönünü ters çevir"), m.axis(\.vReverse, \.hReverse)) {
+            LayerRow(m, L("Ters çevir"), nil, m.axis(\.vReverse, \.hReverse)) {
                 BrandToggle(isOn: m.bind(m.axis(\.vReverse, \.hReverse), false))
             }
         }
 
         let sim = m.bind(\.simTrackpad, false).wrappedValue
         Card(title: L("Yumuşatma"), icon: "wind", subtitle: L("İki eksen için ortak"), startOpen: true) {
-            LayerRow(m, L("Adım"), L("Bir çentiğin en az ne kadar kaydıracağı. Küçük hareketler bu değere yükseltilir."), \.step) {
+            LayerRow(m, L("Adım"), nil, \.step) {
                 MouseSlider(value: m.bind(\.step, 33.6), range: 0.01...100)
             }
-            LayerRow(m, L("Hız çarpanı"), L("Her çentiğin mesafesi bununla çarpılır"), \.gain) {
+            LayerRow(m, L("Hız çarpanı"), nil, \.gain) {
                 MouseSlider(value: m.bind(\.gain, 2.7), range: 1...10)
             }
-            LayerRow(m, L("Süre"), L("Kaydırmanın ne kadar uzun süzüleceği"), \.duration) {
+            LayerRow(m, L("Süre"), nil, \.duration) {
                 MouseSlider(value: Binding(get: { sim ? 4.75 : m.bind(\.duration, 4.35).wrappedValue },
                                            set: { m.bind(\.duration, 4.35).wrappedValue = $0 }), range: 1...5)
                     .disabled(sim)
                     .opacity(sim ? 0.5 : 1)
             }
-            LayerRow(m, L("Trackpad gibi"), L("Kaydırmayı trackpad hareketi gibi gönder (sayfa sonunda esner, geri/ileri kaydırma hareketleri çalışır). Süre 4,75'e kilitlenir."), \.simTrackpad) {
+            LayerRow(m, L("Trackpad gibi"), nil, \.simTrackpad) {
                 BrandToggle(isOn: m.bind(\.simTrackpad, false))
             }
             HStack {
@@ -653,8 +650,6 @@ struct ScrollModifierList: View {
                 list.wrappedValue.append(ScrollModifier(trigger: .key(59), action: .faster, scale: 3))
             }
             Spacer()
-            Text(L("Fare tuşu da seçilebilir; hiç kaydırmadan bırakırsan normal tıklama olur."))
-                .font(.system(size: 11)).foregroundStyle(.white.opacity(0.45))
         }
     }
 }
@@ -676,14 +671,14 @@ struct MousePointerPage: View {
                 .pickerStyle(.segmented).labelsHidden().frame(width: 220)
             }
             if custom {
-                LayerRow(m, L("İvme"), L("Hızlı hareketlerde imlecin ne kadar fazla gideceği (macOS varsayılanı 0,6875)"), \.pointerAccel) {
+                LayerRow(m, L("İvme"), nil, \.pointerAccel) {
                     MouseSlider(value: m.bind(\.pointerAccel, 0.6875), range: 0...5, step: 0.0001, format: "%.4f")
                 }
-                LayerRow(m, L("Hız"), L("İmlecin temel hızı (0 yavaş, 1 hızlı)"), \.pointerSpeed) {
+                LayerRow(m, L("Hız"), nil, \.pointerSpeed) {
                     MouseSlider(value: m.bind(\.pointerSpeed, 0.5), range: 0...1, step: 0.0001, format: "%.4f")
                 }
             }
-            LayerRow(m, L("İvmeyi kapat"), L("İmleç elin hareketiyle birebir gitsin (oyun ve tasarım için)"), \.disableAccel) {
+            LayerRow(m, L("İvmeyi kapat"), nil, \.disableAccel) {
                 BrandToggle(isOn: m.bind(\.disableAccel, false))
             }
             HStack {
@@ -693,15 +688,6 @@ struct MousePointerPage: View {
                     l.pointerMode = .system; l.disableAccel = false; l.pointerAccel = nil; l.pointerSpeed = nil
                     m.setLayer(l)
                 }
-            }
-            Text(L("İmleç ayarı öndeki uygulamaya ve imlecin bulunduğu ekrana göre seçilir. Missing kapanınca ya da çökerse sistem ayarına döner."))
-                .font(.system(size: 11)).foregroundStyle(.white.opacity(0.45))
-        }
-        if m.scope == .global {
-            Card(title: L("İmlecin yeri"), icon: "scope",
-                 isOn: Binding(get: { m.config.showPointerLocation }, set: { v in var c = m.config; c.showPointerLocation = v; m.commit(c) }),
-                 subtitle: L("⌃'ye iki kez dokununca imlecin etrafında halka")) {
-                EmptyView()
             }
         }
     }
@@ -715,17 +701,17 @@ struct MouseButtonsPage: View {
     var body: some View {
         let m = model
         Card(title: L("Temel"), icon: "computermouse", startOpen: true) {
-            LayerRow(m, L("Evrensel geri / ileri"), L("Farenin yan tuşları her uygulamada geri / ileri gitsin"), \.backForward) {
+            LayerRow(m, L("Evrensel geri / ileri"), nil, \.backForward) {
                 BrandToggle(isOn: m.bind(\.backForward, true))
             }
             LayerRow(m, L("Sol ve sağ tuşu değiştir"), nil, \.switchPrimary) {
                 BrandToggle(isOn: m.bind(\.switchPrimary, false))
             }
-            LayerRow(m, L("Çift tıklama koruması"), L("Eskiyen farelerin istemeden çift tıklamasını engeller"), \.debounce) {
+            LayerRow(m, L("Çift tıklama koruması"), nil, \.debounce) {
                 BrandToggle(isOn: m.bind(\.debounce, false))
             }
             if m.bind(\.debounce, false).wrappedValue {
-                LayerRow(m, L("Bekleme"), L("Bu süre içindeki ikinci basış yok sayılır"), \.debounceMs) {
+                LayerRow(m, L("Bekleme"), nil, \.debounceMs) {
                     MouseSlider(value: m.bind(\.debounceMs, 50), range: 5...500, step: 1, format: "%.0f ms")
                 }
                 LayerRow(m, L("Tuşlar"), nil, \.debounceButtons) {
@@ -750,8 +736,6 @@ struct MouseButtonsPage: View {
              isOn: m.bind(\.autoScroll, false),
              subtitle: L("Tuşa bas ve imleci oynat; bırakınca ya da tekrar tıklayınca biter")) {
             LayerRow(m, L("Tuş"), nil, \.autoScrollButton) { ButtonPicker(button: m.bind(\.autoScrollButton, 2)) }
-            Text(L("Bağlantı ve düğmelerin üstünde orta tık yine normal çalışır (yeni sekmede aç gibi)."))
-                .font(.system(size: 11)).foregroundStyle(.white.opacity(0.45))
         }
 
         Card(title: L("Hareketler"), icon: "hand.draw", isOn: m.bind(\.gesture, false),
@@ -803,8 +787,6 @@ struct MappingList: View {
                 list.wrappedValue.append(MouseMapping(trigger: .mouse(3), action: .of(.missionControl)))
             }
             Spacer()
-            Text(L("Sol ve sağ tık sadece ⌘ ⌥ ⌃ ⇧ ile birlikte eşlenebilir."))
-                .font(.system(size: 11)).foregroundStyle(.white.opacity(0.45))
         }
     }
 
@@ -820,9 +802,6 @@ struct MouseAppsPage: View {
     @ObservedObject var model: MouseModel
 
     var body: some View {
-        Text(L("Listedeki her uygulama ya genel ayarları kullanır ya da kendi ayarlarını. Kendi ayarı için Düzenle'ye bas: Kaydırma, İmleç ve Tuşlar o uygulama için açılır; değiştirdiğin her ayar sadece orada geçerli olur."))
-            .font(.system(size: 12)).foregroundStyle(.white.opacity(0.6))
-            .fixedSize(horizontal: false, vertical: true)
         HStack {
             Menu(L("Çalışan uygulamalardan ekle")) {
                 ForEach(NSWorkspace.shared.runningApplications.filter { $0.activationPolicy == .regular && $0.bundleURL != nil }
@@ -889,8 +868,6 @@ struct MouseGeneralPage: View {
         Card(title: L("Mouse"), icon: "computermouse.fill",
              isOn: Binding(get: { model.config.enabled }, set: { model.setEnabled($0) }),
              subtitle: L("Kaydırma, imleç ve tuş ayarlarının hepsi"), startOpen: true) {
-            Text(L("Kapatınca Missing fareye hiç dokunmaz; imleç ayarları sistemdekine döner. Ayarların silinmez."))
-                .font(.system(size: 11.5)).foregroundStyle(.white.opacity(0.55))
             if model.config.enabled {
                 Row(L("Durum"), nil) {
                     let tap = MouseEngine.shared.isRunning
@@ -922,9 +899,6 @@ struct MouseGeneralPage: View {
                 Button(L("Diğer fare uygulamalarından al")) { model.importOthers() }
                 Spacer()
             }
-            Text(L("Bu Mac'te başka bir fare uygulamasının ayarları varsa alır; şimdiki ayarların üstüne yazılır. Mouse ilk açıldığında bunu kendiliğinden yapar."))
-                .font(.system(size: 11)).foregroundStyle(.white.opacity(0.45))
-                .fixedSize(horizontal: false, vertical: true)
             if let msg = model.message {
                 Text(msg).font(.system(size: 11.5)).foregroundStyle(.white.opacity(0.8))
                     .fixedSize(horizontal: false, vertical: true)

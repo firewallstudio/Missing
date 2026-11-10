@@ -241,7 +241,6 @@ struct MouseAppLayer: Codable, Identifiable, Equatable {
 struct MouseConfig: Codable, Equatable {
     var version = 1
     var enabled = false
-    var showPointerLocation = false
     var global = MouseLayer()
     var devices: [MouseDeviceLayer] = []
     var displays: [MouseDisplayLayer] = []
