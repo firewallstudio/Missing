@@ -26,6 +26,8 @@ enum MouseSection: String, CaseIterable {
 
 @MainActor final class MouseModel: ObservableObject {
     static let shared = MouseModel()
+    /// Tanıtım görselleri çizilirken izin uyarısı gösterilmesin
+    static var snapshot = false
 
     @Published var config = MouseEngine.shared.config
     @Published var section: MouseSection = .scrolling
@@ -192,7 +194,7 @@ struct MouseSettingsPage: View {
             }
             if !model.config.enabled && model.section != .general { offBanner }
             if !model.conflicts.isEmpty { conflictBanner }
-            if model.config.enabled, !MouseEngine.shared.isRunning, !AXIsProcessTrusted(), model.section != .general { permissionBanner }
+            if model.config.enabled, !MouseEngine.shared.isRunning, !AXIsProcessTrusted(), model.section != .general, !MouseModel.snapshot { permissionBanner }
             Group {
                 switch model.section {
                 case .scrolling: MouseScrollingPage(model: model)
@@ -206,7 +208,7 @@ struct MouseSettingsPage: View {
             if model.section.scoped {
             }
         }
-        .onAppear { MouseScreens.refresh(); devices.refresh(); model.reload() }
+        .onAppear { MouseScreens.refresh(); devices.refresh(); if !MouseModel.snapshot { model.reload() } }
     }
 
     private var scopePicker: some View {
