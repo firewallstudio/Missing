@@ -68,6 +68,13 @@ import UserNotifications
         model.onPowerChanged = {
             if PowerProfiles.active { PowerProfiles.shared.start() } else { PowerProfiles.shared.stop() }
         }
+        model.onKeepAwakeChanged = { KeepAwake.shared.evaluate() }
+        KeepAwake.shared.onChange = { [weak self] in
+            self?.updateIcon()
+            self?.model?.refresh()
+            self?.menuPanel.actions.refresh()
+        }
+        KeepAwake.shared.onNotice = { [weak self] text, symbol in self?.hud.show(name: text, symbol: symbol) }
         model.onFinderTabsChanged = { [weak self] in
             guard let self else { return }
             if FinderTabsSettings.enabled, self.switcher.isRunning { self.finderTabs.start() } else { self.finderTabs.stop() }
@@ -94,6 +101,7 @@ import UserNotifications
         extraKeys.onCaptureMenu = { [weak self] in self?.capture.paletteOrStop() }
         extraKeys.onScrolling = { [weak self] in self?.capture.scrollingScreenshot() }
         extraKeys.onTile = { [weak self] in self?.tiling.trigger() }
+        extraKeys.onKeepAwake = { KeepAwake.shared.toggle() }
         // Harici monitör listesi (parlaklık / ses için)
         Monitors.shared.refresh(rescan: true)
         NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { _ in
@@ -197,6 +205,7 @@ import UserNotifications
         startMouse()   // imleç ayarları izin istemez; kaydırma ve tuşlar izin gelince başlar
         if FileSearchSettings.enabled { FileIndex.shared.start() }
         PowerProfiles.shared.start()   // sadece MacBook Pro 14" M4 Pro'da bir şey yapar
+        KeepAwake.shared.start()
         if EQSettings.enabled { Equalizer.shared.apply() }
         if model.anyPreviews, !CGPreflightScreenCaptureAccess() {
             _ = CGRequestScreenCaptureAccess()
@@ -241,6 +250,7 @@ import UserNotifications
 
     func applicationWillTerminate(_ notification: Notification) {
         MouseEngine.shared.stop()   // imleç ayarları sistemdekine dönsün
+        KeepAwake.shared.shutdown()
         Equalizer.shared.stop()   // sistem sesi asıl çıkışa geri dönsün
         switcher.stop()
         restoreNativeHotkeys()
@@ -390,6 +400,15 @@ import UserNotifications
             return
         }
         statusItem.button?.contentTintColor = nil
+        // Uyanık tutulurken (menü kapalıyken) yaprak yerine fincan
+        if KeepAwake.shared.isHolding, !menuOpen,
+           let cup = NSImage(systemSymbolName: KeepAwake.symbol, accessibilityDescription: L("Uyanık tutuluyor"))?
+            .withSymbolConfiguration(config) {
+            cup.isTemplate = true
+            statusItem.button?.image = cup
+            statusItem.button?.toolTip = L("Missing · Uyanık tutuluyor")
+            return
+        }
         // Missing ikonu: normalde menü çubuğu renginde (beyaz/siyah), menü açıkken renkli
         let image: NSImage?
         if menuOpen, let color = NSImage(named: "MenuIconColor") {

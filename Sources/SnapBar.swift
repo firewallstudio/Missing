@@ -174,7 +174,7 @@ private final class TopPanel: NSPanel {
     // MARK: Çentik
 
     /// Ekranın çentiği (yoksa nil): genişlik ve yükseklik
-    private static func notch(of s: NSScreen) -> NSSize? {
+    static func notch(of s: NSScreen) -> NSSize? {
         guard #available(macOS 12.0, *), s.safeAreaInsets.top > 0,
               let l = s.auxiliaryTopLeftArea, let r = s.auxiliaryTopRightArea else { return nil }
         let w = s.frame.width - l.width - r.width

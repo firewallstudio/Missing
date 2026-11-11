@@ -1,6 +1,6 @@
 import Cocoa
 
-/// ⌘⇧3 / ⌘⇧4 / ⌘⇧5 / ⌘⇧6 (ekran çekimi) ve ⌘< (ekran bölme).
+/// ⌘⇧3 / ⌘⇧4 / ⌘⇧5 / ⌘⇧6 (ekran çekimi), ⌘< (ekran bölme) ve ⌘⇧< (uyanık tut).
 ///
 /// Ortak event tap'ten çağrılır. Bizim olan tuşu yutar; macOS'taki karşılığı
 /// `applyNative()` ile kapatılır, uygulama kapanınca geri açılır.
@@ -11,6 +11,7 @@ import Cocoa
     var onScrolling: (() -> Void)?       // ⌘⇧6
     var onTile: (() -> Void)?            // ⌘<
     var onFileSearch: (() -> Void)?      // ⌘Space: dosya ara
+    var onKeepAwake: (() -> Void)?       // ⌘⇧<: uyanık tut
     /// true dönerse hiçbir şey yapılmaz (ör. ⌘Tab paneli açıkken)
     var isBlocked: (() -> Bool)?
 
@@ -34,7 +35,9 @@ import Cocoa
         guard cmd, !flags.contains(.maskControl), !flags.contains(.maskAlternate) else { return false }
 
         var action: (() -> Void)?
-        if shift {
+        if shift && KeepAwakeSettings.enabled && KeepAwakeSettings.key && Self.isShiftLessThan(event) {
+            action = onKeepAwake
+        } else if shift {
             if CaptureSettings.enabled {
                 switch code {
                 case Self.key3 where CaptureSettings.screenKey: action = onScreenshot
@@ -64,6 +67,13 @@ import Cocoa
     private static func isLessThan(_ event: CGEvent) -> Bool {
         guard let ns = NSEvent(cgEvent: event), let ch = ns.charactersIgnoringModifiers else { return false }
         return ch == "<"
+    }
+
+    /// ⌘⇧<: Türkçe Q'da "<" tuşu (⇧ ile ">" olur), ABD düzeninde ⇧+virgül ("<")
+    private static func isShiftLessThan(_ event: CGEvent) -> Bool {
+        guard let ns = NSEvent(cgEvent: event) else { return false }
+        if ns.characters(byApplyingModifiers: []) == "<" { return true }
+        return ns.charactersIgnoringModifiers == "<"
     }
 
     /// Ayarlara göre macOS'un kendi kısayollarını kapat / geri aç.

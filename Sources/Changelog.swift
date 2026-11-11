@@ -16,6 +16,18 @@ struct ChangelogEntry {
 
 enum Changelog {
     static let entries: [ChangelogEntry] = [
+        ChangelogEntry(version: "4.2.0", items: [
+            ("Yeni: Uyanık tut. Ekranın kapanmasını ve Mac'in uyumasını engeller; süresiz ya da 15 dakikadan 5 saate hazır sürelerle",
+             "New: Keep awake. Stops the display from turning off and the Mac from sleeping; indefinitely or for 15 minutes to 5 hours"),
+            ("Menü panelinde tek seçim: bir süre ya da seçtiğin uygulama açık kaldıkça; ⌘⇧< ile de açılır. Açıkken menü çubuğunda fincan, çentiğin altında kalan süre görünür",
+             "One choice in the menu panel: a duration, or for as long as an app you pick stays open; ⌘⇧< works too. While on, a cup shows in the menu bar and the time left under the notch"),
+            ("Otomatik kurallar: sadece şarjdayken, pil azalınca kapat, Missing açılınca başlat",
+             "Automatic rules: only while charging, turn off on low battery, start when Missing opens"),
+            ("Kapak kapanınca ya da Mac uyuyunca kendiliğinden kapanır; çantada açık kalmaz",
+             "Turns itself off when the lid closes or the Mac sleeps, so it never stays on in a bag"),
+            ("İsteğe bağlı: kapak kapalıyken de çalış. Şarjdan çekilince, harici ekran çıkınca, süre sınırı dolunca ya da pil azalınca Mac uyur",
+             "Optional: keep working with the lid closed. The Mac sleeps when unplugged, when the external display is disconnected, when the time limit is reached or when the battery gets low"),
+        ]),
         ChangelogEntry(version: "4.1.4", items: [
             ("Ekranları karartma (⌘⇧<) kaldırıldı: bazı sistemlerde sorun çıkarıyordu",
              "Display blackout (⌘⇧<) removed: it caused problems on some systems"),

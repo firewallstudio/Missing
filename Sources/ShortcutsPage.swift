@@ -6,7 +6,7 @@ import SwiftUI
 // Altta tüm kısayollar; birine tıklayınca sahne onu oynatır.
 
 enum ShortcutDemo: String, CaseIterable, Identifiable {
-    case switcher, preview, audio, shot, area, record, scroll, tile, search
+    case switcher, preview, audio, shot, area, record, scroll, tile, search, awake
     var id: String { rawValue }
 
     var keys: [String] {
@@ -20,6 +20,7 @@ enum ShortcutDemo: String, CaseIterable, Identifiable {
         case .scroll: return ["⌘", "⇧", "6"]
         case .tile: return ["⌘", "<"]
         case .search: return ["⌘", "Space"]
+        case .awake: return ["⌘", "⇧", "<"]
         }
     }
 
@@ -34,6 +35,7 @@ enum ShortcutDemo: String, CaseIterable, Identifiable {
         case .scroll: return L("Kaydırmalı görüntü")
         case .tile: return L("Ekranı böl")
         case .search: return L("Dosya ara (Finder'da)")
+        case .awake: return L("Uyanık tut")
         }
     }
 
@@ -48,6 +50,7 @@ enum ShortcutDemo: String, CaseIterable, Identifiable {
         case .scroll: return L("Alanı seç, sayfa kendiliğinden kayar, uzun tek bir görüntü olur.")
         case .tile: return L("Kaça bölüneceğini seç, pencereler bölmelere yerleşir.")
         case .search: return L("Finder öndeyken: o klasörün içinde dosya adına göre anında arar.")
+        case .awake: return L("Ekran kapanmaz, Mac uyumaz; tekrar basınca kapanır.")
         }
     }
 
@@ -63,6 +66,7 @@ enum ShortcutDemo: String, CaseIterable, Identifiable {
         case .scroll: return CaptureSettings.enabled && CaptureSettings.scrollKey
         case .tile: return TileSettings.enabled
         case .search: return FileSearchSettings.enabled
+        case .awake: return KeepAwakeSettings.enabled && KeepAwakeSettings.key
         }
     }
 }
@@ -224,6 +228,7 @@ struct DemoScene: View {
         case .scroll: scroll
         case .tile: tile
         case .search: search
+        case .awake: awake
         }
     }
 
@@ -289,6 +294,25 @@ struct DemoScene: View {
     }
 
     // MARK: Sahneler
+
+    /// Uyanık tut: ekran kararmaya yüz tutar, kısayolla fincan belirir ve ekran açık kalır
+    private var awake: some View {
+        let dim = p(0.05, 0.3) * (1 - p(0.36, 0.44))
+        let on = p(0.36, 0.46) * (1 - p(0.88, 0.96))
+        return ZStack(alignment: .topLeading) {
+            desktopWindows
+            Color.black.opacity(0.75 * dim).frame(width: W, height: H)
+            HStack(spacing: 5) {
+                Image(systemName: KeepAwake.symbol).font(.system(size: 11, weight: .semibold)).foregroundStyle(Brand.red)
+                Text(L("Süresiz")).font(.system(size: 10, weight: .semibold, design: .rounded)).foregroundStyle(.white)
+            }
+            .padding(.horizontal, 10).padding(.vertical, 5)
+            .background(Capsule().fill(.black.opacity(0.85)))
+            .opacity(on)
+            .scaleEffect(0.8 + 0.2 * on)
+            .position(x: W / 2, y: 30)
+        }
+    }
 
     private func switcher(previews: Bool) -> some View {
         let icons = ["safari.fill", "folder.fill", "music.note", "paintbrush.fill"]

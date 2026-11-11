@@ -75,6 +75,15 @@ Open **Settings › Mouse**. Smooth scrolling that feels like Mos (step, speed g
 
 Unplug and the display drops to the **600-nit** preset at **60 Hz** with **Low Power Mode**. Plug back in and it returns to **1600 nits (XDR)**, **ProMotion** and **High Power Mode**. It happens automatically, or switch by hand from the menu bar.
 
+## Keep awake
+
+Stop the display from turning off and the Mac from sleeping: **indefinitely**, or for **15 minutes to 5 hours**. Pick one in the menu bar panel: a duration, or **for as long as an app you pick stays open** (choose it from the list); press it again to turn it off. **⌘⇧<** toggles it too. While it's on, the menu bar icon becomes a cup and the time left sits under the notch.
+
+- **Display or just the Mac:** keep the display on, or let it turn off while the Mac keeps working on a download or a long job.
+- **Automatic:** only while charging, turn off when the battery gets low, start when Missing opens.
+- **Safe in a bag:** closing the lid still puts the Mac to sleep, and keep awake turns itself off instead of resuming later. No administrator password needed.
+- **Lid closed, if you want it:** an optional setting keeps the Mac working with the lid closed (asks for your administrator password once). It still sleeps as soon as you unplug it, disconnect the external display, hit the time limit or run low on battery.
+
 ## Everything else, one click away
 
 <div align="center"><img src="assets/menu.png" alt="Menu bar panel" width="560"></div>
@@ -104,6 +113,7 @@ Click the leaf in the menu bar for a glass panel: sound output at the top, then 
 | ⌘Tab / ⌥Tab | Switch windows (⌥Tab with previews) |
 | ⌘⇧ (tap ⇧) | Next sound output |
 | ⌘< | Split screen |
+| ⌘⇧< | Keep awake on / off |
 | ⌘⇧3 · ⌘⇧4 · ⌘⇧5 · ⌘⇧6 | Display · area · record · scrolling capture |
 | ⌘Space (in Finder) | Find files |
 

@@ -135,6 +135,7 @@ struct MenuBarView: View {
             if needsAccess { accessBanner }
             if Feature.sound.isOn { audioSection }
             quickGrid
+            if KeepAwakeSettings.enabled { awakeSection }
             if MonitorSettings.showInMenu, !monitors.displays.isEmpty { monitorSection }
             footer
         }
@@ -306,6 +307,95 @@ struct MenuBarView: View {
             .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
         .buttonStyle(MenuRowStyle(radius: 14))
+    }
+
+    // MARK: Uyanık tut
+
+    /// Tek seçimli hızlı ayar: bir süre ya da seçilen uygulama açık kaldıkça. Seçiliye tekrar basınca kapanır.
+    private var awakeSection: some View {
+        let awake = KeepAwake.shared
+        // Açık uygulamalar, ada göre: hangisi önde olursa olsun sıra değişmez
+        let apps = NSWorkspace.shared.runningApplications
+            .filter { $0.activationPolicy == .regular && $0.bundleIdentifier != nil && $0.bundleIdentifier != Bundle.main.bundleIdentifier }
+            .sorted { ($0.localizedName ?? "").localizedCaseInsensitiveCompare($1.localizedName ?? "") == .orderedAscending }
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                sectionTitle(L("Uyanık tut"))
+                Spacer()
+                if awake.isOn {
+                    Text(awake.statusText)
+                        .font(.system(size: 10.5, weight: .semibold, design: .rounded))
+                        .foregroundStyle(awake.isHolding ? Brand.red : .white.opacity(0.5))
+                        .lineLimit(1)
+                }
+                Button { controller.run { actions.openSettings(.awake) } } label: {
+                    Image(systemName: "gearshape.fill").font(.system(size: 10)).foregroundStyle(.white.opacity(0.45))
+                        .frame(width: 18, height: 18).contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+            HStack(spacing: 5) {
+                Image(systemName: awake.isOn ? KeepAwake.symbol : "cup.and.saucer")
+                    .font(.system(size: 12, weight: .semibold))
+                    .frame(width: 28, height: 28)
+                    .background(Circle().fill(awake.isOn ? Brand.red : Color.white.opacity(0.10)))
+                    .foregroundStyle(awake.isOn ? .white : .white.opacity(0.6))
+                ForEach(KeepAwakeDuration.allCases.filter { $0 != .forever } + [.forever]) { d in
+                    awakeChip(d.short, on: awake.choice == .duration(d)) { awake.select(.duration(d)) }
+                }
+            }
+            if !apps.isEmpty || awake.choice.map({ if case .app = $0 { return true } else { return false } }) == true {
+                HStack(spacing: 8) {
+                    Text(L("Program açıkken"))
+                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.6))
+                        .fixedSize()
+                    Spacer(minLength: 4)
+                    Picker("", selection: Binding<String>(
+                        get: { if case .app(let id)? = awake.choice { return id } else { return "" } },
+                        set: { id in
+                            if id.isEmpty { awake.end() } else { awake.begin(app: id) }
+                            actions.refresh()
+                        })) {
+                        Text(L("Program seç")).tag("")
+                        Divider()
+                        ForEach(apps, id: \.processIdentifier) { a in
+                            HStack {
+                                Image(nsImage: Self.menuIcon(a.icon))
+                                Text(a.localizedName ?? a.bundleIdentifier ?? "?")
+                            }
+                            .tag(a.bundleIdentifier ?? "")
+                        }
+                    }
+                    .labelsHidden()
+                    .frame(width: 180)
+                }
+                .padding(.leading, 4)
+            }
+        }
+    }
+
+    /// Açılır listede 16 pt'lik uygulama simgesi
+    private static func menuIcon(_ icon: NSImage?) -> NSImage {
+        guard let copy = icon?.copy() as? NSImage else { return NSImage() }
+        copy.size = NSSize(width: 16, height: 16)
+        return copy
+    }
+
+    private func awakeChip(_ title: String, on: Bool, _ action: @escaping () -> Void) -> some View {
+        Button {
+            action()
+            actions.refresh()
+        } label: {
+            Text(title)
+                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                .lineLimit(1)
+                .frame(maxWidth: .infinity)
+                .frame(height: 28)
+                .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(on ? Brand.red : Color.white.opacity(0.08)))
+                .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+        }
+        .buttonStyle(MenuRowStyle(radius: 9))
     }
 
     // MARK: Monitörler

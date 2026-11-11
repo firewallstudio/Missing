@@ -69,6 +69,15 @@ Sistemin bütün sesi için 32 Hz – 16 kHz arası 10 bant (±12 dB) ve ön kaz
 
 Fişten çekince ekran **600 nit** ayarına ve **60 Hz**'e iner, **Düşük Güç Modu** açılır. Şarja takınca **1600 nit (XDR)**, **ProMotion** ve **Yüksek Güç Modu**'na döner. Kendiliğinden olur; istersen menü çubuğundan elle de geçersin.
 
+## Uyanık tut
+
+Ekranın kapanmasını ve Mac'in uyumasını engelle: **süresiz** ya da **15 dakikadan 5 saate** hazır sürelerle. Menü çubuğu panelinden tek bir seçim yap: bir süre ya da **seçtiğin uygulama açık kaldıkça** (listeden seç); kapatmak için aynısına tekrar bas. **⌘⇧<** de açıp kapatır. Açıkken menü çubuğundaki simge fincana döner, kalan süre çentiğin altında görünür.
+
+- **Ekran ya da sadece Mac:** ekranı açık tut ya da ekran kapansın, Mac indirmeye ya da uzun işe devam etsin.
+- **Otomatik:** sadece şarjdayken, pil azalınca kapat, Missing açılınca başlat.
+- **Çantada güvenli:** kapağı kapatınca Mac yine uyur ve uyanık tut kendiliğinden kapanır, sonradan devam etmez. Yönetici şifresi gerekmez.
+- **İstersen kapak kapalıyken de:** isteğe bağlı bir ayarla Mac kapak kapalıyken çalışmaya devam eder (bir kez yönetici şifresi ister). Şarjdan çekince, harici ekranı çıkarınca, süre sınırı dolunca ya da pil azalınca yine uyur.
+
 ## Tek tuşla ses çıkışı
 
 <div align="center"><img src="assets/audio.png" alt="Ses çıkışı değiştirme" width="640"></div>
@@ -104,6 +113,7 @@ Menü çubuğundaki yaprağa tıkla: üstte ses çıkışı, altında hızlı ey
 | ⌘Tab / ⌥Tab | Pencere değiştir (⌥Tab önizlemeli) |
 | ⌘⇧ (⇧'ye dokun) | Sıradaki ses çıkışı |
 | ⌘< | Ekranı böl |
+| ⌘⇧< | Uyanık tut aç / kapat |
 | ⌘⇧3 · ⌘⇧4 · ⌘⇧5 · ⌘⇧6 | Ekran · alan · kayıt · kaydırmalı görüntü |
 | ⌘Space (Finder'da) | Dosya ara |
 

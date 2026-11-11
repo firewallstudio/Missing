@@ -36,6 +36,8 @@ final class SettingsModel: ObservableObject {
     var onFinderTabsChanged: () -> Void = {}
     /// Pil / şarj profilleri açılıp kapandı
     var onPowerChanged: () -> Void = {}
+    /// Uyanık tut ayarı değişti
+    var onKeepAwakeChanged: () -> Void = {}
     /// Ekolayzır açılıp kapandı
     var onEQChanged: () -> Void = {}
     /// Genel › Kurulum: ilk kurulum ekranını yeniden aç
@@ -151,7 +153,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
 // MARK: - Görünüm
 
 enum SettingsPage: CaseIterable {
-    case features, general, switcher, audio, screen, power, quick, mouse, permissions, shortcuts, request, versions, about
+    case features, general, switcher, audio, screen, power, awake, quick, mouse, permissions, shortcuts, request, versions, about
 
     var title: String {
         switch self {
@@ -161,6 +163,7 @@ enum SettingsPage: CaseIterable {
         case .audio: return L("Ses")
         case .screen: return L("Ekran")
         case .power: return L("Pil ve Şarj")
+        case .awake: return L("Uyanık Tut")
         case .quick: return L("Hızlı Özellikler")
         case .mouse: return L("Mouse")
         case .permissions: return L("İzinler")
@@ -179,6 +182,7 @@ enum SettingsPage: CaseIterable {
         case .audio: return "speaker.wave.2.fill"
         case .screen: return "camera.viewfinder"
         case .power: return "battery.75percent"
+        case .awake: return KeepAwake.symbol
         case .quick: return "bolt.fill"
         case .mouse: return "computermouse.fill"
         case .permissions: return "lock.shield.fill"
@@ -250,6 +254,7 @@ struct SettingsView: View {
         case .audio: audioTab
         case .screen: screenTab
         case .power: powerCard
+        case .awake: awakeCard
         case .quick: quickTab
         case .mouse: MouseSettingsPage(model: MouseModel.shared, devices: MouseDevices.shared)
         case .permissions: permissionsTab
@@ -886,6 +891,83 @@ struct SettingsView: View {
                 } else {
                     Button(L("Ayarla…")) { power.configurePowerModes(); model.refresh() }
                 }
+            }
+        }
+    }
+
+    // MARK: Uyanık tut
+
+    @ViewBuilder private var awakeCard: some View {
+        let awake = KeepAwake.shared
+        let changed: () -> Void = { model.onKeepAwakeChanged() }
+        Card(title: L("Uyanık tut"), icon: KeepAwake.symbol,
+             isOn: model.bind({ KeepAwakeSettings.enabled }, { KeepAwakeSettings.enabled = $0; changed() }),
+             subtitle: L("Ekran kapanmasın, Mac uyumasın"), startOpen: true) {
+            Row(L("Durum"), nil) {
+                HStack(spacing: 10) {
+                    Text(awake.statusText).font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(awake.isHolding ? Brand.red : .white.opacity(0.55))
+                    if awake.isOn {
+                        Button(L("Durdur")) { awake.end(quiet: true) }
+                    } else {
+                        Menu(L("Başlat")) {
+                            ForEach(KeepAwakeDuration.allCases) { d in Button(d.title) { awake.begin(d, quiet: true) } }
+                        }
+                        .fixedSize()
+                    }
+                }
+            }
+            Row(L("Varsayılan süre"), L("Kısayolla ya da menüden tek tıkla açınca bu süre kullanılır.")) {
+                Picker("", selection: model.bind({ KeepAwakeSettings.defaultDuration }, { KeepAwakeSettings.defaultDuration = $0 })) {
+                    ForEach(KeepAwakeDuration.allCases) { d in Text(d.title).tag(d) }
+                }
+                .labelsHidden().frame(width: 130)
+            }
+            ToggleRow(L("Ekran kapanabilsin, sadece Mac uyumasın"), L("İndirme ya da uzun süren işler için: ekran kararır ama Mac çalışmaya devam eder."),
+                      isOn: model.bind({ KeepAwakeSettings.allowDisplaySleep }, { KeepAwakeSettings.allowDisplaySleep = $0; changed() }))
+            ToggleRow(L("⌘⇧< ile aç / kapat"), nil,
+                      isOn: model.bind({ KeepAwakeSettings.key }, { KeepAwakeSettings.key = $0 }))
+            ToggleRow(L("Çentikte göster"), L("Uyanık tutulurken çentiğin altında küçük bir fincan ve kalan süre görünür."),
+                      isOn: model.bind({ KeepAwakeSettings.notch }, { KeepAwakeSettings.notch = $0; changed() }))
+            Divider().opacity(0.4)
+            ToggleRow(L("Missing açılınca başlat"), nil,
+                      isOn: model.bind({ KeepAwakeSettings.startAtLaunch }, { KeepAwakeSettings.startAtLaunch = $0 }))
+            ToggleRow(L("Sadece şarjdayken"), L("Pile geçince bekler, şarja takınca kaldığı yerden devam eder."),
+                      isOn: model.bind({ KeepAwakeSettings.onlyOnPower }, { KeepAwakeSettings.onlyOnPower = $0; changed() }))
+            ToggleRow(L("Pil azalınca kapat"), nil,
+                      isOn: model.bind({ KeepAwakeSettings.batteryStop }, { KeepAwakeSettings.batteryStop = $0; changed() }))
+            if KeepAwakeSettings.batteryStop {
+                Row(L("Pil sınırı"), nil) {
+                    Picker("", selection: model.bind({ KeepAwakeSettings.batteryThreshold }, { KeepAwakeSettings.batteryThreshold = $0; changed() })) {
+                        ForEach([10, 20, 30, 50], id: \.self) { v in Text("%\(v)").tag(v) }
+                    }
+                    .pickerStyle(.segmented).labelsHidden().frame(width: 220)
+                }
+            }
+            Divider().opacity(0.4)
+            ToggleRow(L("Kapak kapalıyken de çalış"), L("Kapağı kapatınca Mac uyumaz, işine devam eder. Bir kez yönetici şifresi ister; Missing'e sadece uykuyu açıp kapatma izni verilir."),
+                      isOn: model.bind({ KeepAwakeSettings.lidAwake && KeepAwake.lidReady }, { on in
+                          // İlk açışta dar izin kuralı kurulur; vazgeçilirse seçenek kapalı kalır
+                          KeepAwakeSettings.lidAwake = on && (KeepAwake.lidReady || KeepAwake.configureLid())
+                          changed()
+                      }))
+            if KeepAwakeSettings.lidAwake && KeepAwake.lidReady {
+                ToggleRow(L("Şarjdan çekilince dur"), L("Kapak kapalıyken adaptörü çekersen uyanık tutma biter ve Mac uyur."),
+                          isOn: model.bind({ KeepAwakeSettings.lidPowerOnly }, { KeepAwakeSettings.lidPowerOnly = $0; changed() }))
+                Row(L("Kapak kapalıyken en fazla"), L("Bu süre dolunca uyanık tutma biter ve Mac uyur.")) {
+                    Picker("", selection: model.bind({ KeepAwakeSettings.lidLimitMinutes }, { KeepAwakeSettings.lidLimitMinutes = $0; changed() })) {
+                        Text(L("30 dakika")).tag(30)
+                        Text(L("1 saat")).tag(60)
+                        Text(L("2 saat")).tag(120)
+                        Text(L("5 saat")).tag(300)
+                        Text(L("Sınırsız")).tag(0)
+                    }
+                    .labelsHidden().frame(width: 130)
+                }
+                note(L("Çantada açık kalmasın diye kapak kapalıyken şunlardan biri olunca Mac uyur: şarjdan çekilmesi, harici ekranın çıkarılması, süre sınırının dolması, pilin azalması ya da seçtiğin sürenin veya programın bitmesi."))
+            } else {
+                ToggleRow(L("Kapak kapanınca ya da Mac uyuyunca durdur"), L("Çantada ısınmasın: uyanınca kendiliğinden devam etmez."),
+                          isOn: model.bind({ KeepAwakeSettings.lidStop }, { KeepAwakeSettings.lidStop = $0; changed() }))
             }
         }
     }
