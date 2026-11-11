@@ -79,10 +79,9 @@ Fişten çekince ekran **600 nit** ayarına ve **60 Hz**'e iner, **Düşük Gü�
 
 <div align="center"><img src="assets/menu.png" alt="Menü çubuğu paneli" width="560"></div>
 
-Menü çubuğundaki yaprağa tıkla: üstte ses çıkışı, altında hızlı eylemler (ekranı böl, ekran görüntüsü, kayıt, kaydırmalı görüntü, ekranları karart) ve harici ekranlar için parlaklık kaydırıcıları.
+Menü çubuğundaki yaprağa tıkla: üstte ses çıkışı, altında hızlı eylemler (ekranı böl, ekran görüntüsü, kayıt, kaydırmalı görüntü) ve harici ekranlar için parlaklık kaydırıcıları.
 
 - **Ekran görüntüsü ve kayıt:** ⌘⇧3 bulunduğun ekran, ⌘⇧4 alan, ⌘⇧6 kaydırmalı sayfa, ⌘⇧5 MP4 kayıt. ⌘⇧5 paletinden **sadece bir pencereyi** çekebilir ya da kaydedebilirsin; kendi kayıt klasörüyle.
-- **Ekranları karart:** ⌘⇧< ile karart, aynı kısayolla geri aç.
 - **Hızlı özellikler:** ekolayzır, Windows tarzı Finder sekmeleri, gruplu ⌘Tab görünümü, Finder'da fare tuşlarıyla geri/ileri, dosya sürüklerken Dock'ta anında açılma.
 
 ## Sadece kullandıkların
@@ -107,7 +106,6 @@ Menü çubuğundaki yaprağa tıkla: üstte ses çıkışı, altında hızlı ey
 | ⌘< | Ekranı böl |
 | ⌘⇧3 · ⌘⇧4 · ⌘⇧5 · ⌘⇧6 | Ekran · alan · kayıt · kaydırmalı görüntü |
 | ⌘Space (Finder'da) | Dosya ara |
-| ⌘⇧< | Ekranları karart |
 
 ## Sende ne eksik?
 

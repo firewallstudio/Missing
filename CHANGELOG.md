@@ -2,6 +2,10 @@
 
 Also shown in the app: **Settings › Versions**.
 
+## 4.1.4
+
+- Display blackout (⌘⇧<) removed: it caused problems on some systems
+
 ## 4.1.3
 
 - Simpler Mouse page: descriptions and tooltips removed, the pointer location setting is gone

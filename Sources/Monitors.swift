@@ -15,16 +15,6 @@ enum MonitorSettings {
         get { d.object(forKey: "monitors.menu") as? Bool ?? true }
         set { d.set(newValue, forKey: "monitors.menu") }
     }
-    /// Karartılmışken klavye arkadaki pencerelere yazmasın; sadece ⌘⇧< (geri açmak için) çalışır
-    static var lockKeysWhenDark: Bool {
-        get { d.object(forKey: "monitors.lockKeys") as? Bool ?? true }
-        set { d.set(newValue, forKey: "monitors.lockKeys") }
-    }
-    /// ⌘⇧< ile harici monitörlerin parlaklığını 0'a çek / geri getir
-    static var blackoutKey: Bool {
-        get { d.object(forKey: "monitors.blackoutKey") as? Bool ?? true }
-        set { d.set(newValue, forKey: "monitors.blackoutKey") }
-    }
 }
 
 /// DDC/CI düşük seviye: IOAVService (Apple Silicon), özel API'ler çalışma anında bulunur
@@ -139,11 +129,6 @@ private enum DDC {
     }
 
     @Published private(set) var displays: [Display] = []
-    /// ⌘⇧< ile karartıldıysa önceki parlaklıklar
-    private var savedBrightness: [CGDirectDisplayID: Double] = [:]
-    /// Tam karartma: her harici ekranın üstünde tamamen siyah bir pencere (+ DDC ile parlaklık 0)
-    private var blackWindows: [NSWindow] = []
-    @Published private(set) var isBlackedOut = false
 
     private let io = DispatchQueue(label: "audiotab.ddc", qos: .userInitiated)
     private var pending: [String: (CFTypeRef, UInt8, Int)] = [:]
@@ -164,7 +149,6 @@ private enum DDC {
             if readValues { readAll(displays) }
             return
         }
-        if isBlackedOut { showBlackWindows() }   // ekranlar değiştiyse siyah pencereleri yeniden yerleştir
         var services = DDC.externalServices()
         var list: [Display] = []
         for (id, name) in externals {
@@ -207,7 +191,6 @@ private enum DDC {
     func setBrightness(_ value: Double, for id: CGDirectDisplayID) {
         guard let i = displays.firstIndex(where: { $0.id == id }) else { return }
         displays[i].brightness = value
-        if value > 0, !isBlackedOut { savedBrightness[id] = nil }
         send(displays[i], vcp: 0x10, percent: value, max: displays[i].brightnessMax)
     }
 
@@ -215,53 +198,6 @@ private enum DDC {
         guard let i = displays.firstIndex(where: { $0.id == id }) else { return }
         displays[i].volume = value
         send(displays[i], vcp: 0x62, percent: value, max: displays[i].volumeMax)
-    }
-
-    /// ⌘⇧<: harici ekranlar tamamen kararır (görüntü kalmaz); tekrar basınca her şey eski haline döner.
-    /// Siyah pencere her monitörde çalışır; DDC destekleyen monitörlerde arka ışık da 0'a iner.
-    @discardableResult
-    func toggleBlackout() -> Bool {
-        if displays.isEmpty { refresh(readValues: false) }
-        if isBlackedOut {
-            isBlackedOut = false
-            removeBlackWindows()
-            for (id, b) in savedBrightness { setBrightness(b, for: id) }
-            savedBrightness.removeAll()
-            BuiltinBacklight.restore()
-            return false
-        }
-        isBlackedOut = true
-        for d in displays where d.ddc {
-            savedBrightness[d.id] = d.brightness > 0 ? d.brightness : 50
-            setBrightness(0, for: d.id)
-        }
-        BuiltinBacklight.dim()
-        showBlackWindows()
-        return true
-    }
-
-    /// Mac'in kendi ekranı dahil tüm ekranlara siyah perde
-    private func showBlackWindows() {
-        removeBlackWindows()
-        for s in NSScreen.screens {
-            let w = NSWindow(contentRect: s.frame, styleMask: .borderless, backing: .buffered, defer: false, screen: s)
-            w.setFrame(s.frame, display: false)
-            w.backgroundColor = .black
-            w.isOpaque = true
-            w.hasShadow = false
-            w.level = NSWindow.Level(rawValue: Int(CGShieldingWindowLevel()))
-            w.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
-            w.isReleasedWhenClosed = false
-            w.animationBehavior = .none
-            w.ignoresMouseEvents = false        // karanlık ekrana yanlışlıkla tıklanmasın
-            w.orderFrontRegardless()
-            blackWindows.append(w)
-        }
-    }
-
-    private func removeBlackWindows() {
-        blackWindows.forEach { $0.orderOut(nil) }
-        blackWindows.removeAll()
     }
 
     /// Kaydırıcı sürüklenirken komutlar birikmesin: her monitör/ayar için sadece son değer gönderilir
@@ -309,40 +245,4 @@ final class MenuSliderView: NSView {
     required init?(coder: NSCoder) { fatalError() }
 
     @objc private func changed() { onChange(slider.doubleValue) }
-}
-
-// MARK: - Mac'in kendi ekranının arka ışığı (karartmada kapatılır, sonra geri gelir)
-
-/// DisplayServices (sistem çerçevesi) çalışma anında yüklenir; yoksa sadece siyah perde kalır.
-@MainActor enum BuiltinBacklight {
-    private typealias FnGet = @convention(c) (CGDirectDisplayID, UnsafeMutablePointer<Float>) -> Int32
-    private typealias FnSet = @convention(c) (CGDirectDisplayID, Float) -> Int32
-    private static let lib = dlopen("/System/Library/PrivateFrameworks/DisplayServices.framework/DisplayServices", RTLD_LAZY)
-    private static let fGet: FnGet? = lib.flatMap { dlsym($0, "DisplayServicesGetBrightness") }.map { unsafeBitCast($0, to: FnGet.self) }
-    private static let fSet: FnSet? = lib.flatMap { dlsym($0, "DisplayServicesSetBrightness") }.map { unsafeBitCast($0, to: FnSet.self) }
-    private static var saved: [CGDirectDisplayID: Float] = [:]
-
-    private static var builtins: [CGDirectDisplayID] {
-        NSScreen.screens.compactMap { s in
-            guard let id = s.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID,
-                  CGDisplayIsBuiltin(id) != 0 else { return nil }
-            return id
-        }
-    }
-
-    static func dim() {
-        guard let fGet, let fSet else { return }
-        for id in builtins {
-            var v: Float = 0
-            guard fGet(id, &v) == 0 else { continue }
-            saved[id] = max(v, 0.2)
-            _ = fSet(id, 0)
-        }
-    }
-
-    static func restore() {
-        guard let fSet else { saved.removeAll(); return }
-        for (id, v) in saved { _ = fSet(id, v) }
-        saved.removeAll()
-    }
 }

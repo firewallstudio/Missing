@@ -94,13 +94,6 @@ import UserNotifications
         extraKeys.onCaptureMenu = { [weak self] in self?.capture.paletteOrStop() }
         extraKeys.onScrolling = { [weak self] in self?.capture.scrollingScreenshot() }
         extraKeys.onTile = { [weak self] in self?.tiling.trigger() }
-        extraKeys.onBlackout = { [weak self] in
-            guard let self else { return }
-            // Tüm ekranlar (Mac'in kendi ekranı dahil); karanlıkken bildirim görünmez, açılınca kısa haber
-            if !Monitors.shared.toggleBlackout() {
-                self.hud.show(name: L("Ekranlar geri açıldı"), symbol: "sun.max.fill")
-            }
-        }
         // Harici monitör listesi (parlaklık / ses için)
         Monitors.shared.refresh(rescan: true)
         NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { _ in
@@ -429,7 +422,6 @@ import UserNotifications
         a.tile = { [weak self] in self?.tiling.trigger() }
         a.capture = { [weak self] act in self?.capture.perform(act) }
         a.stopRecording = { [weak self] in self?.capture.stopRecording() }
-        a.blackout = { [weak self] in self?.extraKeys.onBlackout?() }
         a.openSettings = { [weak self] page in self?.settings.show(page: page) }
         a.openMouse = { [weak self] in self?.settings.show(page: .mouse) }
         a.checkUpdates = { [weak self] in self?.showUpdatePopup(check: true) }

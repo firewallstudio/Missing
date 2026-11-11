@@ -30,7 +30,7 @@ enum Onboarding {
         if Profile.allCases.contains(where: { $0.enabled }) { return true }
         if DeviceStore.shared.hotkeyEnabled { return true }
         if CaptureSettings.enabled || TileSettings.enabled || SnapBarSettings.enabled { return true }
-        if FileSearchSettings.enabled || MonitorSettings.blackoutKey { return true }
+        if FileSearchSettings.enabled { return true }
         return DockDragSettings.enabled || FinderMouseNav.enabled || FinderTabsSettings.enabled
     }
 
@@ -107,9 +107,6 @@ struct SetupFeature: Identifiable {
             SetupFeature(id: "search", icon: "magnifyingglass", title: L("Dosya ara"),
                          keys: "⌘Space", permissions: [.accessibility, .disk],
                          get: { FileSearchSettings.enabled }, set: { FileSearchSettings.enabled = $0 }),
-            SetupFeature(id: "monitor", icon: "moon", title: L("Monitörleri karart"),
-                         keys: "⌘⇧<", permissions: [.accessibility],
-                         get: { MonitorSettings.blackoutKey }, set: { MonitorSettings.blackoutKey = $0 }),
             SetupFeature(id: "helpers", icon: "dock.arrow.up.rectangle", title: L("Dock ve fare yardımcıları"),
                          keys: "", permissions: [.accessibility],
                          get: { DockDragSettings.enabled || FinderMouseNav.enabled },

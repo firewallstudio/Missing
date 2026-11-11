@@ -6,7 +6,7 @@ import SwiftUI
 // Altta tüm kısayollar; birine tıklayınca sahne onu oynatır.
 
 enum ShortcutDemo: String, CaseIterable, Identifiable {
-    case switcher, preview, audio, shot, area, record, scroll, tile, search, blackout
+    case switcher, preview, audio, shot, area, record, scroll, tile, search
     var id: String { rawValue }
 
     var keys: [String] {
@@ -20,7 +20,6 @@ enum ShortcutDemo: String, CaseIterable, Identifiable {
         case .scroll: return ["⌘", "⇧", "6"]
         case .tile: return ["⌘", "<"]
         case .search: return ["⌘", "Space"]
-        case .blackout: return ["⌘", "⇧", "<"]
         }
     }
 
@@ -35,7 +34,6 @@ enum ShortcutDemo: String, CaseIterable, Identifiable {
         case .scroll: return L("Kaydırmalı görüntü")
         case .tile: return L("Ekranı böl")
         case .search: return L("Dosya ara (Finder'da)")
-        case .blackout: return L("Monitörleri karart")
         }
     }
 
@@ -50,7 +48,6 @@ enum ShortcutDemo: String, CaseIterable, Identifiable {
         case .scroll: return L("Alanı seç, sayfa kendiliğinden kayar, uzun tek bir görüntü olur.")
         case .tile: return L("Kaça bölüneceğini seç, pencereler bölmelere yerleşir.")
         case .search: return L("Finder öndeyken: o klasörün içinde dosya adına göre anında arar.")
-        case .blackout: return L("Tüm ekranları karartır; tekrar basınca geri açar.")
         }
     }
 
@@ -66,7 +63,6 @@ enum ShortcutDemo: String, CaseIterable, Identifiable {
         case .scroll: return CaptureSettings.enabled && CaptureSettings.scrollKey
         case .tile: return TileSettings.enabled
         case .search: return FileSearchSettings.enabled
-        case .blackout: return MonitorSettings.blackoutKey
         }
     }
 }
@@ -228,7 +224,6 @@ struct DemoScene: View {
         case .scroll: scroll
         case .tile: tile
         case .search: search
-        case .blackout: blackout
         }
     }
 
@@ -547,18 +542,6 @@ struct DemoScene: View {
                 }
             }
             .position(x: 260, y: 150)
-        }
-    }
-
-    private var blackout: some View {
-        let up = p(0.15, 0.35)
-        let down = p(0.7, 0.85)
-        let dark = up * (1 - down)
-        return ZStack(alignment: .topLeading) {
-            desktopWindows
-            Color.black.opacity(0.96 * dark).frame(width: W, height: H)
-            Image(systemName: "moon.fill").font(.system(size: 26)).foregroundStyle(.white.opacity(0.25 * dark))
-                .position(x: W / 2, y: H / 2)
         }
     }
 }

@@ -29,7 +29,7 @@ enum Feature: String, CaseIterable, Identifiable {
         case .switcher: return L("⌘Tab · ⌥Tab · önizlemeler · tarayıcı profilleri")
         case .sound: return L("Ses kısayolu · uygulamaya göre ses cihazı")
         case .screen: return L("Ekran görüntüsü ve kayıt · ekranı böl · harici monitörler")
-        case .quick: return L("Ekolayzır · dosya ara · karartma · Finder ve Dock")
+        case .quick: return L("Ekolayzır · dosya ara · Finder ve Dock")
         }
     }
 
@@ -61,7 +61,6 @@ enum Feature: String, CaseIterable, Identifiable {
         case .quick:
             return [("eq", { EQSettings.enabled }, { EQSettings.enabled = $0 }, false),
                     ("search", { FileSearchSettings.enabled }, { FileSearchSettings.enabled = $0 }, true),
-                    ("blackout", { MonitorSettings.blackoutKey }, { MonitorSettings.blackoutKey = $0 }, true),
                     ("grouped", { Profile.cmd.grouped }, { Profile.cmd.grouped = $0 }, false),
                     ("deepScan", { DeepScanScope.current != .off }, { DeepScanScope.current = $0 ? .browsers : .off }, true),
                     ("mouseNav", { FinderMouseNav.enabled }, { FinderMouseNav.enabled = $0 }, true),

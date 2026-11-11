@@ -16,6 +16,10 @@ struct ChangelogEntry {
 
 enum Changelog {
     static let entries: [ChangelogEntry] = [
+        ChangelogEntry(version: "4.1.4", items: [
+            ("Ekranları karartma (⌘⇧<) kaldırıldı: bazı sistemlerde sorun çıkarıyordu",
+             "Display blackout (⌘⇧<) removed: it caused problems on some systems"),
+        ]),
         ChangelogEntry(version: "4.1.3", items: [
             ("Mouse sayfası sadeleşti: açıklamalar ve ipuçları kaldırıldı, imlecin yeri ayarı çıkarıldı",
              "Simpler Mouse page: descriptions and tooltips removed, the pointer location setting is gone"),

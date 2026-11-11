@@ -79,10 +79,9 @@ Unplug and the display drops to the **600-nit** preset at **60 Hz** with **Low P
 
 <div align="center"><img src="assets/menu.png" alt="Menu bar panel" width="560"></div>
 
-Click the leaf in the menu bar for a glass panel: sound output at the top, then quick actions (split screen, screenshot, record, scrolling capture, black out displays) and brightness sliders for external displays.
+Click the leaf in the menu bar for a glass panel: sound output at the top, then quick actions (split screen, screenshot, record, scrolling capture) and brightness sliders for external displays.
 
 - **Screenshots and recording:** ⌘⇧3 captures the display you're on, ⌘⇧4 an area, ⌘⇧6 a whole scrolling page, ⌘⇧5 records MP4. Capture or record **just one window** from the ⌘⇧5 palette, with its own save folder.
-- **Black out displays** with ⌘⇧<, and bring them back the same way.
 - **Quick features:** equalizer, Windows-style Finder tabs, grouped ⌘Tab view, back/forward with mouse buttons in Finder, instant Dock opening while dragging a file.
 
 ## Only what you use
@@ -107,7 +106,6 @@ Click the leaf in the menu bar for a glass panel: sound output at the top, then 
 | ⌘< | Split screen |
 | ⌘⇧3 · ⌘⇧4 · ⌘⇧5 · ⌘⇧6 | Display · area · record · scrolling capture |
 | ⌘Space (in Finder) | Find files |
-| ⌘⇧< | Black out displays |
 
 ## Missing something?
 

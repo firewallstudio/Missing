@@ -12,7 +12,6 @@ final class MenuBarActions: ObservableObject {
     var tile: () -> Void = {}
     var capture: (CaptureAction) -> Void = { _ in }
     var stopRecording: () -> Void = {}
-    var blackout: () -> Void = {}
     var openSettings: (SettingsPage) -> Void = { _ in }
     var openMouse: () -> Void = {}
     var checkUpdates: () -> Void = {}
@@ -267,12 +266,6 @@ struct MenuBarView: View {
                         tile("record.circle", L("Ekranı kaydet"), "⌘⇧5") { controller.run(after: 0.25) { actions.capture(.recordScreen) } }
                     }
                     tile("scroll", L("Kaydırmalı"), "⌘⇧6") { controller.run(after: 0.25) { actions.capture(.scroll) } }
-                }
-                if MonitorSettings.blackoutKey {
-                    tile(monitors.isBlackedOut ? "sun.max.fill" : "moon.fill",
-                         monitors.isBlackedOut ? L("Ekranları aç") : L("Karart"), "⌘⇧<", active: monitors.isBlackedOut) {
-                        controller.run { actions.blackout() }
-                    }
                 }
                 if PowerProfiles.active {
                     let p = PowerProfiles.shared.current ?? (PowerProfiles.shared.onBattery ? .saver : .performance)

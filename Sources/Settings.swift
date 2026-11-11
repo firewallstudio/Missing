@@ -671,12 +671,6 @@ struct SettingsView: View {
             note(L("Başka bir uygulama öndeyken ⌘Space her zamanki gibi Spotlight'ı açar."))
             note(L("Finder'ın sağ üstteki arama kutusuna yazınca da kutunun altında aynı anında sonuçlar çıkar."))
         }
-        Card(title: L("Monitörleri karart"), icon: "moon.fill",
-             isOn: model.bind({ MonitorSettings.blackoutKey }, { MonitorSettings.blackoutKey = $0 }),
-             subtitle: L("⌘⇧< ile tüm ekranları karart / geri aç")) {
-            ToggleRow(L("Karartınca klavyeyi kilitle"), L("Ekranlar karanlıkken tuşlar hiçbir pencereye gitmez; sadece ⌘⇧< ile geri açarsın"),
-                      isOn: model.bind({ MonitorSettings.lockKeysWhenDark }, { MonitorSettings.lockKeysWhenDark = $0 }))
-        }
     }
 
     @ViewBuilder private var deepScanRows: some View {
