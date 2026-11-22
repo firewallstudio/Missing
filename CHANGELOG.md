@@ -2,6 +2,10 @@
 
 Also shown in the app: **Settings › Versions**.
 
+## 4.2.1
+
+- Quick equalizer in the menu panel: one-tap Flat, Bass, Treble, Voice and Night presets, a preamp slider and an on/off button
+
 ## 4.2.0
 
 - New: Keep awake. Stops the display from turning off and the Mac from sleeping; indefinitely or for 15 minutes to 5 hours

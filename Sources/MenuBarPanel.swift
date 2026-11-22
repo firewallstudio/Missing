@@ -18,6 +18,7 @@ final class MenuBarActions: ObservableObject {
     var installUpdate: () -> Void = {}
     var quit: () -> Void = {}
     var isRecording: () -> Bool = { false }
+    var eqChanged: () -> Void = {}
 
     func refresh() { objectWillChange.send() }
 }
@@ -134,6 +135,7 @@ struct MenuBarView: View {
             if updater.updateAvailable, let v = updater.latest?.version { updateBanner(v) }
             if needsAccess { accessBanner }
             if Feature.sound.isOn { audioSection }
+            if Feature.quick.isOn, Equalizer.available { eqSection }
             quickGrid
             if KeepAwakeSettings.enabled { awakeSection }
             if MonitorSettings.showInMenu, !monitors.displays.isEmpty { monitorSection }
@@ -246,6 +248,85 @@ struct MenuBarView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(MenuRowStyle())
+    }
+
+    // MARK: Ekolayzır
+
+    /// Hızlı ön ayarlar ve ön kazanç. Ön ayara basmak ekolayzırı açar; seçiliye tekrar basmak kapatır.
+    private var eqSection: some View {
+        let on = EQSettings.enabled
+        let gains = EQSettings.gains
+        let current = EQSettings.presets.firstIndex { zip($0.gains, gains).allSatisfy { abs($0 - $1) < 0.05 } }
+        let preamp = Binding<Double>(get: { EQSettings.preamp }, set: { v in
+            EQSettings.preamp = (v * 2).rounded() / 2
+            Equalizer.shared.settingsChanged()
+            eqChanged()
+        })
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                sectionTitle(L("Ekolayzır"))
+                Spacer()
+                if on {
+                    Text(current.map { EQSettings.presets[$0].name } ?? L("Özel"))
+                        .font(.system(size: 10.5, weight: .semibold, design: .rounded))
+                        .foregroundStyle(Brand.red)
+                        .lineLimit(1)
+                }
+                if let err = Equalizer.shared.lastError, on {
+                    Image(systemName: "exclamationmark.triangle.fill").font(.system(size: 10)).foregroundStyle(.orange)
+                        .help(err)
+                }
+                Button { controller.run { actions.openSettings(.quick) } } label: {
+                    Image(systemName: "gearshape.fill").font(.system(size: 10)).foregroundStyle(.white.opacity(0.45))
+                        .frame(width: 18, height: 18).contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+            HStack(spacing: 5) {
+                Button { setEQ(!on) } label: {
+                    Image(systemName: "slider.vertical.3")
+                        .font(.system(size: 12, weight: .semibold))
+                        .frame(width: 28, height: 28)
+                        .background(Circle().fill(on ? Brand.red : Color.white.opacity(0.10)))
+                        .foregroundStyle(on ? .white : .white.opacity(0.6))
+                        .contentShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .help(on ? L("Ekolayzırı kapat") : L("Ekolayzırı aç"))
+                ForEach(EQSettings.presets.indices, id: \.self) { i in
+                    let selected = on && current == i
+                    awakeChip(EQSettings.presets[i].name, on: selected) {
+                        if selected { setEQ(false); return }
+                        EQSettings.gains = EQSettings.presets[i].gains
+                        Equalizer.shared.settingsChanged()
+                        if !on { setEQ(true) } else { eqChanged() }
+                    }
+                }
+            }
+            HStack(spacing: 8) {
+                Image(systemName: "speaker.wave.2.fill").font(.system(size: 11)).foregroundStyle(.white.opacity(0.6))
+                    .frame(width: 28)
+                Slider(value: preamp, in: -12...12).tint(Brand.red)
+                Text(SettingsView.db(EQSettings.preamp))
+                    .font(.system(size: 10.5, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(.white.opacity(on ? 0.8 : 0.45))
+                    .frame(width: 54, alignment: .trailing)
+                    .onTapGesture(count: 2) { preamp.wrappedValue = 0 }
+                    .help(L("Sıfırlamak için çift tıkla"))
+            }
+            .padding(.trailing, 2)
+        }
+    }
+
+    private func setEQ(_ v: Bool) {
+        EQSettings.enabled = v
+        Equalizer.shared.apply()
+        eqChanged()
+    }
+
+    private func eqChanged() {
+        actions.eqChanged()
+        actions.refresh()
     }
 
     // MARK: Hızlı eylemler
@@ -390,6 +471,7 @@ struct MenuBarView: View {
             Text(title)
                 .font(.system(size: 11, weight: .semibold, design: .rounded))
                 .lineLimit(1)
+                .minimumScaleFactor(0.8)
                 .frame(maxWidth: .infinity)
                 .frame(height: 28)
                 .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(on ? Brand.red : Color.white.opacity(0.08)))

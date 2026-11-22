@@ -447,6 +447,7 @@ import UserNotifications
         a.installUpdate = { [weak self] in self?.installUpdate() }
         a.quit = { NSApp.terminate(nil) }
         a.isRecording = { [weak self] in self?.capture.isRecording ?? false }
+        a.eqChanged = { [weak self] in self?.model?.refresh() }
     }
 
     private func showUpdatePopup(check: Bool) {
