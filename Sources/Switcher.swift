@@ -1682,8 +1682,6 @@ let perfLog = Logger(subsystem: Bundle.main.bundleIdentifier ?? "com.firewallstu
     }
 
     private func add(_ cell: ItemCell) {
-        cell.onHover = onHover
-        cell.onExit = onExit
         cell.onClick = onClick
         cell.onClose = onCloseItem
         cell.onTile = onTileItem
@@ -1870,14 +1868,14 @@ final class ItemCell: NSView {
     let wid: CGWindowID
     private let dimmed: Bool
     private var thumbView: ThumbView?
-    var onHover: ((Int) -> Void)?
-    var onExit: ((Int) -> Void)?
     var onClick: ((Int) -> Void)?
     var onClose: ((Int) -> Void)?
     var onTile: ((Int) -> Void)?
     private var closeDot: DotView?
     private var tileDot: DotView?
     var isSelected = false { didSet { if oldValue != isSelected { updateLook() } } }
+    /// Fare üstünde: sadece hafif aydınlanır, seçim değişmez (geçiş tıklayınca olur)
+    private var isHovered = false { didSet { if oldValue != isHovered { updateLook() } } }
 
     static let dotSize: CGFloat = 15, dotGap: CGFloat = 6
     static var dotsWidth: CGFloat { dotSize * 2 + dotGap }
@@ -2196,9 +2194,9 @@ final class ItemCell: NSView {
             layer.shadowRadius = 14
             layer.shadowOffset = .zero
         } else {
-            layer.backgroundColor = NSColor.white.withAlphaComponent(0.06).cgColor
+            layer.backgroundColor = NSColor.white.withAlphaComponent(isHovered ? 0.12 : 0.06).cgColor
             layer.borderWidth = 1
-            layer.borderColor = NSColor.white.withAlphaComponent(0.10).cgColor
+            layer.borderColor = NSColor.white.withAlphaComponent(isHovered ? 0.22 : 0.10).cgColor
             layer.shadowOpacity = 0
         }
         CATransaction.commit()
@@ -2210,17 +2208,18 @@ final class ItemCell: NSView {
         addTrackingArea(NSTrackingArea(rect: bounds, options: [.mouseEnteredAndExited, .mouseMoved, .activeAlways, .inVisibleRect], owner: self))
     }
     private var moved: Bool { NSEvent.mouseLocation != ItemCell.armedAt }
+    // Fare üstüne gelince seçim değişmez; sadece tıklayınca o pencereye geçilir
     override func mouseEntered(with event: NSEvent) {
         updateDotHover(event)
-        if moved { onHover?(index) }
+        if moved { isHovered = true }
     }
     override func mouseMoved(with event: NSEvent) {
         updateDotHover(event)
-        if !isSelected && moved { onHover?(index) }
+        if moved { isHovered = true }
     }
     override func mouseExited(with event: NSEvent) {
         updateDotHover(nil)
-        if moved { onExit?(index) }
+        isHovered = false
     }
     override func mouseUp(with event: NSEvent) {
         switch dot(at: event) {

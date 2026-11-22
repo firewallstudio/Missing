@@ -2,6 +2,10 @@
 
 Also shown in the app: **Settings › Versions**.
 
+## 4.2.2
+
+- In the window switcher, hovering a card no longer changes the selection; click it to switch to that window
+
 ## 4.2.1
 
 - Quick equalizer in the menu panel: one-tap Flat, Bass, Treble, Voice and Night presets, a preamp slider and an on/off button

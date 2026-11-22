@@ -16,6 +16,10 @@ struct ChangelogEntry {
 
 enum Changelog {
     static let entries: [ChangelogEntry] = [
+        ChangelogEntry(version: "4.2.2", items: [
+            ("Pencere değiştiricide fareyle bir kartın üstüne gelmek artık seçimi değiştirmiyor; o pencereye geçmek için tıkla",
+             "In the window switcher, hovering a card no longer changes the selection; click it to switch to that window"),
+        ]),
         ChangelogEntry(version: "4.2.1", items: [
             ("Menü panelinde hızlı ekolayzır: tek dokunuşla Düz, Bas, Tiz, Konuşma ve Gece ön ayarları, ön kazanç kaydırıcısı ve aç/kapa düğmesi",
              "Quick equalizer in the menu panel: one-tap Flat, Bass, Treble, Voice and Night presets, a preamp slider and an on/off button"),
