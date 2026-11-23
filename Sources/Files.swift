@@ -459,11 +459,14 @@ struct SidebarPlace: Identifiable, Hashable {
     private var finderPaths = Set<String>()
     private var observing = false
 
+    /// README görüntüleri için: kişisel Finder listesi ve harici diskler yerine varsayılanlar
+    static var demo = false
+
     func rebuild() {
         let fm = FileManager.default
         let home = fm.homeDirectoryForCurrentUser
         var f: [SidebarPlace] = []
-        if let list = FinderFavorites.items(), !list.isEmpty {
+        if !Self.demo, let list = FinderFavorites.items(), !list.isEmpty {
             finderSynced = true
             f = list.map { SidebarPlace(url: $0.url, title: $0.name, symbol: Self.symbol(for: $0.url)) }
             if !observing {
@@ -527,7 +530,7 @@ struct SidebarPlace: Identifiable, Hashable {
         let keys: [URLResourceKey] = [.volumeLocalizedNameKey, .volumeIsEjectableKey, .volumeIsRemovableKey,
                                       .volumeIsInternalKey, .volumeIsRootFileSystemKey]
         let urls = FileManager.default.mountedVolumeURLs(includingResourceValuesForKeys: keys, options: [.skipHiddenVolumes]) ?? []
-        volumes = urls.compactMap { u in
+        volumes = urls.filter { !Self.demo || $0.path == "/" }.compactMap { u in
             let v = try? u.resourceValues(forKeys: Set(keys))
             let name = v?.volumeLocalizedName ?? u.lastPathComponent
             let ejectable = v?.volumeIsEjectable ?? false

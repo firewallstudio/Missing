@@ -36,6 +36,8 @@ The selected result is previewed on the right; hover a row to preview it. **Spac
 
 ## Files: Missing's own file window
 
+<div align="center"><img src="assets/files-themes.gif" alt="Files window in the Missing, Finder, Windows and Glass themes, with the preview pane open" width="860"></div>
+
 A file window of its own that doesn't depend on Finder, with four themes: **Missing** (dark glass, red accent), **Finder** (full-height sidebar, tabs under the toolbar), **Windows** (Explorer-style tabs, address bar and command bar) and **Glass** (floating frosted cards on a colorful blur). Finder and Windows follow the system's light/dark mode. In the Missing theme, tabs start on the left like Windows, each up to a set width; drag to reorder, middle-click or **⌘W** to close, drop files on a tab to move them there. Sidebar with favorites, kept in sync with Finder's sidebar both ways, and disks (with eject), list and icon views with previews, **Space** for Quick Look, **Return** to rename, **⌘⌫** to trash, and **⌘Z** undoes it all. Drag and drop works both ways with other apps; right-click for Open With, Share, Copy Path and Open in Terminal. Mouse side buttons go back and forward.
 
 The search box looks in the current folder first, then in every subfolder through the same index as ⌘Space search. **⇧⌘P** shows a preview pane on the right, like in Windows Explorer.

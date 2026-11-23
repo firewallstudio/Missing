@@ -36,6 +36,8 @@ Seçili sonuç sağda önizlenir; fareyle bir satırın üstüne gelince o öniz
 
 ## Dosyalar: Missing'in kendi dosya penceresi
 
+<div align="center"><img src="assets/files-themes.gif" alt="Dosyalar penceresi: Missing, Finder, Windows ve Cam temaları, önizleme bölmesi açık" width="860"></div>
+
 Finder'a bağlı olmayan kendi dosya penceresi, dört temayla: **Missing** (koyu cam, kırmızı vurgu), **Finder** (tam boy kenar çubuğu, araç çubuğunun altında sekmeler), **Windows** (Gezgin tarzı sekmeler, adres ve komut çubuğu) ve **Cam** (renkli bulanık zemin üstünde yüzen buzlu kartlar). Finder ve Windows temaları sistemin açık/koyu ayarını izler. Missing temasında sekmeler Windows'taki gibi soldan dizilir, her biri belli bir genişlikte; sürükleyip sıralarsın, orta tık ya da **⌘W** ile kapatırsın, bir sekmenin üstüne bıraktığın dosya o klasöre gider. Kenar çubuğunda Finder'la iki yönlü eşitlenen sık kullanılanlar ve diskler (çıkarma düğmesiyle); liste ve önizlemeli simge görünümü, **Space** ile Hızlı Bakış, **Return** ile yeniden adlandırma, **⌘⌫** ile çöpe atma; hepsi **⌘Z** ile geri alınır. Diğer uygulamalarla iki yönlü sürükle-bırak; sağ tıkta Birlikte Aç, Paylaş, Yolu kopyala ve Terminal'de aç. Farenin yan tuşları geri / ileri gider.
 
 Arama kutusu önce o klasörde, ardından ⌘Space aramasıyla aynı indeksle bütün alt klasörlerde arar. **⇧⌘P** sağda, Windows Gezgini'ndeki gibi bir önizleme bölmesi açar.
