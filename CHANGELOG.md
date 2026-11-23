@@ -2,6 +2,12 @@
 
 Also shown in the app: **Settings › Versions**.
 
+## 4.3.4
+
+- Column view in Files like Finder's (⌘3): a selected folder opens in a new column to the right, arrow keys move between columns
+- Files Settings (⌘, while Files is in front): view for new windows, theme, hidden files and what the sidebar shows
+- Right-click a sidebar item › Hide from Sidebar; tags can be hidden one by one or all at once. Missing Settings is now ⌥⌘,
+
 ## 4.3.3
 
 - Locations in the Files sidebar like Finder's: cloud folders such as Google Drive, OneDrive and Dropbox, your home folder, AirDrop, Network and Trash

@@ -21,6 +21,7 @@ import Quartz
     private let gridScroll = NSScrollView()
     private let grid = FilesCollectionView()
     private let menuForItems = NSMenu()
+    private let columnsView = FilesColumnsView()
 
     private static let colName = NSUserInterfaceItemIdentifier("name")
     private static let colDate = NSUserInterfaceItemIdentifier("modified")
@@ -37,6 +38,11 @@ import Quartz
         addSubview(listScroll)
         addSubview(gridScroll)
         gridScroll.isHidden = true
+        columnsView.browser = self
+        columnsView.itemMenu = menuForItems
+        columnsView.onSelect = { [weak self] dir, urls in self?.columnSelected(dir, urls) }
+        addSubview(columnsView)
+        columnsView.isHidden = true
     }
 
     required init?(coder: NSCoder) { fatalError() }
@@ -45,6 +51,7 @@ import Quartz
         super.layout()
         listScroll.frame = bounds
         gridScroll.frame = bounds
+        columnsView.frame = bounds
     }
 
     // MARK: Kurulum
@@ -150,6 +157,7 @@ import Quartz
         table.enumerateAvailableRowViews { row, _ in row.needsDisplay = true; (row as? FilesRowView)?.refreshStyle() }
         table.noteHeightOfRows(withIndexesChanged: IndexSet(integersIn: 0..<table.numberOfRows))
         for case let item as FilesGridItem in grid.visibleItems() { item.refreshLook() }
+        columnsView.refreshLook()
         // Cam temasında içerik kartın üst köşelerine uysun
         wantsLayer = true
         layer?.cornerRadius = p.theme == .glass ? 14 : 0
@@ -162,6 +170,7 @@ import Quartz
         mode = m
         listScroll.isHidden = m != .list
         gridScroll.isHidden = m != .grid
+        columnsView.isHidden = m != .columns
         reloadViews()
         select(sel, scroll: true)
         if sel.isEmpty { scrollToTop() }
@@ -169,6 +178,7 @@ import Quartz
     }
 
     private func saveScroll(of t: FilesTab) {
+        guard mode != .columns else { return }
         t.scrollY = (mode == .list ? listScroll : gridScroll).contentView.bounds.origin.y
     }
 
@@ -194,6 +204,7 @@ import Quartz
     }
 
     private func scroll(to y: CGFloat) {
+        guard mode != .columns else { return }
         let s = mode == .list ? listScroll : gridScroll
         s.contentView.scroll(to: NSPoint(x: 0, y: y))
         s.reflectScrolledClipView(s.contentView)
@@ -201,6 +212,7 @@ import Quartz
 
     /// En üst: liste başlığı kaydırma alanının üstünde yüzer, payı içerik boşluğundadır
     private func scrollToTop() {
+        guard mode != .columns else { return }
         let s = mode == .list ? listScroll : gridScroll
         scroll(to: -s.contentView.contentInsets.top)
     }
@@ -212,18 +224,45 @@ import Quartz
 
     private func reloadViews() {
         syncing = true
-        if mode == .list { table.reloadData() } else { grid.reloadData() }
+        switch mode {
+        case .list: table.reloadData()
+        case .grid: grid.reloadData()
+        case .columns:
+            if let tab { columnsView.update(dir: tab.url, items: items, hidden: tab.showHidden()) }
+        }
         syncing = false
     }
 
     func focus() {
-        window?.makeFirstResponder(mode == .list ? table : grid)
+        switch mode {
+        case .list: window?.makeFirstResponder(table)
+        case .grid: window?.makeFirstResponder(grid)
+        case .columns: columnsView.focus()
+        }
+    }
+
+    /// Sütunlarda başka klasörde seçim yapıldı: sekme o klasöre geçer (geçmişe yazılmaz)
+    private func columnSelected(_ dir: URL, _ urls: [URL]) {
+        guard let tab else { return }
+        if dir.fileKey != tab.url.fileKey {
+            tab.pendingSelect = urls
+            tab.go(dir, record: false)
+        } else if tab.selection != urls {
+            tab.selection = urls
+        }
     }
 
     // MARK: Seçim
 
     var selectedIndexes: IndexSet {
-        mode == .list ? table.selectedRowIndexes : IndexSet(grid.selectionIndexPaths.map(\.item))
+        switch mode {
+        case .list: return table.selectedRowIndexes
+        case .grid: return IndexSet(grid.selectionIndexPaths.map(\.item))
+        case .columns:
+            guard let tab else { return [] }
+            let set = Set(columnsView.selectedItems(in: tab.url).map(\.url.fileKey))
+            return IndexSet(items.indices.filter { set.contains(items[$0].url.fileKey) })
+        }
     }
 
     var selectedItems: [FileItem] { selectedIndexes.compactMap { items.indices.contains($0) ? items[$0] : nil } }
@@ -233,12 +272,15 @@ import Quartz
         let set = Set(urls.map(\.fileKey))
         let idx = IndexSet(items.indices.filter { set.contains(items[$0].url.fileKey) })
         syncing = true
-        if mode == .list {
+        switch mode {
+        case .list:
             table.selectRowIndexes(idx, byExtendingSelection: false)
             if scroll, let f = idx.first { table.scrollRowToVisible(f) }
-        } else {
+        case .grid:
             grid.selectionIndexPaths = Set(idx.map { IndexPath(item: $0, section: 0) })
             if scroll, let f = idx.first { grid.scrollToItems(at: [IndexPath(item: f, section: 0)], scrollPosition: .nearestHorizontalEdge) }
+        case .columns:
+            if let tab { columnsView.select(idx.map { items[$0].url }, in: tab.url, scroll: scroll) }
         }
         syncing = false
         pushSelection()
@@ -259,6 +301,7 @@ import Quartz
     }
 
     func screenFrame(of url: URL) -> NSRect? {
+        if mode == .columns, let tab { return columnsView.screenFrame(of: url, in: tab.url) }
         guard let i = items.firstIndex(where: { $0.url.fileKey == url.fileKey }), let window else { return nil }
         let r: NSRect
         if mode == .list {
@@ -275,6 +318,7 @@ import Quartz
     func forwardKey(_ e: NSEvent) -> Bool {
         let arrows: Set<UInt16> = [123, 124, 125, 126]
         guard arrows.contains(e.keyCode) else { return false }
+        if mode == .columns { return columnsView.forwardKey(e) }
         if mode == .list { table.keyDown(with: e) } else { grid.keyDown(with: e) }
         return true
     }
@@ -412,6 +456,25 @@ import Quartz
         info.draggingPasteboard.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL] ?? []
     }
 
+    /// Sütunlar için: hedef klasör doğrudan verilir
+    func dragOperation(_ info: NSDraggingInfo, dest: URL) -> NSDragOperation {
+        let urls = draggedURLs(info)
+        guard !urls.isEmpty, !urls.contains(where: { FileOps.isInside(dest, $0) }) else { return [] }
+        let mask = info.draggingSourceOperationMask
+        let same = urls.allSatisfy { FileOps.sameVolume($0, dest) }
+        if mask == .copy || !same || !mask.contains(.move) { return mask.contains(.copy) || mask.contains(.generic) ? .copy : [] }
+        if urls.allSatisfy({ $0.deletingLastPathComponent().fileKey == dest.fileKey }) { return [] }
+        return .move
+    }
+
+    func performDrop(_ info: NSDraggingInfo, dest: URL) -> Bool {
+        guard let owner else { return false }
+        let op = dragOperation(info, dest: dest)
+        guard !op.isEmpty else { return false }
+        owner.drop(draggedURLs(info), into: dest, forceCopy: op == .copy)
+        return true
+    }
+
     private func dropOperation(_ info: NSDraggingInfo, into target: FileItem?) -> NSDragOperation {
         guard let tab else { return [] }
         let urls = draggedURLs(info)
@@ -443,7 +506,7 @@ import Quartz
         guard let i = items.firstIndex(where: { $0.url.fileKey == url.fileKey }) else { return }
         let url = items[i].url
         select([url], scroll: true)
-        if mode == .grid {
+        if mode != .list {
             renameWithSheet(items[i])
             return
         }
@@ -555,6 +618,10 @@ import Quartz
             grid.target = owner
             grid.state = mode == .grid ? .on : .off
             menu.addItem(grid)
+            let cols = NSMenuItem(title: L("Sütunlar"), action: #selector(FilesWindowController.showColumns(_:)), keyEquivalent: "")
+            cols.target = owner
+            cols.state = mode == .columns ? .on : .off
+            menu.addItem(cols)
             let hidden = NSMenuItem(title: L("Gizli dosyaları göster"), action: #selector(FilesWindowController.toggleHidden(_:)), keyEquivalent: "")
             hidden.target = owner
             hidden.state = owner.model.showHidden ? .on : .off

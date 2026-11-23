@@ -642,6 +642,9 @@ struct SettingsView: View {
                 Button(L("Dosyalar penceresini aç")) { FilesManager.shared.open() }
                     .buttonStyle(GlassButtonStyle())
                     .disabled(!FilesSettings.enabled)
+                Button(L("Dosyalar ayarları…")) { FilesSettingsWindow.shared.show() }
+                    .buttonStyle(GlassButtonStyle())
+                    .disabled(!FilesSettings.enabled)
                 if DockPin.isPinned {
                     Label(L("Dock'ta"), systemImage: "checkmark.circle.fill")
                         .font(.system(size: 12))

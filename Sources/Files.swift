@@ -42,6 +42,11 @@ enum FilesSettings {
         get { d.integer(forKey: "files.lastSelectedTab") }
         set { d.set(newValue, forKey: "files.lastSelectedTab") }
     }
+    /// Kenar çubuğunda gizlenen öğeler (SidebarPlace.hideKey / "tags" / "tag:Ad")
+    static var sidebarHidden: Set<String> {
+        get { Set(d.stringArray(forKey: "files.sidebarHidden") ?? []) }
+        set { d.set(newValue.sorted(), forKey: "files.sidebarHidden") }
+    }
     /// Kenar çubuğuna kullanıcının sabitlediği klasörler
     static var pinned: [String] {
         get { d.stringArray(forKey: "files.pinned") ?? [] }
@@ -49,7 +54,7 @@ enum FilesSettings {
     }
 }
 
-enum FilesViewMode: String { case list, grid }
+enum FilesViewMode: String { case list, grid, columns }
 
 extension URL {
     /// Karşılaştırma anahtarı: klasör adreslerinin sonundaki "/" ve Unicode biçimi (ğ, ü…) farkı yok sayılır
@@ -438,6 +443,8 @@ struct SidebarPlace: Identifiable, Hashable {
     var removable = false
     /// Klasör olarak açılmayan Finder konumları (AirDrop, Ağ) ve izin isteyebilen Çöp Sepeti
     var special: Special?
+    /// Ayarlardan gizlenebilmesi için anahtar (nil: gizlenemez)
+    var hideKey: String?
     var id: String { special.map { "special:\($0)" } ?? url.path }
 
     enum Special: Hashable { case airdrop, network, trash }
@@ -500,6 +507,29 @@ enum FinderTags {
     /// Bulut klasörleri, ana klasör, AirDrop, Ağ, Çöp Sepeti
     @Published private(set) var locations: [SidebarPlace] = []
     @Published private(set) var tags: [FinderTag] = []
+    /// Ayarlardan gizlenenler
+    @Published private(set) var hidden = FilesSettings.sidebarHidden
+
+    func isVisible(_ key: String?) -> Bool {
+        guard let key else { return true }
+        return !hidden.contains(key)
+    }
+
+    func setVisible(_ key: String, _ on: Bool) {
+        var h = hidden
+        if on { h.remove(key) } else { h.insert(key) }
+        guard h != hidden else { return }
+        hidden = h
+        FilesSettings.sidebarHidden = h
+    }
+
+    var tagsVisible: Bool { isVisible("tags") }
+    static func tagKey(_ t: FinderTag) -> String { "tag:" + t.name }
+
+    // Kenar çubuğunda görünenler
+    var shownFavorites: [SidebarPlace] { favorites.filter { isVisible($0.hideKey) } }
+    var shownLocations: [SidebarPlace] { (volumes + locations).filter { isVisible($0.hideKey) } }
+    var shownTags: [FinderTag] { tagsVisible ? tags.filter { isVisible(Self.tagKey($0)) } : [] }
 
     private init() {
         rebuild()
@@ -529,7 +559,7 @@ enum FinderTags {
         var f: [SidebarPlace] = []
         if !Self.demo, let list = FinderFavorites.items(), !list.isEmpty {
             finderSynced = true
-            f = list.map { SidebarPlace(url: $0.url, title: $0.name, symbol: Self.symbol(for: $0.url)) }
+            f = list.map { SidebarPlace(url: $0.url, title: $0.name, symbol: Self.symbol(for: $0.url), hideKey: "fav:" + $0.url.fileKey) }
             if !observing {
                 observing = true
                 FinderFavorites.observe { [weak self] in self?.rebuild() }
@@ -538,21 +568,21 @@ enum FinderTags {
             finderSynced = false
             func add(_ dir: FileManager.SearchPathDirectory) {
                 if let u = fm.urls(for: dir, in: .userDomainMask).first, fm.fileExists(atPath: u.path) {
-                    f.append(SidebarPlace(url: u, title: fm.displayName(atPath: u.path), symbol: Self.symbol(for: u)))
+                    f.append(SidebarPlace(url: u, title: fm.displayName(atPath: u.path), symbol: Self.symbol(for: u), hideKey: "fav:" + u.fileKey))
                 }
             }
-            f.append(SidebarPlace(url: home, title: fm.displayName(atPath: home.path), symbol: "house"))
+            f.append(SidebarPlace(url: home, title: fm.displayName(atPath: home.path), symbol: "house", hideKey: "fav:" + home.fileKey))
             add(.desktopDirectory)
             add(.documentDirectory)
             add(.downloadsDirectory)
             add(.picturesDirectory)
             let apps = URL(fileURLWithPath: "/Applications")
-            f.append(SidebarPlace(url: apps, title: fm.displayName(atPath: apps.path), symbol: Self.symbol(for: apps)))
+            f.append(SidebarPlace(url: apps, title: fm.displayName(atPath: apps.path), symbol: Self.symbol(for: apps), hideKey: "fav:" + apps.fileKey))
         }
         finderPaths = finderSynced ? Set(f.map(\.url.fileKey)) : []
         let icloud = home.appendingPathComponent("Library/Mobile Documents/com~apple~CloudDocs")
         if fm.fileExists(atPath: icloud.path), !f.contains(where: { $0.url.fileKey == icloud.fileKey }) {
-            f.append(SidebarPlace(url: icloud, title: "iCloud Drive", symbol: "icloud"))
+            f.append(SidebarPlace(url: icloud, title: "iCloud Drive", symbol: "icloud", hideKey: "icloud"))
         }
         if favorites != f { favorites = f }
         let pins = FilesSettings.pinned.compactMap { p -> SidebarPlace? in
@@ -574,14 +604,14 @@ enum FinderTags {
         let cloud = home.appendingPathComponent("Library/CloudStorage")
         let dirs = (try? fm.contentsOfDirectory(at: cloud, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles])) ?? []
         for u in dirs.sorted(by: { $0.lastPathComponent < $1.lastPathComponent }) where !Self.demo {
-            l.append(SidebarPlace(url: u, title: Self.cloudTitle(u), symbol: "cloud"))
+            l.append(SidebarPlace(url: u, title: Self.cloudTitle(u), symbol: "cloud", hideKey: "cloud"))
         }
         if !favorites.contains(where: { $0.url.fileKey == home.fileKey }) {
-            l.append(SidebarPlace(url: home, title: fm.displayName(atPath: home.path), symbol: "house"))
+            l.append(SidebarPlace(url: home, title: fm.displayName(atPath: home.path), symbol: "house", hideKey: "home"))
         }
-        l.append(SidebarPlace(url: Self.finderApp("AirDrop"), title: "AirDrop", symbol: "airplayaudio", special: .airdrop))
-        l.append(SidebarPlace(url: Self.finderApp("Network"), title: L("Ağ"), symbol: "network", special: .network))
-        l.append(SidebarPlace(url: home.appendingPathComponent(".Trash"), title: L("Çöp Sepeti"), symbol: "trash", special: .trash))
+        l.append(SidebarPlace(url: Self.finderApp("AirDrop"), title: "AirDrop", symbol: "airplayaudio", special: .airdrop, hideKey: "airdrop"))
+        l.append(SidebarPlace(url: Self.finderApp("Network"), title: L("Ağ"), symbol: "network", special: .network, hideKey: "network"))
+        l.append(SidebarPlace(url: home.appendingPathComponent(".Trash"), title: L("Çöp Sepeti"), symbol: "trash", special: .trash, hideKey: "trash"))
         if locations != l { locations = l }
         let t = FinderTags.favorites()
         if tags != t { tags = t }
@@ -662,7 +692,9 @@ enum FinderTags {
             let internalDisk = v?.volumeIsInternal ?? true
             let symbol = (v?.volumeIsRootFileSystem ?? false) ? "internaldrive"
                 : (!internalDisk || removable || ejectable) ? "externaldrive" : "internaldrive"
-            return SidebarPlace(url: u, title: name, symbol: symbol, ejectable: ejectable || removable, removable: removable)
+            let external = !(v?.volumeIsRootFileSystem ?? false) && (!internalDisk || removable || ejectable)
+            return SidebarPlace(url: u, title: name, symbol: symbol, ejectable: ejectable || removable, removable: removable,
+                                hideKey: external ? "external" : "disks")
         }
     }
 
@@ -893,10 +925,12 @@ enum FinderTags {
             return top
         }
 
-        let settingsItem = item(L("Ayarlar…"), #selector(FilesMenuTarget.openSettings), ",")
+        let settingsItem = item(L("Dosyalar Ayarları…"), #selector(FilesMenuTarget.openFilesSettings), ",")
         settingsItem.target = FilesMenuTarget.shared
+        let missingSettings = item(L("Missing Ayarları…"), #selector(FilesMenuTarget.openSettings), ",", [.command, .option])
+        missingSettings.target = FilesMenuTarget.shared
         let quit = item(L("Missing'den Çık"), #selector(NSApplication.terminate(_:)))   // ⌘Q yok: yanlışlıkla Missing kapanmasın
-        _ = submenu("Missing", [settingsItem, .separator(), item(L("Missing'i gizle"), #selector(NSApplication.hide(_:)), "h"),
+        _ = submenu("Missing", [settingsItem, missingSettings, .separator(), item(L("Missing'i gizle"), #selector(NSApplication.hide(_:)), "h"),
                                 .separator(), quit])
 
         let newWindow = item(L("Yeni pencere"), #selector(FilesWindowController.newWindow(_:)), "n")
@@ -938,6 +972,7 @@ enum FinderTags {
         _ = submenu(L("Görünüm"), [
             item(L("Liste"), #selector(FilesWindowController.showList(_:)), "1"),
             item(L("Simgeler"), #selector(FilesWindowController.showGrid(_:)), "2"),
+            item(L("Sütunlar"), #selector(FilesWindowController.showColumns(_:)), "3"),
             .separator(),
             item(L("Gizli dosyaları göster"), #selector(FilesWindowController.toggleHidden(_:)), ".", [.command, .shift]),
             item(L("Kenar çubuğu"), #selector(FilesWindowController.toggleSidebar(_:)), "s", [.command, .option]),
@@ -1008,6 +1043,7 @@ enum FinderTags {
 @MainActor final class FilesMenuTarget: NSObject {
     static let shared = FilesMenuTarget()
     @objc func openSettings() { FilesManager.shared.openSettings() }
+    @objc func openFilesSettings() { FilesSettingsWindow.shared.show() }
     @objc func newWindow() { FilesManager.shared.open(newWindow: true) }
 }
 

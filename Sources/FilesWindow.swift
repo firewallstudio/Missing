@@ -428,6 +428,8 @@ private final class FilesNSWindow: NSWindow {
 
     /// Kenar çubuğundaki etiket: o etiketi taşıyan bütün dosyalar
     func showTag(_ t: FinderTag, newTab: Bool = false) {
+        // Etiket sonuçları farklı klasörlerden gelir: sütunlarda değil listede gösterilir
+        if model.viewMode == .columns { model.viewMode = .list }
         if newTab || NSEvent.modifierFlags.contains(.command) {
             model.addTab(tab.url).showTag(t)
         } else {
@@ -489,6 +491,8 @@ private final class FilesNSWindow: NSWindow {
             item.state = model.viewMode == .list ? .on : .off
         case #selector(showGrid(_:)):
             item.state = model.viewMode == .grid ? .on : .off
+        case #selector(showColumns(_:)):
+            item.state = model.viewMode == .columns ? .on : .off
         case #selector(toggleHidden(_:)):
             item.state = model.showHidden ? .on : .off
         case #selector(toggleSidebar(_:)):
@@ -602,6 +606,7 @@ private final class FilesNSWindow: NSWindow {
     @objc func editPath(_ sender: Any?) { model.pathEdit += 1 }
     @objc func showList(_ sender: Any?) { model.viewMode = .list }
     @objc func showGrid(_ sender: Any?) { model.viewMode = .grid }
+    @objc func showColumns(_ sender: Any?) { model.viewMode = .columns }
 
     @objc func toggleHidden(_ sender: Any?) {
         model.showHidden.toggle()
@@ -1227,6 +1232,7 @@ private struct FilesModePicker: View {
         HStack(spacing: 2) {
             button(.list, "list.bullet", L("Liste") + "  ⌘1")
             button(.grid, "square.grid.2x2", L("Simgeler") + "  ⌘2")
+            button(.columns, "rectangle.split.3x1", L("Sütunlar") + "  ⌘3")
         }
         .padding(2)
         .background(RoundedRectangle(cornerRadius: p.radius, style: .continuous).fill(p.controlFill))
@@ -1616,18 +1622,24 @@ private struct FilesSidebar: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: p.theme == .windows ? 0 : 1) {
-                section(L("Sık kullanılanlar"))
-                ForEach(places.favorites) { row($0, removable: places.isFinderFavorite($0.url)) }
+                let favs = places.shownFavorites
+                if !favs.isEmpty {
+                    section(L("Sık kullanılanlar"))
+                    ForEach(favs) { row($0, removable: places.isFinderFavorite($0.url)) }
+                }
                 if !places.pinned.isEmpty {
                     section(L("Sabitlenenler"))
                     ForEach(places.pinned) { row($0, removable: true) }
                 }
-                section(L("Konumlar"))
-                ForEach(places.volumes) { row($0) }
-                ForEach(places.locations) { row($0) }
-                if !places.tags.isEmpty {
+                let locs = places.shownLocations
+                if !locs.isEmpty {
+                    section(L("Konumlar"))
+                    ForEach(locs) { row($0) }
+                }
+                let tags = places.shownTags
+                if !tags.isEmpty {
                     section(L("Etiketler"))
-                    ForEach(places.tags) { t in
+                    ForEach(tags) { t in
                         TagRow(tag: t, selected: tab.tag == t, controller: controller)
                     }
                 }
@@ -1725,6 +1737,11 @@ private struct SidebarRow: View {
                 Divider()
                 Button(L("Çıkar")) { FilesPlaces.shared.eject(place, window: controller.window) }
             }
+            Divider()
+            if let key = place.hideKey {
+                Button(L("Kenar çubuğundan gizle")) { FilesPlaces.shared.setVisible(key, false) }
+            }
+            Button(L("Kenar çubuğu ayarları…")) { FilesSettingsWindow.shared.show(tab: .sidebar) }
         }
     }
 
@@ -1918,6 +1935,10 @@ private struct TagRow: View {
         .onTapGesture { controller.showTag(tag) }
         .contextMenu {
             Button(L("Yeni sekmede aç")) { controller.showTag(tag, newTab: true) }
+            Divider()
+            Button(L("Kenar çubuğundan gizle")) { FilesPlaces.shared.setVisible(FilesPlaces.tagKey(tag), false) }
+            Button(L("Etiketleri gizle")) { FilesPlaces.shared.setVisible("tags", false) }
+            Button(L("Kenar çubuğu ayarları…")) { FilesSettingsWindow.shared.show(tab: .sidebar) }
         }
     }
 }
