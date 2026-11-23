@@ -2,6 +2,11 @@
 
 Also shown in the app: **Settings › Versions**.
 
+## 4.3.3
+
+- Locations in the Files sidebar like Finder's: cloud folders such as Google Drive, OneDrive and Dropbox, your home folder, AirDrop, Network and Trash
+- Tags: Finder's tags appear with their colors; click one to list every file carrying that tag
+
 ## 4.3.2
 
 - In Files, clicking the path bar turns it into a typeable address like in Windows (⌘L); Enter goes there, and a file path opens its folder with the file selected

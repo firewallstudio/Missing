@@ -16,6 +16,12 @@ struct ChangelogEntry {
 
 enum Changelog {
     static let entries: [ChangelogEntry] = [
+        ChangelogEntry(version: "4.3.3", items: [
+            ("Dosyalar'ın kenar çubuğunda Finder'daki gibi Konumlar: Google Drive, OneDrive, Dropbox gibi bulut klasörleri, ana klasör, AirDrop, Ağ ve Çöp Sepeti",
+             "Locations in the Files sidebar like Finder's: cloud folders such as Google Drive, OneDrive and Dropbox, your home folder, AirDrop, Network and Trash"),
+            ("Etiketler: Finder'daki etiketler renkleriyle görünür; birine tıklayınca o etiketi taşıyan bütün dosyalar listelenir",
+             "Tags: Finder's tags appear with their colors; click one to list every file carrying that tag"),
+        ]),
         ChangelogEntry(version: "4.3.2", items: [
             ("Dosyalar'da yol çubuğuna tıklayınca Windows'taki gibi yazılabilir adrese döner (⌘L); Enter ile oraya gider, dosya yazılırsa klasörüne gidip onu seçer",
              "In Files, clicking the path bar turns it into a typeable address like in Windows (⌘L); Enter goes there, and a file path opens its folder with the file selected"),

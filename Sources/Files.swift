@@ -1,4 +1,5 @@
 import Cocoa
+import SwiftUI
 import UniformTypeIdentifiers
 import QuickLookThumbnailing
 
@@ -435,7 +436,60 @@ struct SidebarPlace: Identifiable, Hashable {
     let symbol: String
     var ejectable = false
     var removable = false
-    var id: String { url.path }
+    /// Klasör olarak açılmayan Finder konumları (AirDrop, Ağ) ve izin isteyebilen Çöp Sepeti
+    var special: Special?
+    var id: String { special.map { "special:\($0)" } ?? url.path }
+
+    enum Special: Hashable { case airdrop, network, trash }
+}
+
+/// Finder etiketi (kenar çubuğundaki Etiketler)
+struct FinderTag: Identifiable, Hashable {
+    let name: String
+    /// NSWorkspace.fileLabelColors sırası (1 gri … 7 turuncu); renksiz etiket için nil
+    let colorIndex: Int?
+    var id: String { name }
+
+    var color: Color? {
+        guard let i = colorIndex, NSWorkspace.shared.fileLabelColors.indices.contains(i) else { return nil }
+        return Color(nsColor: NSWorkspace.shared.fileLabelColors[i])
+    }
+}
+
+enum FinderTags {
+    /// Finder'ın renk adları (sistem dilinde ve İngilizce) → renk sırası
+    private static let englishLabels = ["", "Gray", "Green", "Purple", "Blue", "Yellow", "Red", "Orange"]
+
+    static func colorIndex(for name: String) -> Int? {
+        let labels = NSWorkspace.shared.fileLabels
+        if let i = labels.firstIndex(where: { $0.caseInsensitiveCompare(name) == .orderedSame }), i > 0 { return i }
+        if let i = englishLabels.firstIndex(where: { $0.caseInsensitiveCompare(name) == .orderedSame }), i > 0 { return i }
+        return nil
+    }
+
+    /// Finder kenar çubuğundaki etiketler; okunamazsa yedi renk
+    static func favorites() -> [FinderTag] {
+        let names = (CFPreferencesCopyAppValue("FavoriteTagNames" as CFString, "com.apple.finder" as CFString) as? [String])?
+            .filter { !$0.isEmpty }
+        let list = names ?? [6, 7, 5, 2, 4, 3, 1].compactMap { i in
+            NSWorkspace.shared.fileLabels.indices.contains(i) ? NSWorkspace.shared.fileLabels[i] : nil
+        }
+        return list.map { FinderTag(name: $0, colorIndex: colorIndex(for: $0)) }
+    }
+
+    /// Bu etiketi taşıyan dosyalar (Spotlight; arka planda çağrılır)
+    static func files(tagged name: String) -> [URL] {
+        let escaped = name.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
+        guard let q = MDQueryCreate(kCFAllocatorDefault, "kMDItemUserTags == \"\(escaped)\"" as CFString, nil, nil) else { return [] }
+        guard MDQueryExecute(q, CFOptionFlags(kMDQuerySynchronous.rawValue)) else { return [] }
+        var out: [URL] = []
+        for i in 0..<MDQueryGetResultCount(q) {
+            guard let raw = MDQueryGetResultAtIndex(q, i) else { continue }
+            let item = Unmanaged<MDItem>.fromOpaque(raw).takeUnretainedValue()
+            if let path = MDItemCopyAttribute(item, kMDItemPath) as? String { out.append(URL(fileURLWithPath: path)) }
+        }
+        return out
+    }
 }
 
 @MainActor final class FilesPlaces: ObservableObject {
@@ -443,9 +497,16 @@ struct SidebarPlace: Identifiable, Hashable {
     @Published private(set) var favorites: [SidebarPlace] = []
     @Published private(set) var pinned: [SidebarPlace] = []
     @Published private(set) var volumes: [SidebarPlace] = []
+    /// Bulut klasörleri, ana klasör, AirDrop, Ağ, Çöp Sepeti
+    @Published private(set) var locations: [SidebarPlace] = []
+    @Published private(set) var tags: [FinderTag] = []
 
     private init() {
         rebuild()
+        // Finder'da etiket ya da bulut hesabı değişmiş olabilir
+        NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.rebuildLocations() }
+        }
         let nc = NSWorkspace.shared.notificationCenter
         for n in [NSWorkspace.didMountNotification, NSWorkspace.didUnmountNotification, NSWorkspace.didRenameVolumeNotification] {
             nc.addObserver(forName: n, object: nil, queue: .main) { [weak self] _ in
@@ -502,6 +563,69 @@ struct SidebarPlace: Identifiable, Hashable {
         }
         if pinned != pins { pinned = pins }
         rebuildVolumes()
+        rebuildLocations()
+    }
+
+    func rebuildLocations() {
+        let fm = FileManager.default
+        let home = fm.homeDirectoryForCurrentUser
+        var l: [SidebarPlace] = []
+        // Google Drive, OneDrive, Dropbox… (File Provider klasörleri)
+        let cloud = home.appendingPathComponent("Library/CloudStorage")
+        let dirs = (try? fm.contentsOfDirectory(at: cloud, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles])) ?? []
+        for u in dirs.sorted(by: { $0.lastPathComponent < $1.lastPathComponent }) where !Self.demo {
+            l.append(SidebarPlace(url: u, title: Self.cloudTitle(u), symbol: "cloud"))
+        }
+        if !favorites.contains(where: { $0.url.fileKey == home.fileKey }) {
+            l.append(SidebarPlace(url: home, title: fm.displayName(atPath: home.path), symbol: "house"))
+        }
+        l.append(SidebarPlace(url: Self.finderApp("AirDrop"), title: "AirDrop", symbol: "airplayaudio", special: .airdrop))
+        l.append(SidebarPlace(url: Self.finderApp("Network"), title: L("Ağ"), symbol: "network", special: .network))
+        l.append(SidebarPlace(url: home.appendingPathComponent(".Trash"), title: L("Çöp Sepeti"), symbol: "trash", special: .trash))
+        if locations != l { locations = l }
+        let t = FinderTags.favorites()
+        if tags != t { tags = t }
+    }
+
+    private static func finderApp(_ name: String) -> URL {
+        URL(fileURLWithPath: "/System/Library/CoreServices/Finder.app/Contents/Applications/\(name).app")
+    }
+
+    /// "GoogleDrive-ad@mail.com" → "Google Drive", "OneDrive-Personal" → "OneDrive"
+    static func cloudTitle(_ u: URL) -> String {
+        let shown = FileManager.default.displayName(atPath: u.path)
+        if shown != u.lastPathComponent { return shown }
+        let provider = String(u.lastPathComponent.split(separator: "-", maxSplits: 1).first ?? "")
+        switch provider {
+        case "GoogleDrive": return "Google Drive"
+        case "OneDrive": return "OneDrive"
+        case "Dropbox": return "Dropbox"
+        case "Box": return "Box"
+        default:
+            // CamelCase'i kelimelere ayır
+            var out = ""
+            for ch in provider {
+                if ch.isUppercase, let last = out.last, last.isLowercase { out.append(" ") }
+                out.append(ch)
+            }
+            return out.isEmpty ? u.lastPathComponent : out
+        }
+    }
+
+    /// AirDrop ve Ağ Finder'da açılır; Çöp Sepeti okunamıyorsa (izin) Finder'da açılır
+    func open(_ place: SidebarPlace, in controller: FilesWindowController, newTab: Bool = false) {
+        switch place.special {
+        case .airdrop, .network:
+            NSWorkspace.shared.open(place.url)
+        case .trash:
+            if (try? FileManager.default.contentsOfDirectory(atPath: place.url.path)) != nil {
+                controller.navigate(place.url, newTab: newTab)
+            } else {
+                NSWorkspace.shared.open(place.url)
+            }
+        case nil:
+            controller.navigate(place.url, newTab: newTab)
+        }
     }
 
     func isFinderFavorite(_ url: URL) -> Bool { finderPaths.contains(url.fileKey) }

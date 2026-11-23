@@ -22,6 +22,8 @@ import UniformTypeIdentifiers
     private let searchToken = SearchToken()
     /// Seçili öğeler (görünümden gelir)
     @Published var selection: [URL] = []
+    /// Bir etiketin dosyaları gösteriliyorsa o etiket (adres yine son klasörde kalır)
+    @Published private(set) var tag: FinderTag?
     @Published private(set) var canGoBack = false
     @Published private(set) var canGoForward = false
 
@@ -47,13 +49,15 @@ import UniformTypeIdentifiers
     }
 
     var title: String {
-        url.path == "/" ? (FilesPlaces.shared.volumes.first { $0.url.path == "/" }?.title ?? "/")
+        if let tag { return tag.name }
+        return url.path == "/" ? (FilesPlaces.shared.volumes.first { $0.url.path == "/" }?.title ?? "/")
             : FileManager.default.displayName(atPath: url.path)
     }
 
     func go(_ target: URL, record: Bool = true) {
         let target = URL(fileURLWithPath: target.standardizedFileURL.path)
-        guard target.fileKey != url.fileKey else { return }
+        guard target.fileKey != url.fileKey || tag != nil else { return }
+        tag = nil
         // Finder gibi: başka klasöre geçince arama biter
         if !filter.isEmpty { filter = "" }
         if record {
@@ -93,7 +97,20 @@ import UniformTypeIdentifiers
         go(parent)
     }
 
-    var canGoUp: Bool { url.path != "/" }
+    var canGoUp: Bool { url.path != "/" && tag == nil }
+
+    /// Etiketin dosyaları (Finder'daki gibi bütün Mac'ten)
+    func showTag(_ t: FinderTag) {
+        guard tag != t else { return }
+        if !filter.isEmpty { filter = "" }
+        back.append(url)
+        forward.removeAll()
+        tag = t
+        selection = []
+        scrollY = nil
+        updateHistory()
+        load()
+    }
 
     private func updateHistory() {
         canGoBack = !back.isEmpty
@@ -106,6 +123,24 @@ import UniformTypeIdentifiers
         generation += 1
         let gen = generation
         let target = url
+        if let t = tag {
+            watcher.stop()
+            let hidden = showHidden()
+            DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+                let list = FinderTags.files(tagged: t.name).compactMap { FileItem(url: $0) }.filter { hidden || !$0.isHidden }
+                DispatchQueue.main.async {
+                    MainActor.assumeIsolated {
+                        guard let self, gen == self.generation else { return }
+                        self.error = nil
+                        self.all = list
+                        self.loaded = true
+                        self.freeSpace = nil
+                        self.resort()
+                    }
+                }
+            }
+            return
+        }
         watcher.watch(target)
         DirectoryLoader.load(target, showHidden: showHidden()) { [weak self] r in
             guard let self, gen == self.generation else { return }
@@ -160,7 +195,7 @@ import UniformTypeIdentifiers
         let local = f.isEmpty ? all : all.filter { $0.name.localizedCaseInsensitiveContains(f) }
         items = local
         searchGen += 1
-        guard !f.isEmpty, FileSearchSettings.enabled,
+        guard !f.isEmpty, tag == nil, FileSearchSettings.enabled,
               let q0 = FileSearchController.makeQuery(f, scope: url.path) else {
             if deepSearch { deepSearch = false }
             if searching { searching = false }
@@ -206,6 +241,7 @@ import UniformTypeIdentifiers
     /// Alt klasördeki sonucun bu klasöre göre yeri ("Projeler › a"); doğrudan içindeyse nil
     func relativeFolder(of item: FileItem) -> String? {
         let parent = item.url.deletingLastPathComponent()
+        if tag != nil { return (parent.path as NSString).abbreviatingWithTildeInPath }
         guard parent.fileKey != url.fileKey else { return nil }
         let base = url.path == "/" ? "/" : url.path + "/"
         let p = parent.path
@@ -389,6 +425,16 @@ private final class FilesNSWindow: NSWindow {
     }
 
     func openTab(_ url: URL) { model.addTab(url) }
+
+    /// Kenar çubuğundaki etiket: o etiketi taşıyan bütün dosyalar
+    func showTag(_ t: FinderTag, newTab: Bool = false) {
+        if newTab || NSEvent.modifierFlags.contains(.command) {
+            model.addTab(tab.url).showTag(t)
+        } else {
+            tab.showTag(t)
+        }
+        browser.focus()
+    }
 
     /// Çift tık / ⌘↓: klasöre gir, dosyayı aç
     func open(_ items: [FileItem], newTab: Bool = false) {
@@ -1399,6 +1445,7 @@ private struct FilesPathBar: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .onChange(of: model.pathEdit) { _ in beginEdit() }
         .onChange(of: tab.url) { _ in editing = false }
+        .onChange(of: tab.tag) { _ in editing = false }
     }
 
     private var editor: some View {
@@ -1456,6 +1503,20 @@ private struct FilesPathBar: View {
     }
 
     @ViewBuilder private var crumbs: some View {
+        if let t = tab.tag {
+            HStack(spacing: 6) {
+                TagDot(tag: t, size: 9)
+                Text(t.name).font(.system(size: 12, weight: p.theme != .windows ? .semibold : .regular)).lineLimit(1)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 5)
+            .frame(minHeight: 22)
+        } else {
+            pathCrumbs
+        }
+    }
+
+    @ViewBuilder private var pathCrumbs: some View {
         let parts = Self.components(tab.url)
         let shown = parts.count > maxParts ? Array(parts.suffix(maxParts)) : parts
         let hidden = parts.count > maxParts ? Array(parts.prefix(parts.count - maxParts)) : []
@@ -1561,9 +1622,14 @@ private struct FilesSidebar: View {
                     section(L("Sabitlenenler"))
                     ForEach(places.pinned) { row($0, removable: true) }
                 }
-                if !places.volumes.isEmpty {
-                    section(L("Konumlar"))
-                    ForEach(places.volumes) { row($0) }
+                section(L("Konumlar"))
+                ForEach(places.volumes) { row($0) }
+                ForEach(places.locations) { row($0) }
+                if !places.tags.isEmpty {
+                    section(L("Etiketler"))
+                    ForEach(places.tags) { t in
+                        TagRow(tag: t, selected: tab.tag == t, controller: controller)
+                    }
                 }
             }
             .padding(.horizontal, p.theme == .windows ? 4 : 8)
@@ -1590,7 +1656,8 @@ private struct FilesSidebar: View {
     }
 
     private func row(_ place: SidebarPlace, removable: Bool = false) -> some View {
-        SidebarRow(place: place, selected: tab.url.fileKey == place.url.fileKey, removable: removable,
+        SidebarRow(place: place, selected: tab.tag == nil && place.special != .airdrop && place.special != .network
+                   && tab.url.fileKey == place.url.fileKey, removable: removable,
                    controller: controller)
     }
 }
@@ -1633,16 +1700,22 @@ private struct SidebarRow: View {
         }
         .contentShape(Rectangle())
         .onHover { hover = $0 }
-        .onTapGesture { controller.navigate(place.url) }
+        .onTapGesture { FilesPlaces.shared.open(place, in: controller) }
         .onDrop(of: [UTType.fileURL], isTargeted: $dropTarget) { providers in
+            // AirDrop / Ağ klasör değil; Çöp Sepeti'ne bırakmak çöpe atmak demek
+            guard place.special != .airdrop, place.special != .network else { return false }
             let dest = place.url
             loadFileURLs(providers) { urls in controller.drop(urls, into: dest) }
             return true
         }
         .help(place.url.path)
         .contextMenu {
-            Button(L("Yeni sekmede aç")) { controller.navigate(place.url, newTab: true) }
-            Button(L("Yeni pencerede aç")) { FilesManager.shared.open(place.url, newWindow: true) }
+            if place.special == nil || place.special == .trash {
+                Button(L("Yeni sekmede aç")) { FilesPlaces.shared.open(place, in: controller, newTab: true) }
+                if place.special == nil {
+                    Button(L("Yeni pencerede aç")) { FilesManager.shared.open(place.url, newWindow: true) }
+                }
+            }
             Button(L("Finder'da göster")) { NSWorkspace.shared.open(place.url) }
             if removable {
                 Divider()
@@ -1812,4 +1885,53 @@ private struct QuickLookView: NSViewRepresentable {
     }
 
     static func dismantleNSView(_ v: QLPreviewView, coordinator: ()) { v.close() }
+}
+
+// MARK: Etiket satırı
+
+private struct TagRow: View {
+    let tag: FinderTag
+    let selected: Bool
+    let controller: FilesWindowController
+    @Environment(\.filesPalette) private var p
+    @State private var hover = false
+
+    var body: some View {
+        HStack(spacing: 8) {
+            TagDot(tag: tag, size: 10).frame(width: 18)
+            Text(tag.name)
+                .font(.system(size: 12.5, weight: selected && p.theme != .finder ? .semibold : .regular))
+                .lineLimit(1)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 8)
+        .frame(height: p.theme == .windows ? 30 : 26)
+        .background(RoundedRectangle(cornerRadius: max(4, p.radius - 1), style: .continuous)
+            .fill(p.fg.opacity(selected ? (p.dark ? 0.14 : 0.10) : (hover ? 0.05 : 0))))
+        .overlay(alignment: .leading) {
+            if selected && p.theme == .windows {
+                Capsule().fill(p.accent).frame(width: 3, height: 16)
+            }
+        }
+        .contentShape(Rectangle())
+        .onHover { hover = $0 }
+        .onTapGesture { controller.showTag(tag) }
+        .contextMenu {
+            Button(L("Yeni sekmede aç")) { controller.showTag(tag, newTab: true) }
+        }
+    }
+}
+
+/// Etiketin rengi; renksiz etiket için boş halka
+struct TagDot: View {
+    let tag: FinderTag
+    var size: CGFloat = 10
+
+    var body: some View {
+        if let c = tag.color {
+            Circle().fill(c).frame(width: size, height: size)
+        } else {
+            Circle().strokeBorder(Color.secondary, lineWidth: 1.2).frame(width: size, height: size)
+        }
+    }
 }
