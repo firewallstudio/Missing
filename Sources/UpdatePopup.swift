@@ -82,7 +82,7 @@ struct UpdatePopupView: View {
 
     var body: some View {
         VStack(spacing: 12) {
-            Image(nsImage: NSApp.applicationIconImage)
+            Image(nsImage: Brand.appIcon)
                 .resizable().frame(width: 56, height: 56)
             content
         }

@@ -9,7 +9,10 @@ enum Brand {
     static let red = Color(nsColor: nsRed)
 
     /// Uygulamanın yaprak logosu (renkli)
-    static var leaf: NSImage { NSImage(named: "Leaf") ?? NSApp.applicationIconImage }
+    static var leaf: NSImage { NSImage(named: "Leaf") ?? appIcon }
+
+    /// Uygulama simgesi (Dock simgesi dosya penceresi açıkken klasöre döndüğü için NSApp'inkini kullanma)
+    static var appIcon: NSImage { NSImage(named: "AppIcon") ?? NSWorkspace.shared.icon(forFile: Bundle.main.bundlePath) }
 }
 
 /// Aç/kapa düğmesi: kapalıyken gri, açıkken marka kırmızısı

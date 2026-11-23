@@ -34,11 +34,13 @@ Uygulamalar değil pencereler, canlı önizlemeyle. Tüm tarayıcı profilleri, 
 
 Seçili sonuç sağda önizlenir; fareyle bir satırın üstüne gelince o önizlenir. **Space** Finder'daki gibi Hızlı Bakış açar, **⌘⌫** dosyayı anında Çöp Sepeti'ne atar, **Enter** açar, **⌘Enter** Finder'da gösterir. Finder'ın kendi arama kutusuna yazınca da kutunun altında aynı anında sonuçlar çıkar. Başka her yerde ⌘Space yine Spotlight'ı açar.
 
-## Windows gibi Finder sekmeleri
+## Dosyalar: Missing'in kendi dosya penceresi
 
-<div align="center"><img src="assets/finder-tabs.png" alt="Windows tarzı Finder sekmeleri" width="820"></div>
+Finder'a bağlı olmayan kendi dosya penceresi, dört temayla: **Missing** (koyu cam, kırmızı vurgu), **Finder** (tam boy kenar çubuğu, araç çubuğunun altında sekmeler), **Windows** (Gezgin tarzı sekmeler, adres ve komut çubuğu) ve **Cam** (renkli bulanık zemin üstünde yüzen buzlu kartlar). Finder ve Windows temaları sistemin açık/koyu ayarını izler. Missing temasında sekmeler Windows'taki gibi soldan dizilir, her biri belli bir genişlikte; sürükleyip sıralarsın, orta tık ya da **⌘W** ile kapatırsın, bir sekmenin üstüne bıraktığın dosya o klasöre gider. Kenar çubuğunda Finder'la iki yönlü eşitlenen sık kullanılanlar ve diskler (çıkarma düğmesiyle); liste ve önizlemeli simge görünümü, **Space** ile Hızlı Bakış, **Return** ile yeniden adlandırma, **⌘⌫** ile çöpe atma; hepsi **⌘Z** ile geri alınır. Diğer uygulamalarla iki yönlü sürükle-bırak; sağ tıkta Birlikte Aç, Paylaş, Yolu kopyala ve Terminal'de aç. Farenin yan tuşları geri / ileri gider.
 
-Finder sekmelerini, iki tane bile olsa bütün pencereye yayar. Missing onları Windows'taki gibi dizer: soldan başlar, her biri belli bir genişlikte; açtıkça daralır, sığmayınca yana kayar. Üstüne gelince kapatma düğmesi, sonda **+** ile yeni sekme. Finder'ın kendi çubuğuyla aynı tonda durur; uygulama değiştirince ya da sağ tıklayınca yerinden oynamaz.
+Arama kutusu önce o klasörde, ardından ⌘Space aramasıyla aynı indeksle bütün alt klasörlerde arar. **⇧⌘P** sağda, Windows Gezgini'ndeki gibi bir önizleme bölmesi açar.
+
+Pencere açıkken Missing Dock'ta Finder gibi klasör simgesiyle görünür. Ayarlar'da **Dock'a ekle**'ye bas (ya da simgeye sağ tıklayıp Seçenekler › **Dock'ta Tut**); simgeye tıklayınca pencere her zaman açılır. Son pencerenin sekmeleri bir dahaki açılışta geri gelir.
 
 ## Çentikten ekran bölme
 
@@ -91,7 +93,7 @@ Ekranın kapanmasını ve Mac'in uyumasını engelle: **süresiz** ya da **15 da
 Menü çubuğundaki yaprağa tıkla: üstte ses çıkışı, altında hızlı eylemler (ekranı böl, ekran görüntüsü, kayıt, kaydırmalı görüntü) ve harici ekranlar için parlaklık kaydırıcıları.
 
 - **Ekran görüntüsü ve kayıt:** ⌘⇧3 bulunduğun ekran, ⌘⇧4 alan, ⌘⇧6 kaydırmalı sayfa, ⌘⇧5 MP4 kayıt. ⌘⇧5 paletinden **sadece bir pencereyi** çekebilir ya da kaydedebilirsin; kendi kayıt klasörüyle.
-- **Hızlı özellikler:** ekolayzır, Windows tarzı Finder sekmeleri, gruplu ⌘Tab görünümü, Finder'da fare tuşlarıyla geri/ileri, dosya sürüklerken Dock'ta anında açılma.
+- **Hızlı özellikler:** ekolayzır, Dosyalar penceresi, gruplu ⌘Tab görünümü, Finder'da fare tuşlarıyla geri/ileri, dosya sürüklerken Dock'ta anında açılma.
 
 ## Sadece kullandıkların
 

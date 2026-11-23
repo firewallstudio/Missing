@@ -21,6 +21,7 @@ struct GlassBlur: NSViewRepresentable {
 
     func updateNSView(_ view: NSVisualEffectView, context: Context) {
         view.material = material
+        if let appearance, view.appearance?.name != appearance { view.appearance = NSAppearance(named: appearance) }
     }
 }
 

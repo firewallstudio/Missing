@@ -2,6 +2,17 @@
 
 Also shown in the app: **Settings › Versions**.
 
+## 4.3.0
+
+- New: Files. Missing's own file window that doesn't depend on Finder; it replaces the old Finder tabs strip
+- Tabs (drag to reorder, middle-click to close, drop files on a tab to move them there), list and icon views with previews, Quick Look, rename, trash, copy and paste; all undoable with ⌘Z
+- Four themes: Missing, Finder, Windows and Glass; Finder and Windows follow the system's light/dark mode
+- The search box looks in this folder first, then in every subfolder through the ⌘Space search index
+- A preview pane on the right you can show or hide (⇧⌘P), like in Windows Explorer
+- Sidebar favorites stay in sync with Finder's sidebar both ways
+- While the window is open, Missing shows in the Dock with a folder icon; Add to Dock in Settings pins it, and a click on the icon opens the window
+- ⌘Space search and the Finder search box skipped files in subfolders on the first search in a folder that wasn't indexed yet; fixed
+
 ## 4.2.2
 
 - In the window switcher, hovering a card no longer changes the selection; click it to switch to that window

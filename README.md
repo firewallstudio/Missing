@@ -34,11 +34,13 @@ Press **⌘Space while Finder is in front** and a Spotlight-style bar opens. It 
 
 The selected result is previewed on the right; hover a row to preview it. **Space** opens Quick Look just like in Finder, **⌘⌫** moves the file to the Trash right away, **Enter** opens and **⌘Enter** shows it in Finder. Typing in Finder's own search box shows the same instant results right below it. Everywhere else, ⌘Space still opens Spotlight.
 
-## Finder tabs, like Windows
+## Files: Missing's own file window
 
-<div align="center"><img src="assets/finder-tabs.png" alt="Windows-style Finder tabs" width="820"></div>
+A file window of its own that doesn't depend on Finder, with four themes: **Missing** (dark glass, red accent), **Finder** (full-height sidebar, tabs under the toolbar), **Windows** (Explorer-style tabs, address bar and command bar) and **Glass** (floating frosted cards on a colorful blur). Finder and Windows follow the system's light/dark mode. In the Missing theme, tabs start on the left like Windows, each up to a set width; drag to reorder, middle-click or **⌘W** to close, drop files on a tab to move them there. Sidebar with favorites, kept in sync with Finder's sidebar both ways, and disks (with eject), list and icon views with previews, **Space** for Quick Look, **Return** to rename, **⌘⌫** to trash, and **⌘Z** undoes it all. Drag and drop works both ways with other apps; right-click for Open With, Share, Copy Path and Open in Terminal. Mouse side buttons go back and forward.
 
-Finder stretches its tabs across the whole window, even when there are only two. Missing lays them out like Windows: from the left, each one up to a set width, shrinking as you open more and scrolling when they don't fit. Hover a tab to close it, click **+** for a new one. It blends into Finder's own bar and stays put when you switch apps or right-click.
+The search box looks in the current folder first, then in every subfolder through the same index as ⌘Space search. **⇧⌘P** shows a preview pane on the right, like in Windows Explorer.
+
+While the window is open, Missing shows in the Dock with a folder icon, like Finder. Click **Add to Dock** in Settings (or right-click the icon › Options › **Keep in Dock**) and a click on the icon opens the window any time. The last window's tabs come back next time.
 
 ## Split the screen from the notch
 
@@ -91,7 +93,7 @@ Stop the display from turning off and the Mac from sleeping: **indefinitely**, o
 Click the leaf in the menu bar for a glass panel: sound output at the top, then quick actions (split screen, screenshot, record, scrolling capture) and brightness sliders for external displays.
 
 - **Screenshots and recording:** ⌘⇧3 captures the display you're on, ⌘⇧4 an area, ⌘⇧6 a whole scrolling page, ⌘⇧5 records MP4. Capture or record **just one window** from the ⌘⇧5 palette, with its own save folder.
-- **Quick features:** equalizer, Windows-style Finder tabs, grouped ⌘Tab view, back/forward with mouse buttons in Finder, instant Dock opening while dragging a file.
+- **Quick features:** equalizer, the Files window, grouped ⌘Tab view, back/forward with mouse buttons in Finder, instant Dock opening while dragging a file.
 
 ## Only what you use
 

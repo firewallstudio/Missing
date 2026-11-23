@@ -526,13 +526,26 @@ enum AX {
         }
 
         let beforeAX = lap()
-        let scored = AX.scanAll(infos, z: z, alive: alive, showMin: showMin)
+        var scored = AX.scanAll(infos, z: z, alive: alive, showMin: showMin)
+        // Missing'in kendi dosya pencereleri (kendi sürecimize AX ile sorulmaz: kilitlenir)
+        let myRank = mru.firstIndex(of: me) ?? 500
+        for c in FilesManager.shared.windows {
+            guard let w = c.window else { continue }
+            let wid = CGWindowID(w.windowNumber)
+            let score = z[wid] ?? (100_000 + myRank * 100 + (w.isMiniaturized ? 50 : 0))
+            scored.append((score, Item(app: NSRunningApplication.current, window: nil, wid: wid, title: w.title,
+                                       minimized: w.isMiniaturized, aspect: w.frame.width / max(1, w.frame.height))))
+        }
         let total = lap()
         perfLog.notice("build: window server \(beforeAX) ms, AX scan \(total - beforeAX) ms, \(infos.count) apps")
         return scored.sorted { $0.0 < $1.0 }.map(\.1)
     }
 
     static func focus(_ item: Item) {
+        if item.pid == getpid() {
+            FilesManager.shared.windowController(number: Int(item.wid))?.bringToFront()
+            return
+        }
         let app = item.app
         if app.isHidden { app.unhide() }
         var psn = ProcessSerialNumber()
@@ -1054,6 +1067,11 @@ let perfLog = Logger(subsystem: Bundle.main.bundleIdentifier ?? "com.firewallstu
         guard items.indices.contains(i) else { return }
         let item = items[i]
         end()
+        if item.pid == getpid(), let c = FilesManager.shared.windowController(number: Int(item.wid)) {
+            c.drop(urls, into: c.model.current.url)
+            c.bringToFront()
+            return
+        }
         if item.app.bundleIdentifier == "com.apple.finder", let folder = Self.finderFolder(item) {
             Self.moveOrCopy(urls, into: folder)
             WindowList.focus(item)

@@ -22,7 +22,6 @@ import UserNotifications
     private let updatePopup = UpdatePopupController()
     private let onboarding = OnboardingController()
     private let menuPanel = MenuBarPanelController()
-    private let finderTabs = FinderTabsController()
     private let finderSearch = FinderSearchHook()
     private var model: SettingsModel!
     private var fileSearch: FileSearchController!
@@ -75,10 +74,8 @@ import UserNotifications
             self?.menuPanel.actions.refresh()
         }
         KeepAwake.shared.onNotice = { [weak self] text, symbol in self?.hud.show(name: text, symbol: symbol) }
-        model.onFinderTabsChanged = { [weak self] in
-            guard let self else { return }
-            if FinderTabsSettings.enabled, self.switcher.isRunning { self.finderTabs.start() } else { self.finderTabs.stop() }
-        }
+        model.onFilesChanged = { FilesManager.shared.settingsChanged() }
+        FilesManager.shared.openSettings = { [weak self] in self?.settings.show(page: .quick) }
         model.onNativeTabChanged = { [weak self] in self?.switcher.applyNative() }
         model.onDeepScanChanged = { [weak self] in self?.switcher.deepScopeChanged() }
         model.onDockDragChanged = { [weak self] in self?.dockDrag.start() }
@@ -192,7 +189,7 @@ import UserNotifications
         if switcher.isRunning { switcher.applyNative() }
         applyExtraNative()
         dockDrag.start()
-        model.onFinderTabsChanged()
+        model.onFilesChanged()
         if !model.anyPreviews { switcher.clearThumbs() }
         if FileSearchSettings.enabled { FileIndex.shared.start() } else {
             fileSearch.close(restore: true)
@@ -233,12 +230,26 @@ import UserNotifications
 
     private func startInput() {
         startMouse()
-        if FinderTabsSettings.enabled { finderTabs.start() }
         if FileSearchSettings.enabled { finderSearch.start() }
         switcher.start()
         applyExtraNative()
         dockDrag.start()
         snapBar.start()
+    }
+
+    /// Dock simgesine tıklama ya da Missing'i yeniden açma: dosya penceresi
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        if FilesSettings.enabled { FilesManager.shared.open() } else { settings.show() }
+        return false
+    }
+
+    func applicationDockMenu(_ sender: NSApplication) -> NSMenu? {
+        guard FilesSettings.enabled else { return nil }
+        let m = NSMenu()
+        let i = NSMenuItem(title: L("Yeni pencere"), action: #selector(FilesMenuTarget.newWindow), keyEquivalent: "")
+        i.target = FilesMenuTarget.shared
+        m.addItem(i)
+        return m
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {

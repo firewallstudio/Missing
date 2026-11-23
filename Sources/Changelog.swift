@@ -16,6 +16,24 @@ struct ChangelogEntry {
 
 enum Changelog {
     static let entries: [ChangelogEntry] = [
+        ChangelogEntry(version: "4.3.0", items: [
+            ("Yeni: Dosyalar. Finder'a bağlı olmayan, Missing'in kendi dosya penceresi; eski Finder sekmeleri şeridinin yerini alıyor",
+             "New: Files. Missing's own file window that doesn't depend on Finder; it replaces the old Finder tabs strip"),
+            ("Sekmeler (sürükleyip sırala, orta tıkla kapat, sekmeye bırakılan dosya o klasöre gider), liste ve önizlemeli simge görünümü, Quick Look, yeniden adlandırma, çöpe atma, kopyala-yapıştır; hepsi ⌘Z ile geri alınır",
+             "Tabs (drag to reorder, middle-click to close, drop files on a tab to move them there), list and icon views with previews, Quick Look, rename, trash, copy and paste; all undoable with ⌘Z"),
+            ("Dört tema: Missing, Finder, Windows ve Cam; Finder ve Windows sistemin açık/koyu ayarını izler",
+             "Four themes: Missing, Finder, Windows and Glass; Finder and Windows follow the system's light/dark mode"),
+            ("Arama kutusu önce bu klasörde, ardından ⌘Space aramasının indeksiyle bütün alt klasörlerde arar",
+             "The search box looks in this folder first, then in every subfolder through the ⌘Space search index"),
+            ("Sağda açılıp kapanan önizleme bölmesi (⇧⌘P), Windows Gezgini'ndeki gibi",
+             "A preview pane on the right you can show or hide (⇧⌘P), like in Windows Explorer"),
+            ("Kenar çubuğundaki sık kullanılanlar Finder'la iki yönlü eşitlenir",
+             "Sidebar favorites stay in sync with Finder's sidebar both ways"),
+            ("Pencere açıkken Missing Dock'ta klasör simgesiyle görünür; Ayarlar'daki Dock'a ekle ile kalıcı olarak sabitlenir, simgeye tıklayınca pencere açılır",
+             "While the window is open, Missing shows in the Dock with a folder icon; Add to Dock in Settings pins it, and a click on the icon opens the window"),
+            ("⌘Space araması ve Finder arama kutusu, indekslenmemiş bir klasörde ilk aramada alt klasörlerdeki dosyaları atlıyordu; düzeltildi",
+             "⌘Space search and the Finder search box skipped files in subfolders on the first search in a folder that wasn't indexed yet; fixed"),
+        ]),
         ChangelogEntry(version: "4.2.2", items: [
             ("Pencere değiştiricide fareyle bir kartın üstüne gelmek artık seçimi değiştirmiyor; o pencereye geçmek için tıkla",
              "In the window switcher, hovering a card no longer changes the selection; click it to switch to that window"),

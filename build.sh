@@ -42,9 +42,16 @@ compile() {   # $1 = mimari
     -framework ApplicationServices -framework ServiceManagement \
     -framework CoreAudio -framework IOKit \
     -framework AVFoundation -framework CoreMedia -framework CoreVideo \
-    -framework ImageIO -framework UniformTypeIdentifiers -framework Security -framework Carbon -framework Quartz \
+    -framework ImageIO -framework UniformTypeIdentifiers -framework QuickLookThumbnailing -framework Security -framework Carbon -framework Quartz \
     -Xlinker -weak_framework -Xlinker ScreenCaptureKit \
     Sources/*.swift -o "$BUILD/$EXE-$1" 2> "$BUILD/errors-$1.txt"
+}
+
+# Dock'ta tutulunca klasör simgesini çizen eklenti
+compile_tile() {   # $1 = mimari
+  swiftc -O -swift-version 5 -parse-as-library -emit-library -module-name MissingDockTile \
+    -target "$1-apple-macos13.0" -framework AppKit -framework UniformTypeIdentifiers \
+    DockTile/DockTilePlugin.swift Sources/FilesDockIcon.swift -o "$BUILD/tile-$1" 2>> "$BUILD/errors-$1.txt"
 }
 
 fail() {
@@ -59,12 +66,17 @@ if [[ $UNIVERSAL == 1 ]]; then
   echo "▶ Derleniyor (arm64 + x86_64, sürüm $VERSION)..."
   compile arm64 || fail
   compile x86_64 || fail
+  compile_tile arm64 || fail
+  compile_tile x86_64 || fail
   lipo -create "$BUILD/$EXE-arm64" "$BUILD/$EXE-x86_64" -output "$BUILD/$EXE"
+  lipo -create "$BUILD/tile-arm64" "$BUILD/tile-x86_64" -output "$BUILD/tile"
 else
   ARCH="$(uname -m)"
   echo "▶ Derleniyor ($ARCH, sürüm $VERSION)..."
   compile "$ARCH" || fail
+  compile_tile "$ARCH" || fail
   mv "$BUILD/$EXE-$ARCH" "$BUILD/$EXE"
+  mv "$BUILD/tile-$ARCH" "$BUILD/tile"
 fi
 strip -x "$BUILD/$EXE" 2>/dev/null || true
 
@@ -74,6 +86,24 @@ cp "$BUILD/$EXE" "$APP/Contents/MacOS/$EXE"
 # Sesler vb. (Resources/ klasöründeki her şey)
 if [[ -d Resources ]]; then cp -R Resources/. "$APP/Contents/Resources/"; fi
 chmod +x "$APP/Contents/MacOS/$EXE"
+
+TILE="$APP/Contents/PlugIns/MissingDockTile.docktileplugin"
+mkdir -p "$TILE/Contents/MacOS"
+cp "$BUILD/tile" "$TILE/Contents/MacOS/MissingDockTile"
+cat > "$TILE/Contents/Info.plist" <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleIdentifier</key><string>$ID.docktile</string>
+  <key>CFBundleName</key><string>MissingDockTile</string>
+  <key>CFBundleExecutable</key><string>MissingDockTile</string>
+  <key>CFBundlePackageType</key><string>BNDL</string>
+  <key>CFBundleShortVersionString</key><string>$VERSION</string>
+  <key>NSPrincipalClass</key><string>MissingDockTilePlugIn</string>
+</dict>
+</plist>
+PLIST
 
 BUILD_NUMBER="$(git rev-list --count HEAD 2>/dev/null || echo 1)"
 cat > "$APP/Contents/Info.plist" <<PLIST
@@ -86,6 +116,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>CFBundleDisplayName</key><string>Missing</string>
   <key>CFBundleExecutable</key><string>$EXE</string>
   <key>CFBundleIconFile</key><string>AppIcon</string>
+  <key>NSDockTilePlugIn</key><string>MissingDockTile.docktileplugin</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>$VERSION</string>
   <key>CFBundleVersion</key><string>$BUILD_NUMBER</string>
@@ -102,8 +133,10 @@ PLIST
 xattr -cr "$APP"
 if [[ -n "${SIGN_IDENTITY:-}" ]]; then
   echo "▶ İmzalanıyor (sertifika)..."
+  codesign --force --sign "$SIGN_IDENTITY" --timestamp=none "$TILE"
   codesign --force --sign "$SIGN_IDENTITY" --identifier "$ID" --timestamp=none "$APP"
 else
+  codesign --force --sign - "$TILE"
   codesign --force --sign - --identifier "$ID" "$APP"
 fi
 codesign --verify --strict "$APP" && echo "✔ İmza tamam"

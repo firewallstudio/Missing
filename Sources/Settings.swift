@@ -33,7 +33,7 @@ final class SettingsModel: ObservableObject {
     var onShortcutsChanged: () -> Void = {}
     var onFileSearchChanged: () -> Void = {}
     /// Finder sekme şeridi açılıp kapandı
-    var onFinderTabsChanged: () -> Void = {}
+    var onFilesChanged: () -> Void = {}
     /// Pil / şarj profilleri açılıp kapandı
     var onPowerChanged: () -> Void = {}
     /// Uyanık tut ayarı değişti
@@ -632,13 +632,41 @@ struct SettingsView: View {
              subtitle: L("⌘Tab'da Tarayıcılar · Projeler · Uygulamalar · Klasörler bölümleri")) {
             groupedRows
         }
-        Card(title: L("Finder sekmeleri"), icon: "rectangle.topthird.inset.filled",
-             isOn: model.bind({ FinderTabsSettings.enabled }, { v in
-                 FinderTabsSettings.enabled = v
-                 model.onFinderTabsChanged()
+        Card(title: L("Dosyalar"), icon: "folder.fill",
+             isOn: model.bind({ FilesSettings.enabled }, { v in
+                 FilesSettings.enabled = v
+                 model.onFilesChanged()
              }),
-             subtitle: L("Windows'taki gibi: sekmeler soldan, belli genişlikte; çoğalınca daralır")) {
-            note(L("Finder'ın sekme çubuğunda sekmeler tüm genişliğe yayılmaz; her biri en fazla 220 pt olur, çoğaldıkça daralır, sığmayınca yana kayar. Seçili sekmenin altında kırmızı çizgi, üstüne gelince kapatma düğmesi, sonunda + ile yeni sekme."))
+             subtitle: L("Missing'in kendi dosya penceresi: sekmeler, Quick Look, sürükle-bırak, dört tema")) {
+            HStack {
+                Button(L("Dosyalar penceresini aç")) { FilesManager.shared.open() }
+                    .buttonStyle(GlassButtonStyle())
+                    .disabled(!FilesSettings.enabled)
+                if DockPin.isPinned {
+                    Label(L("Dock'ta"), systemImage: "checkmark.circle.fill")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.white.opacity(0.6))
+                } else {
+                    Button(L("Dock'a ekle")) {
+                        DockPin.pin()
+                        model.objectWillChange.send()
+                    }
+                    .buttonStyle(GlassButtonStyle())
+                    .disabled(!FilesSettings.enabled)
+                }
+                Spacer()
+            }
+            HStack {
+                Text(L("Tema")).font(.system(size: 12))
+                Spacer()
+                Picker("", selection: model.bind({ FilesThemeStore.shared.theme }, { FilesThemeStore.shared.theme = $0 })) {
+                    ForEach(FilesTheme.allCases) { Text($0.title).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .frame(width: 300)
+            }
+            note(L("Pencere açıkken Missing Dock'ta klasör simgesiyle görünür. Dock'a ekle (ya da simgeye sağ tıklayıp Seçenekler › Dock'ta Tut) dersen, pencere kapalıyken de simgeye tıklayınca açılır. Arama kutusu önce bu klasörde, ardından ⌘Space aramasının indeksiyle bütün alt klasörlerde arar. Sekmeler ⌘T / ⌘W, Quick Look boşluk tuşu, yeniden adlandırma Return; son pencerenin sekmeleri bir dahaki açılışta geri gelir. Kenar çubuğundaki sık kullanılanlar Finder'la aynıdır: birinde ekleyip çıkardığın klasör ötekine de yansır."))
         }
         Card(title: L("Finder'da fare tuşları"), icon: "computermouse",
              isOn: model.bind({ FinderMouseNav.enabled }, { FinderMouseNav.enabled = $0 }),

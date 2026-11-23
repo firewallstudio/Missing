@@ -600,14 +600,15 @@ final class FileIndex: @unchecked Sendable {
 
     /// Kuyrukta çalışır. generation: daha yeni bir arama başladıysa erken bırak.
     func search(_ q: Query, isStale: () -> Bool) -> [FileResult] {
-        let n = count
-        guard n > 0 else { return [] }
+        guard count > 0 else { return [] }
         var scopeID: Int32 = -1
         if let s = q.scope {
             if let id = dirIndex[s] { scopeID = id }
             else { scopeID = addTemporaryRoot(s) }
             if scopeID < 0 { return [] }
         }
+        // Kapsam yeni taranmış olabilir: sayı ondan sonra alınmalı, yoksa yeni öğeler ilk aramada görünmez
+        let n = count
 
         // Boş arama + klasör: klasörün içeriği (Finder gibi)
         if q.tokens.isEmpty {

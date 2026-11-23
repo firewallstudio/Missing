@@ -64,7 +64,7 @@ enum Feature: String, CaseIterable, Identifiable {
                     ("grouped", { Profile.cmd.grouped }, { Profile.cmd.grouped = $0 }, false),
                     ("deepScan", { DeepScanScope.current != .off }, { DeepScanScope.current = $0 ? .browsers : .off }, true),
                     ("mouseNav", { FinderMouseNav.enabled }, { FinderMouseNav.enabled = $0 }, true),
-                    ("finderTabs", { FinderTabsSettings.enabled }, { FinderTabsSettings.enabled = $0 }, true),
+                    ("files", { FilesSettings.enabled }, { FilesSettings.enabled = $0 }, true),
                     ("dockDrag", { DockDragSettings.enabled }, { DockDragSettings.enabled = $0 }, true)]
         }
     }
@@ -95,7 +95,7 @@ enum Feature: String, CaseIterable, Identifiable {
         model.onFileSearchChanged()
         model.onDockDragChanged()
         model.onDeepScanChanged()
-        model.onFinderTabsChanged()
+        model.onFilesChanged()
         model.onEQChanged()
         model.refresh()
     }

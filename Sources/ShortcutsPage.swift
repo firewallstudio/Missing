@@ -578,7 +578,7 @@ struct AboutPage: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             HStack(spacing: 16) {
-                Image(nsImage: NSApp.applicationIconImage).resizable().frame(width: 72, height: 72)
+                Image(nsImage: Brand.appIcon).resizable().frame(width: 72, height: 72)
                 VStack(alignment: .leading, spacing: 3) {
                     Text("Missing").font(.system(size: 26, weight: .bold))
                     Text(L("Sürüm %@", version)).font(.system(size: 12)).foregroundStyle(.white.opacity(0.55))
