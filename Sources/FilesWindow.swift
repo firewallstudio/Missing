@@ -235,6 +235,8 @@ final class SearchToken: @unchecked Sendable {
     @Published var previewVisible = FilesSettings.previewVisible
     /// Arama kutusuna odaklan (her artışta)
     @Published var searchFocus = 0
+    /// Yol çubuğunu yazılabilir yap (her artışta, ⌘L)
+    @Published var pathEdit = 0
     /// Sekmelerin pencere içindeki yerleri (orta tıkla kapatmak için)
     var tabFrames: [UUID: CGRect] = [:]
 
@@ -551,6 +553,7 @@ private final class FilesNSWindow: NSWindow {
     }
 
     @objc func focusSearch(_ sender: Any?) { model.searchFocus += 1 }
+    @objc func editPath(_ sender: Any?) { model.pathEdit += 1 }
     @objc func showList(_ sender: Any?) { model.viewMode = .list }
     @objc func showGrid(_ sender: Any?) { model.viewMode = .grid }
 
@@ -1315,7 +1318,6 @@ private struct WindowsAddressRow: View {
             FilesToolButton(symbol: "arrow.clockwise", help: L("Yenile") + "  ⌘R") { controller.reload(nil) }
             HStack(spacing: 4) {
                 FilesPathBar(tab: tab, controller: controller)
-                Spacer(minLength: 0)
             }
             .padding(.horizontal, 6)
             .frame(height: 30)
@@ -1372,13 +1374,88 @@ private struct WindowsCommandBar: View {
 }
 
 /// Yol çubuğu: Disk › Kullanıcılar › ahmet › Belgeler; parçaya tıklayınca oraya gider
+/// Boş yere ya da son parçaya tıklayınca (veya ⌘L) Windows'taki gibi yazılabilir adrese döner; sağ tıkta Yolu kopyala.
 private struct FilesPathBar: View {
     @ObservedObject var tab: FilesTab
     let controller: FilesWindowController
     var maxParts = 4
+    @ObservedObject private var model: FilesWindowModel
     @Environment(\.filesPalette) private var p
+    @State private var editing = false
+    @State private var text = ""
+    @FocusState private var focused: Bool
+
+    init(tab: FilesTab, controller: FilesWindowController, maxParts: Int = 4) {
+        self.tab = tab
+        self.controller = controller
+        self.maxParts = maxParts
+        model = controller.model
+    }
 
     var body: some View {
+        Group {
+            if editing { editor } else { crumbs }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .onChange(of: model.pathEdit) { _ in beginEdit() }
+        .onChange(of: tab.url) { _ in editing = false }
+    }
+
+    private var editor: some View {
+        TextField("", text: $text)
+            .textFieldStyle(.plain)
+            .font(.system(size: 12))
+            .focused($focused)
+            .padding(.horizontal, 5)
+            .frame(height: 22)
+            .background(RoundedRectangle(cornerRadius: max(3, p.radius - 2), style: .continuous)
+                .fill(p.theme == .windows ? Color.clear : p.fg.opacity(0.08)))
+            .onSubmit(commit)
+            .onExitCommand { endEdit() }
+            .onChange(of: focused) { f in if !f { editing = false } }
+            .contextMenu { copyButton(tab.url) }
+    }
+
+    private func beginEdit() {
+        text = tab.url.path
+        editing = true
+        // Odaklanınca AppKit metnin tamamını seçer (Windows gibi: yazınca yerine geçer)
+        DispatchQueue.main.async { focused = true }
+    }
+
+    private func endEdit() {
+        editing = false
+        controller.browser.focus()
+    }
+
+    private func commit() {
+        let raw = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let path = (raw as NSString).expandingTildeInPath
+        var isDir: ObjCBool = false
+        guard !raw.isEmpty, FileManager.default.fileExists(atPath: path, isDirectory: &isDir) else {
+            NSSound.beep()
+            return
+        }
+        let url = URL(fileURLWithPath: path)
+        if isDir.boolValue && !NSWorkspace.shared.isFilePackage(atPath: path) {
+            controller.navigate(url)
+        } else {
+            // Dosya yazıldıysa klasörüne git ve onu seç
+            tab.pendingSelect = [url]
+            controller.navigate(url.deletingLastPathComponent())
+        }
+        endEdit()
+    }
+
+    private func copyButton(_ url: URL) -> some View {
+        Button(L("Yolu kopyala")) {
+            let pb = NSPasteboard.general
+            pb.clearContents()
+            pb.setString(url.path, forType: .string)
+        }
+    }
+
+    @ViewBuilder private var crumbs: some View {
         let parts = Self.components(tab.url)
         let shown = parts.count > maxParts ? Array(parts.suffix(maxParts)) : parts
         let hidden = parts.count > maxParts ? Array(parts.prefix(parts.count - maxParts)) : []
@@ -1398,7 +1475,7 @@ private struct FilesPathBar: View {
             }
             ForEach(Array(shown.enumerated()), id: \.element.url) { i, part in
                 let last = i == shown.count - 1
-                Button { controller.navigate(part.url) } label: {
+                Button { if last { beginEdit() } else { controller.navigate(part.url) } } label: {
                     HStack(spacing: 4) {
                         if i == 0 && hidden.isEmpty {
                             Image(nsImage: FileIcons.shared.icon(part.url)).resizable().frame(width: 14, height: 14)
@@ -1419,8 +1496,24 @@ private struct FilesPathBar: View {
                     loadFileURLs(providers) { urls in controller.drop(urls, into: dest) }
                     return true
                 }
+                .contextMenu {
+                    copyButton(part.url)
+                    Button(L("Yolu düzenle")) { beginEdit() }
+                    Divider()
+                    Button(L("Yeni sekmede aç")) { controller.navigate(part.url, newTab: true) }
+                }
                 if !last { chevron }
             }
+            // Boş yere tıklayınca adres yazılabilir olur
+            Color.clear
+                .frame(minWidth: 16, maxWidth: .infinity, minHeight: 22)
+                .contentShape(Rectangle())
+                .onTapGesture { beginEdit() }
+                .contextMenu {
+                    copyButton(tab.url)
+                    Button(L("Yolu düzenle")) { beginEdit() }
+                }
+                .help(L("Adresi yazmak için tıkla") + "  ⌘L")
         }
         .lineLimit(1)
     }

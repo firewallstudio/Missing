@@ -16,6 +16,12 @@ struct ChangelogEntry {
 
 enum Changelog {
     static let entries: [ChangelogEntry] = [
+        ChangelogEntry(version: "4.3.2", items: [
+            ("Dosyalar'da yol çubuğuna tıklayınca Windows'taki gibi yazılabilir adrese döner (⌘L); Enter ile oraya gider, dosya yazılırsa klasörüne gidip onu seçer",
+             "In Files, clicking the path bar turns it into a typeable address like in Windows (⌘L); Enter goes there, and a file path opens its folder with the file selected"),
+            ("Yol çubuğunda sağ tık: Yolu kopyala, Yolu düzenle, Yeni sekmede aç",
+             "Right-click the path bar: Copy Path, Edit Path, Open in New Tab"),
+        ]),
         ChangelogEntry(version: "4.3.1", items: [
             ("Finder öndeyken ⌘Space ile arama açılınca arkadaki Dosyalar penceresi de öne fırlıyordu; artık sadece arama açılır",
              "Opening ⌘Space search while Finder was in front also brought the Files window forward; now only the search opens"),

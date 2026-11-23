@@ -32,6 +32,15 @@ fi
 
 xattr -cr . 2>/dev/null || true
 
+# Command Line Tools 27.2'nin SDK'sındaki SwiftUI @State'i makro yaptı ama CLT makro eklentisini getirmiyor:
+# eklenti yoksa ve SDK elle seçilmediyse bir önceki SDK ile derle (Xcode'da bu sorun yok)
+DEV="$(xcode-select -p 2>/dev/null || true)"
+if [[ -z "${SDKROOT:-}" && "$DEV" == */CommandLineTools ]] && ! ls "$DEV"/usr/lib/swift/host/plugins/libSwiftUIMacros* >/dev/null 2>&1; then
+  for s in MacOSX26.5 MacOSX26 MacOSX15.5 MacOSX15; do
+    if [[ -d "$DEV/SDKs/$s.sdk" ]]; then export SDKROOT="$DEV/SDKs/$s.sdk"; echo "ℹ︎ SDK: $s"; break; fi
+  done
+fi
+
 BUILD="$(mktemp -d)"
 trap 'rm -rf "$BUILD"' EXIT
 

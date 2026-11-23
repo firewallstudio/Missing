@@ -786,6 +786,8 @@ private let englishStrings: [String: String] = [
     "Dosyalar": "Files",
     "Missing'in kendi dosya penceresi: sekmeler, Quick Look, sürükle-bırak, dört tema": "Missing's own file window: tabs, Quick Look, drag and drop, four themes",
     "Tema": "Theme",
+    "Yolu düzenle": "Edit Path",
+    "Adresi yazmak için tıkla": "Click to type a path",
     "Önizleme bölmesi": "Preview pane",
     "Önizleme": "Preview",
     "Önizlemek için bir dosya seç": "Select a file to preview",

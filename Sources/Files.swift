@@ -808,6 +808,7 @@ struct SidebarPlace: Identifiable, Hashable {
             item(L("Tümünü seç"), #selector(NSText.selectAll(_:)), "a"),
             .separator(),
             item(L("Bul"), #selector(FilesWindowController.focusSearch(_:)), "f"),
+            item(L("Yolu düzenle"), #selector(FilesWindowController.editPath(_:)), "l"),
         ])
 
         _ = submenu(L("Görünüm"), [

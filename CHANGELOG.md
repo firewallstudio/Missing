@@ -2,6 +2,11 @@
 
 Also shown in the app: **Settings › Versions**.
 
+## 4.3.2
+
+- In Files, clicking the path bar turns it into a typeable address like in Windows (⌘L); Enter goes there, and a file path opens its folder with the file selected
+- Right-click the path bar: Copy Path, Edit Path, Open in New Tab
+
 ## 4.3.1
 
 - Opening ⌘Space search while Finder was in front also brought the Files window forward; now only the search opens
