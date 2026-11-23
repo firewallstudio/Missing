@@ -14,6 +14,8 @@ import Quartz
     private(set) var mode: FilesViewMode = .list
     private(set) var items: [FileItem] = []
     private var bag = Set<AnyCancellable>()
+    private var zoomSub: AnyCancellable?
+    private var thumbBucket = FilesGridZoom.shared.thumbSize
     private var syncing = false
 
     private let listScroll = NSScrollView()
@@ -111,7 +113,7 @@ import Quartz
     private func setupGrid() {
         grid.owner = self
         let layout = NSCollectionViewFlowLayout()
-        layout.itemSize = NSSize(width: 108, height: 112)
+        layout.itemSize = FilesGridZoom.shared.itemSize
         layout.minimumInteritemSpacing = 6
         layout.minimumLineSpacing = 6
         layout.sectionInset = NSEdgeInsets(top: 12, left: 12, bottom: 12, right: 12)
@@ -128,6 +130,7 @@ import Quartz
         grid.setDraggingSourceOperationMask([.copy, .move, .generic], forLocal: true)
 
         gridScroll.documentView = grid
+        zoomSub = FilesGridZoom.shared.$size.dropFirst().sink { [weak self] v in self?.applyZoom(v) }
         gridScroll.hasVerticalScroller = true
         gridScroll.autohidesScrollers = true
         gridScroll.drawsBackground = false
@@ -404,6 +407,31 @@ import Quartz
         return performDrop(info, into: target)
     }
 
+    /// Simge boyutu değişince: hücre boyu, simge kutusu; eşik aşılırsa küçük resimler yeni boyda
+    private func applyZoom(_ v: Double) {
+        guard let layout = grid.collectionViewLayout as? NSCollectionViewFlowLayout else { return }
+        layout.itemSize = FilesGridZoom.itemSize(for: v)
+        for case let item as FilesGridItem in grid.visibleItems() { item.setIconSize(v) }
+        layout.invalidateLayout()
+        let bucket = FilesGridZoom.thumbSize(for: v)
+        guard bucket != thumbBucket else { return }
+        thumbBucket = bucket
+        for ip in grid.indexPathsForVisibleItems() {
+            guard items.indices.contains(ip.item), let cell = grid.item(at: ip) as? FilesGridItem else { continue }
+            let item = items[ip.item]
+            if let t = FileIcons.shared.thumbnail(item, size: bucket, ready: { [weak self] in self?.thumbReady(item.url) }) {
+                cell.configure(item, thumb: t)
+            }
+        }
+    }
+
+    private func thumbReady(_ url: URL) {
+        guard let i = items.firstIndex(where: { $0.url == url }) else { return }
+        if let cell = grid.item(at: IndexPath(item: i, section: 0)) as? FilesGridItem {
+            cell.configure(items[i], thumb: nil, refreshThumb: true)
+        }
+    }
+
     // MARK: Simgeler: veri
 
     func collectionView(_ cv: NSCollectionView, numberOfItemsInSection section: Int) -> Int { items.count }
@@ -412,10 +440,8 @@ import Quartz
         let v = cv.makeItem(withIdentifier: FilesGridItem.id, for: ip) as! FilesGridItem
         guard items.indices.contains(ip.item) else { return v }
         let item = items[ip.item]
-        v.configure(item, thumb: FileIcons.shared.thumbnail(item, size: 64) { [weak self] in
-            guard let self, let i = self.items.firstIndex(where: { $0.url == item.url }) else { return }
-            let path = IndexPath(item: i, section: 0)
-            if let cell = self.grid.item(at: path) as? FilesGridItem { cell.configure(self.items[i], thumb: nil, refreshThumb: true) }
+        v.configure(item, thumb: FileIcons.shared.thumbnail(item, size: FilesGridZoom.shared.thumbSize) { [weak self] in
+            self?.thumbReady(item.url)
         })
         return v
     }
@@ -848,6 +874,12 @@ final class FilesRowView: NSTableRowView {
 final class FilesCollectionView: NSCollectionView {
     weak var owner: FilesBrowser?
 
+    /// İzleme dörtgeninde kıstırma: simgeleri büyüt / küçült
+    override func magnify(with event: NSEvent) {
+        let z = FilesGridZoom.shared
+        z.size = z.size * (1 + Double(event.magnification))
+    }
+
     override func mouseDown(with event: NSEvent) {
         window?.makeFirstResponder(self)
         super.mouseDown(with: event)
@@ -883,6 +915,8 @@ final class FilesGridItem: NSCollectionViewItem {
     private let label = NSTextField(wrappingLabelWithString: "")
     private let back = NSView()
     private var url: URL?
+    private var iconW: NSLayoutConstraint!
+    private var iconH: NSLayoutConstraint!
 
     override func loadView() {
         let v = NSView()
@@ -902,6 +936,9 @@ final class FilesGridItem: NSCollectionViewItem {
         v.addSubview(back)
         v.addSubview(iconView)
         v.addSubview(label)
+        let size = CGFloat(FilesGridZoom.shared.size)
+        iconW = iconView.widthAnchor.constraint(equalToConstant: size)
+        iconH = iconView.heightAnchor.constraint(equalToConstant: size)
         NSLayoutConstraint.activate([
             back.leadingAnchor.constraint(equalTo: v.leadingAnchor),
             back.trailingAnchor.constraint(equalTo: v.trailingAnchor),
@@ -909,8 +946,7 @@ final class FilesGridItem: NSCollectionViewItem {
             back.bottomAnchor.constraint(equalTo: v.bottomAnchor),
             iconView.topAnchor.constraint(equalTo: v.topAnchor, constant: 8),
             iconView.centerXAnchor.constraint(equalTo: v.centerXAnchor),
-            iconView.widthAnchor.constraint(equalToConstant: 64),
-            iconView.heightAnchor.constraint(equalToConstant: 64),
+            iconW, iconH,
             label.topAnchor.constraint(equalTo: iconView.bottomAnchor, constant: 4),
             label.leadingAnchor.constraint(equalTo: v.leadingAnchor, constant: 4),
             label.trailingAnchor.constraint(equalTo: v.trailingAnchor, constant: -4),
@@ -923,7 +959,7 @@ final class FilesGridItem: NSCollectionViewItem {
         label.stringValue = item.name
         view.alphaValue = item.isHidden ? 0.5 : 1
         if refreshThumb {
-            iconView.image = FileIcons.shared.thumbnail(item, size: 64) {} ?? FileIcons.shared.icon(item.url)
+            iconView.image = FileIcons.shared.thumbnail(item, size: FilesGridZoom.shared.thumbSize) {} ?? FileIcons.shared.icon(item.url)
         } else {
             iconView.image = thumb ?? FileIcons.shared.icon(item.url)
         }
@@ -935,14 +971,25 @@ final class FilesGridItem: NSCollectionViewItem {
 
     func refreshLook() { updateLook() }
 
+    func setIconSize(_ v: Double) {
+        guard isViewLoaded else { return }
+        iconW.constant = CGFloat(v)
+        iconH.constant = CGFloat(v)
+    }
+
+    override func prepareForReuse() {
+        super.prepareForReuse()
+        setIconSize(FilesGridZoom.shared.size)
+    }
+
     private func updateLook() {
         let p = FilesPalette.current(for: view.effectiveAppearance)
         let dropping = highlightState == .forSelection && !isSelected
         let on = isSelected || dropping
         back.layer?.cornerRadius = p.rowRadius + 3
         back.layer?.backgroundColor = on ? p.gridBack.cgColor : NSColor.clear.cgColor
-        back.layer?.borderWidth = on && p.theme == .glass ? 1 : 0
-        back.layer?.borderColor = NSColor.white.withAlphaComponent(0.3).cgColor
+        back.layer?.borderWidth = on && p.gridStroke != nil ? 1 : 0
+        back.layer?.borderColor = p.gridStroke?.cgColor
         let labelBack = on ? p.gridLabelBack : nil
         label.layer?.backgroundColor = labelBack?.cgColor ?? NSColor.clear.cgColor
         label.textColor = labelBack != nil ? .white : p.nsFG.withAlphaComponent(0.9)

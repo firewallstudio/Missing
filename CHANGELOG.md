@@ -2,6 +2,13 @@
 
 Also shown in the app: **Settings › Versions**.
 
+## 4.3.5
+
+- Icon size slider at the bottom right of Files' icon view (like Finder); pinch on the trackpad to zoom too
+- In the Missing theme a selected icon gets a light red box around it instead of a red name
+- Files Settings now uses Missing's dark glass design
+- The menu bar panel now closes when you click a Missing window such as Files, or switch Spaces
+
 ## 4.3.4
 
 - Column view in Files like Finder's (⌘3): a selected folder opens in a new column to the right, arrow keys move between columns

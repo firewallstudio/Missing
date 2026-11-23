@@ -807,7 +807,7 @@ struct FilesRootView: View {
                 VStack(spacing: 0) {
                     content.background(Color.black.opacity(0.18))
                     Rectangle().fill(p.divider).frame(height: 1)
-                    FilesStatusBar(tab: tab, activity: FilesActivity.shared).frame(height: 26)
+                    FilesStatusBar(tab: tab, activity: FilesActivity.shared, mode: model.viewMode).frame(height: 26)
                 }
             }
         }
@@ -826,7 +826,7 @@ struct FilesRootView: View {
                 VStack(spacing: 0) {
                     content
                     Rectangle().fill(p.divider).frame(height: 1)
-                    FilesStatusBar(tab: tab, activity: FilesActivity.shared).frame(height: 26)
+                    FilesStatusBar(tab: tab, activity: FilesActivity.shared, mode: model.viewMode).frame(height: 26)
                 }
                 .modifier(GlassCard())
             }
@@ -863,7 +863,7 @@ struct FilesRootView: View {
                 }
                 content.background(p.finderContent)
                 Rectangle().fill(p.divider).frame(height: 1)
-                FilesStatusBar(tab: tab, activity: FilesActivity.shared, controller: controller)
+                FilesStatusBar(tab: tab, activity: FilesActivity.shared, mode: model.viewMode, controller: controller)
                     .frame(height: 26)
                     .background(p.finderChrome)
             }
@@ -891,7 +891,7 @@ struct FilesRootView: View {
                 VStack(spacing: 0) {
                     content
                     Rectangle().fill(p.divider).frame(height: 1)
-                    FilesStatusBar(tab: tab, activity: FilesActivity.shared).frame(height: 24)
+                    FilesStatusBar(tab: tab, activity: FilesActivity.shared, mode: model.viewMode).frame(height: 24)
                 }
             }
             .background(p.winContent)
@@ -1779,8 +1779,10 @@ private struct SidebarRow: View {
 private struct FilesStatusBar: View {
     @ObservedObject var tab: FilesTab
     @ObservedObject var activity: FilesActivity
+    var mode: FilesViewMode = .list
     /// Verilirse (Finder teması) solda yol çubuğu gösterilir
     var controller: FilesWindowController? = nil
+    @ObservedObject private var zoom = FilesGridZoom.shared
     @Environment(\.filesPalette) private var p
 
     var body: some View {
@@ -1809,10 +1811,25 @@ private struct FilesStatusBar: View {
                 Text(L("%@ boş", FilesFormat.size(free)))
             }
             if controller == nil { Spacer() }
+            if mode == .grid { zoomSlider }
         }
         .font(.system(size: 11))
         .foregroundStyle(p.fg.opacity(0.5))
         .padding(.horizontal, 12)
+    }
+
+    /// Simge görünümünde sağ altta simge boyutu (Finder gibi)
+    private var zoomSlider: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "square.grid.3x3.fill").font(.system(size: 8))
+                .onTapGesture { zoom.size = max(FilesGridZoom.range.lowerBound, zoom.size - 16) }
+            FilesZoomSlider(value: $zoom.size, range: FilesGridZoom.range, tint: p.accent, track: p.fg.opacity(0.18))
+                .frame(width: 96, height: 14)
+            Image(systemName: "square.grid.2x2.fill").font(.system(size: 11))
+                .onTapGesture { zoom.size = min(FilesGridZoom.range.upperBound, zoom.size + 16) }
+        }
+        .padding(.leading, 8)
+        .help(L("Simge boyutu"))
     }
 
     private var countText: String {
@@ -1820,6 +1837,37 @@ private struct FilesStatusBar: View {
         let s = tab.selection.count
         let base = tab.filter.isEmpty ? L("%d öğe", n) : (tab.deepSearch ? L("%d sonuç", n) : L("%d / %d öğe", n, tab.totalCount))
         return s > 0 ? L("%d seçili", s) + " · " + base : base
+    }
+}
+
+/// Simge boyutu kaydırıcısı. SwiftUI Slider düzen değişince değeri kendi adımına yuvarlayıp
+/// geri yazabiliyor; bu yalnızca sürüklenince yazar.
+struct FilesZoomSlider: View {
+    @Binding var value: Double
+    let range: ClosedRange<Double>
+    var tint: Color
+    var track: Color
+    var knob: CGFloat = 12
+
+    var body: some View {
+        GeometryReader { g in
+            let w = max(1, g.size.width - knob)
+            let f = (value - range.lowerBound) / (range.upperBound - range.lowerBound)
+            ZStack(alignment: .leading) {
+                Capsule().fill(track).frame(height: 3)
+                Capsule().fill(tint).frame(width: knob / 2 + w * f, height: 3)
+                Circle().fill(.white)
+                    .shadow(color: .black.opacity(0.3), radius: 1.5, y: 0.5)
+                    .frame(width: knob, height: knob)
+                    .offset(x: w * f)
+            }
+            .frame(maxHeight: .infinity)
+            .contentShape(Rectangle())
+            .gesture(DragGesture(minimumDistance: 0).onChanged { d in
+                let t = min(max((d.location.x - knob / 2) / w, 0), 1)
+                value = range.lowerBound + t * (range.upperBound - range.lowerBound)
+            })
+        }
     }
 }
 

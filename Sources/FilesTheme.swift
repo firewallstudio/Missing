@@ -158,14 +158,24 @@ struct FilesPalette {
         switch theme {
         case .windows: return nsAccent.withAlphaComponent(dark ? 0.24 : 0.16)
         case .glass: return NSColor.white.withAlphaComponent(0.18)
+        // Missing: adın değil simgenin çevresi açık kırmızı
+        case .missing: return Brand.nsRed.withAlphaComponent(0.30)
         default: return nsFG.withAlphaComponent(dark ? 0.14 : 0.08)
+        }
+    }
+
+    /// Simge görünümünde seçili kutunun ince kenarı
+    var gridStroke: NSColor? {
+        switch theme {
+        case .glass: return NSColor.white.withAlphaComponent(0.3)
+        case .missing: return Brand.nsRed.withAlphaComponent(0.55)
+        default: return nil
         }
     }
 
     /// Simge görünümünde seçili adın arkası; nil ise boyanmaz
     var gridLabelBack: NSColor? {
         switch theme {
-        case .missing: return Brand.nsRed.withAlphaComponent(0.9)
         case .finder: return .controlAccentColor
         default: return nil
         }

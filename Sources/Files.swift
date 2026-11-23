@@ -9,6 +9,35 @@ import QuickLookThumbnailing
 // Quick Look, sürükle-bırak ve geri alınabilir dosya işlemleri. Pencere açıkken Missing Dock'ta görünür;
 // Dock'ta tutulursa simgeye tıklamak pencereyi açar. Son pencere kapanınca Missing yine menü çubuğuna çekilir.
 
+/// Simge görünümünde simge boyutu (Finder'daki sağ alt kaydırıcı gibi); bütün pencereler ortak
+@MainActor final class FilesGridZoom: ObservableObject {
+    static let shared = FilesGridZoom()
+    static let range: ClosedRange<Double> = 32...256
+
+    @Published var size: Double {
+        didSet {
+            let c = min(max(size, Self.range.lowerBound), Self.range.upperBound)
+            if c != size { size = c; return }
+            UserDefaults.standard.set(size, forKey: "files.gridIconSize")
+        }
+    }
+
+    private init() {
+        let v = UserDefaults.standard.double(forKey: "files.gridIconSize")
+        size = v == 0 ? 64 : min(max(v, Self.range.lowerBound), Self.range.upperBound)
+    }
+
+    var itemSize: NSSize { Self.itemSize(for: size) }
+    var thumbSize: CGFloat { Self.thumbSize(for: size) }
+
+    static func itemSize(for v: Double) -> NSSize {
+        NSSize(width: max(100, v + 44), height: v + 50)
+    }
+
+    /// Küçük resimler kademeli üretilir; kaydırırken her adımda yeniden üretilmesin
+    static func thumbSize(for v: Double) -> CGFloat { v <= 64 ? 64 : (v <= 128 ? 128 : 256) }
+}
+
 enum FilesSettings {
     private static let d = UserDefaults.standard
 

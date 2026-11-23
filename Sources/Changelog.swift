@@ -16,6 +16,16 @@ struct ChangelogEntry {
 
 enum Changelog {
     static let entries: [ChangelogEntry] = [
+        ChangelogEntry(version: "4.3.5", items: [
+            ("Dosyalar'da simge görünümünde sağ altta simge boyutu kaydırıcısı (Finder gibi); izleme dörtgeninde kıstırarak da büyür / küçülür",
+             "Icon size slider at the bottom right of Files' icon view (like Finder); pinch on the trackpad to zoom too"),
+            ("Missing temasında seçili simgenin etrafı açık kırmızı kutu olur, ad kırmızıya boyanmaz",
+             "In the Missing theme a selected icon gets a light red box around it instead of a red name"),
+            ("Dosyalar Ayarları Missing'in koyu cam tasarımına uyarlandı",
+             "Files Settings now uses Missing's dark glass design"),
+            ("Menü çubuğu paneli Dosyalar gibi Missing pencerelerine tıklayınca ya da masaüstü değişince kapanır",
+             "The menu bar panel now closes when you click a Missing window such as Files, or switch Spaces"),
+        ]),
         ChangelogEntry(version: "4.3.4", items: [
             ("Dosyalar'da Finder'daki gibi Sütunlar görünümü (⌘3): seçilen klasörün içi sağında açılır, ok tuşlarıyla sütunlar arasında gezilir",
              "Column view in Files like Finder's (⌘3): a selected folder opens in a new column to the right, arrow keys move between columns"),

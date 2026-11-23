@@ -747,6 +747,7 @@ private let englishStrings: [String: String] = [
     "Öğeyi buraya taşı": "Move item here",
     "Bul": "Find",
     "Simgeler": "Icons",
+    "Simge boyutu": "Icon size",
     "Gizli dosyaları göster": "Show hidden files",
     "Üst klasör": "Enclosing folder",
     "Seçileni aç": "Open selection",

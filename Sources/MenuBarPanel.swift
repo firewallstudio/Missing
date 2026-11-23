@@ -32,6 +32,9 @@ private final class MenuPanelWindow: NSPanel {
     private var panel: NSPanel?
     private var clickMonitor: Any?
     private var keyMonitor: Any?
+    /// Kendi pencerelerimizdeki (Dosyalar, Ayarlar) tıklamalar global monitöre düşmez; onları yerelde yakala
+    private var localClickMonitor: Any?
+    private var spaceObserver: NSObjectProtocol?
     var onVisibilityChanged: (Bool) -> Void = { _ in }
 
     var isVisible: Bool { panel?.isVisible == true }
@@ -105,6 +108,19 @@ private final class MenuPanelWindow: NSPanel {
         clickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
             MainActor.assumeIsolated { self?.close() }
         }
+        localClickMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]) { [weak self] e in
+            guard let self, let p = self.panel else { return e }
+            // Panelin kendisine ve menü çubuğu simgesine tıklama kapatmaz (simge zaten aç/kapa yapar)
+            if e.window === p || e.window?.className.contains("StatusBar") == true { return e }
+            // Panelin açtığı menü / açılır pencereler de kapatmasın
+            if let w = e.window, w.parent === p || w.level.rawValue >= NSWindow.Level.popUpMenu.rawValue { return e }
+            self.close()
+            return e
+        }
+        spaceObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.activeSpaceDidChangeNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.close() }
+        }
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] e in
             guard let self, self.panel?.isKeyWindow == true else { return e }
             if e.keyCode == 53 { self.close(); return nil }   // Esc
@@ -115,8 +131,12 @@ private final class MenuPanelWindow: NSPanel {
     private func removeMonitors() {
         if let m = clickMonitor { NSEvent.removeMonitor(m) }
         if let m = keyMonitor { NSEvent.removeMonitor(m) }
+        if let m = localClickMonitor { NSEvent.removeMonitor(m) }
+        if let o = spaceObserver { NSWorkspace.shared.notificationCenter.removeObserver(o) }
         clickMonitor = nil
         keyMonitor = nil
+        localClickMonitor = nil
+        spaceObserver = nil
     }
 }
 
