@@ -16,6 +16,12 @@ struct ChangelogEntry {
 
 enum Changelog {
     static let entries: [ChangelogEntry] = [
+        ChangelogEntry(version: "4.3.1", items: [
+            ("Finder öndeyken ⌘Space ile arama açılınca arkadaki Dosyalar penceresi de öne fırlıyordu; artık sadece arama açılır",
+             "Opening ⌘Space search while Finder was in front also brought the Files window forward; now only the search opens"),
+            ("Dosyalar'ın Dock simgesi yenilendi: Finder gibi mavi gradyanlı zemin, ortasında Missing yaprağı",
+             "New Dock icon for Files: a blue gradient like Finder's, with the Missing leaf in the middle"),
+        ]),
         ChangelogEntry(version: "4.3.0", items: [
             ("Yeni: Dosyalar. Finder'a bağlı olmayan, Missing'in kendi dosya penceresi; eski Finder sekmeleri şeridinin yerini alıyor",
              "New: Files. Missing's own file window that doesn't depend on Finder; it replaces the old Finder tabs strip"),

@@ -158,7 +158,12 @@ enum Screens {
     static func grab(_ panel: NSPanel) {
         let front = NSWorkspace.shared.frontmostApplication
         if front?.processIdentifier != getpid() { previous = front }
-        NSApp.activate(ignoringOtherApps: true)
+        // Uygulamayı öne almak bütün pencerelerini de öne getirir: Dosyalar penceresi açıksa
+        // (⌘Space ile Finder'da ararken o da fırlamasın) öne çıkmayan panel kendi başına anahtar olsun
+        let ownWindowsOpen = FilesManager.shared.hasWindows && front?.processIdentifier != getpid()
+        if !(ownWindowsOpen && panel.styleMask.contains(.nonactivatingPanel)) {
+            NSApp.activate(ignoringOtherApps: true)
+        }
         panel.makeKeyAndOrderFront(nil)
     }
 

@@ -2,6 +2,11 @@
 
 Also shown in the app: **Settings › Versions**.
 
+## 4.3.1
+
+- Opening ⌘Space search while Finder was in front also brought the Files window forward; now only the search opens
+- New Dock icon for Files: a blue gradient like Finder's, with the Missing leaf in the middle
+
 ## 4.3.0
 
 - New: Files. Missing's own file window that doesn't depend on Finder; it replaces the old Finder tabs strip

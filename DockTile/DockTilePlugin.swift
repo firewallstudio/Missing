@@ -1,6 +1,6 @@
 import AppKit
 
-// Missing Dock'ta tutulduğunda (pencere kapalıyken) simgesi yaprak değil dosya klasörü görünsün.
+// Missing Dock'ta tutulduğunda (pencere kapalıyken) simgesi Finder gibi görünsün, ortasında Missing.
 // Dock bu eklentiyi Missing.app/Contents/PlugIns/ içinden yükler.
 
 @objc(MissingDockTilePlugIn)
