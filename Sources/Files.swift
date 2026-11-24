@@ -107,10 +107,12 @@ struct FileItem: Hashable {
     let kind: String
     /// Klasöre işaret eden takma ad / sembolik bağ
     let isLinkToFolder: Bool
+    /// Finder etiketleri (renkler)
+    let tags: [String]
 
     static let keys: [URLResourceKey] = [.localizedNameKey, .isDirectoryKey, .isPackageKey, .isHiddenKey,
                                          .fileSizeKey, .contentModificationDateKey, .localizedTypeDescriptionKey,
-                                         .isSymbolicLinkKey, .isAliasFileKey, .isApplicationKey]
+                                         .isSymbolicLinkKey, .isAliasFileKey, .isApplicationKey, .tagNamesKey]
 
     init?(url: URL) {
         guard let v = try? url.resourceValues(forKeys: Set(Self.keys)) else { return nil }
@@ -124,6 +126,7 @@ struct FileItem: Hashable {
         size = isFolder ? nil : (v.fileSize.map { Int64($0) })
         modified = v.contentModificationDate
         kind = v.localizedTypeDescription ?? ""
+        tags = v.tagNames ?? []
         if (v.isSymbolicLink ?? false) || (v.isAliasFile ?? false), !dir,
            let target = try? URL(resolvingAliasFileAt: url, options: [.withoutUI, .withoutMounting]),
            (try? target.resourceValues(forKeys: [.isDirectoryKey, .isPackageKey])).map({ ($0.isDirectory ?? false) && !($0.isPackage ?? false) }) == true {
@@ -224,9 +227,27 @@ final class DirectoryWatcher {
 
     func icon(_ url: URL) -> NSImage {
         if let i = icons.object(forKey: url as NSURL) { return i }
-        let i = NSWorkspace.shared.icon(forFile: url.path)
+        var i = NSWorkspace.shared.icon(forFile: url.path)
+        // Renk etiketli klasör, macOS Tahoe Finder'ındaki gibi o renge boyanır
+        if let v = try? url.resourceValues(forKeys: [.isDirectoryKey, .isPackageKey, .tagNamesKey]),
+           v.isDirectory == true, v.isPackage != true,
+           let color = FinderTags.folderColor(v.tagNames ?? []) {
+            i = Self.tintedFolder(i, color)
+        }
         icons.setObject(i, forKey: url as NSURL)
         return i
+    }
+
+    /// Klasör simgesini gölgelerini koruyarak bir renge boyar
+    static func tintedFolder(_ base: NSImage, _ color: NSColor) -> NSImage {
+        NSImage(size: base.size, flipped: false) { r in
+            base.draw(in: r)
+            NSColor.gray.set(); r.fill(using: .saturation)                // renksizleştir
+            NSColor(white: 1, alpha: 0.35).set(); r.fill(using: .plusLighter)  // aç
+            color.set(); r.fill(using: .multiply)                         // boya
+            base.draw(in: r, from: .zero, operation: .destinationIn, fraction: 1)
+            return true
+        }
     }
 
     /// Simge görünümü için küçük önizleme; hazır değilse nil döner ve hazır olunca `ready` çağrılır
@@ -344,7 +365,8 @@ final class DirectoryWatcher {
             return true
         }
         guard !sources.isEmpty else { done?([]); return }
-        if mode == .move {
+        // Aynı diskte taşıma anında biter; başka diske taşıma kopyala + sil olarak ilerlemeyle yapılır
+        if mode == .move, sources.allSatisfy({ sameVolume($0, dir) }) {
             var moved: [(from: URL, to: URL)] = []
             for u in sources {
                 let dest = unique(u.lastPathComponent, in: dir, isDirectory: u.hasDirectoryPath)
@@ -354,7 +376,7 @@ final class DirectoryWatcher {
             done?(moved.map(\.to))
             return
         }
-        // Kopyalama: hedef adları şimdi ayır, işi arka planda yap
+        // Hedef adları şimdi ayır, işi arka planda yap
         var pairs: [(URL, URL)] = []
         var reserved = Set<String>()
         for u in sources {
@@ -369,21 +391,60 @@ final class DirectoryWatcher {
             reserved.insert(dest.path)
             pairs.append((u, dest))
         }
-        FilesActivity.shared.begin()
+        let title = sources.count == 1 ? sources[0].lastPathComponent : L("%d öğe", sources.count)
+        let job = CopyJob(title: title, destination: dir)
+        let isMove = mode == .move
+        FilesActivity.shared.add(job)
+        let counter = job.counter
         DispatchQueue.global(qos: .userInitiated).async {
-            var copied: [URL] = []
-            var failure: Error?
-            for (s, d) in pairs {
-                do { try FileManager.default.copyItem(at: s, to: d); copied.append(d) } catch { failure = error; break }
+            // Önce toplam boyut (ilerleme çubuğu için)
+            var sizes: [Int64] = []
+            var files = 0
+            for (s, _) in pairs {
+                let m = FileCopier.measure(s)
+                sizes.append(m.bytes)
+                files += m.files
             }
+            let total = sizes.reduce(0, +)
             DispatchQueue.main.async {
-                FilesActivity.shared.end()
-                if let failure { report(failure, in: window) }
+                job.total = total
+                job.itemsTotal = files
+                job.measuring = false
+            }
+            // Ekranı ~10 kez/sn tazele
+            let timer = DispatchSource.makeTimerSource(queue: .main)
+            timer.schedule(deadline: .now(), repeating: 0.1)
+            timer.setEventHandler { MainActor.assumeIsolated { job.done = counter.done } }
+            timer.resume()
+            var copied: [URL] = []
+            var moved: [(from: URL, to: URL)] = []
+            var failure: Error?
+            for (i, (s, d)) in pairs.enumerated() {
+                do {
+                    try FileCopier.copy(s, to: d, counter: counter)
+                    counter.itemFinished(sizes[i])
+                    if isMove {
+                        try FileManager.default.removeItem(at: s)
+                        moved.append((s, d))
+                    } else {
+                        copied.append(d)
+                    }
+                    DispatchQueue.main.async { job.itemsDone += 1 }
+                } catch {
+                    failure = error
+                    break
+                }
+            }
+            timer.cancel()
+            DispatchQueue.main.async {
+                FilesActivity.shared.remove(job)
+                if let failure, (failure as? CocoaError)?.code != .userCancelled { report(failure, in: window) }
                 if !copied.isEmpty {
                     undo?.registerUndo(withTarget: UndoTarget.shared) { _ in MainActor.assumeIsolated { trashSilently(copied, undo: undo, window: window) } }
                     undo?.setActionName(L("Kopyala"))
                 }
-                done?(copied)
+                if !moved.isEmpty { registerMoveUndo(moved, undo: undo, window: window) }
+                done?(copied + moved.map(\.to))
             }
         }
     }
@@ -410,14 +471,16 @@ final class DirectoryWatcher {
         transfer(urls, to: dir, mode: .copy, undo: undo, window: window, done: done)
     }
 
-    static func newFolder(in dir: URL, undo: UndoManager?, window: NSWindow?) -> URL? {
-        let dest = unique(L("adsız klasör"), in: dir, isDirectory: true)
+    static func newFolder(in dir: URL, name: String? = nil, color: Int? = nil, undo: UndoManager?, window: NSWindow?) -> URL? {
+        let clean = (name ?? "").trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: "/", with: ":")
+        let dest = unique(clean.isEmpty ? L("adsız klasör") : clean, in: dir, isDirectory: true)
         do {
             try fm.createDirectory(at: dest, withIntermediateDirectories: false)
         } catch {
             report(error, in: window)
             return nil
         }
+        if let color { FinderTags.setOnlyColor(color, on: dest) }
         undo?.registerUndo(withTarget: UndoTarget.shared) { _ in MainActor.assumeIsolated { trashSilently([dest], undo: undo, window: window) } }
         undo?.setActionName(L("Yeni klasör"))
         return dest
@@ -457,9 +520,111 @@ final class UndoTarget { static let shared = UndoTarget() }
 /// Arka plandaki kopyalamalar sürerken durum çubuğunda gösterilir
 @MainActor final class FilesActivity: ObservableObject {
     static let shared = FilesActivity()
-    @Published private(set) var copying = 0
-    func begin() { copying += 1 }
-    func end() { copying = max(0, copying - 1) }
+    @Published private(set) var jobs: [CopyJob] = []
+    var copying: Int { jobs.count }
+
+    func add(_ j: CopyJob) { jobs.append(j) }
+    func remove(_ j: CopyJob) { jobs.removeAll { $0 === j } }
+
+    /// Bütün işlerin toplamı (durum çubuğu için)
+    var totalBytes: Int64 { jobs.reduce(0) { $0 + $1.total } }
+    var doneBytes: Int64 { jobs.reduce(0) { $0 + $1.done } }
+}
+
+/// Süren bir kopyalama: kaç bayt gitti, kaç kaldı, tahmini süre
+@MainActor final class CopyJob: ObservableObject, Identifiable {
+    let id = UUID()
+    let title: String
+    let destination: URL
+    let started = Date()
+    @Published var total: Int64 = 0
+    @Published var done: Int64 = 0
+    @Published var itemsTotal = 0
+    @Published var itemsDone = 0
+    /// Toplam boyut hesaplanırken true
+    @Published var measuring = true
+    let counter = CopyCounter()
+
+    init(title: String, destination: URL) {
+        self.title = title
+        self.destination = destination
+    }
+
+    var fraction: Double { total > 0 ? min(1, Double(done) / Double(total)) : 0 }
+
+    /// Kalan süre (saniye); yeterli veri yoksa nil
+    var remaining: TimeInterval? {
+        let t = Date().timeIntervalSince(started)
+        guard t > 1, done > 0, total > done else { return nil }
+        return Double(total - done) / (Double(done) / t)
+    }
+
+    func cancel() { counter.cancel() }
+}
+
+/// Arka plandaki kopyalamanın sayaçları (kilitli; copyfile geri çağrısından yazılır)
+final class CopyCounter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var base: Int64 = 0      // biten üst öğelerin toplamı
+    private var inItem: Int64 = 0    // üzerindeki öğede biten dosyalar
+    private var current: Int64 = 0   // şu an kopyalanan dosyada giden
+    private var cancelled = false
+
+    var isCancelled: Bool { lock.lock(); defer { lock.unlock() }; return cancelled }
+    func cancel() { lock.lock(); cancelled = true; lock.unlock() }
+    var done: Int64 { lock.lock(); defer { lock.unlock() }; return base + inItem + current }
+    func progress(_ bytes: Int64) { lock.lock(); current = bytes; lock.unlock() }
+    func fileFinished(_ size: Int64) { lock.lock(); inItem += size; current = 0; lock.unlock() }
+    func itemFinished(_ size: Int64) { lock.lock(); base += size; inItem = 0; current = 0; lock.unlock() }
+}
+
+/// copyfile ilerleme geri çağrısı: bağlam CopyCounter
+private let copyProgressCallback: copyfile_callback_t = { what, stage, state, src, _, ctx in
+    guard let ctx else { return COPYFILE_CONTINUE }
+    let c = Unmanaged<CopyCounter>.fromOpaque(ctx).takeUnretainedValue()
+    if c.isCancelled { return COPYFILE_QUIT }
+    if what == COPYFILE_COPY_DATA, stage == COPYFILE_PROGRESS, let state {
+        var copied: off_t = 0
+        if copyfile_state_get(state, UInt32(COPYFILE_STATE_COPIED), &copied) == 0 { c.progress(Int64(copied)) }
+    } else if what == COPYFILE_RECURSE_FILE, stage == COPYFILE_FINISH, let src {
+        var st = stat()
+        if lstat(src, &st) == 0 { c.fileFinished(Int64(st.st_size)) }
+    }
+    return COPYFILE_CONTINUE
+}
+
+enum FileCopier {
+    /// Bir dosya / klasörün toplam bayt ve dosya sayısı
+    static func measure(_ url: URL) -> (bytes: Int64, files: Int) {
+        let keys: [URLResourceKey] = [.isRegularFileKey, .fileSizeKey]
+        guard let v = try? url.resourceValues(forKeys: [.isDirectoryKey, .fileSizeKey]) else { return (0, 0) }
+        guard v.isDirectory == true else { return (Int64(v.fileSize ?? 0), 1) }
+        var bytes: Int64 = 0, files = 0
+        let e = FileManager.default.enumerator(at: url, includingPropertiesForKeys: keys, options: [], errorHandler: { _, _ in true })
+        while let u = e?.nextObject() as? URL {
+            guard let r = try? u.resourceValues(forKeys: Set(keys)), r.isRegularFile == true else { continue }
+            bytes += Int64(r.fileSize ?? 0)
+            files += 1
+        }
+        return (bytes, files)
+    }
+
+    /// Bir öğeyi kopyalar (klasörse içiyle); iptal ya da hatada yarım hedef silinir
+    static func copy(_ src: URL, to dst: URL, counter: CopyCounter) throws {
+        let state = copyfile_state_alloc()
+        defer { copyfile_state_free(state) }
+        let ctx = Unmanaged.passUnretained(counter).toOpaque()
+        copyfile_state_set(state, UInt32(COPYFILE_STATE_STATUS_CB), unsafeBitCast(copyProgressCallback, to: UnsafeRawPointer.self))
+        copyfile_state_set(state, UInt32(COPYFILE_STATE_STATUS_CTX), ctx)
+        // COPYFILE_ALL (ACL | STAT | XATTR | DATA) + klasörler için RECURSIVE, bağlar izlenmez
+        let flags = copyfile_flags_t(COPYFILE_ACL | COPYFILE_STAT | COPYFILE_XATTR | COPYFILE_DATA | COPYFILE_RECURSIVE | COPYFILE_NOFOLLOW_SRC)
+        if copyfile(src.path, dst.path, state, flags) != 0 {
+            let code = errno
+            try? FileManager.default.removeItem(at: dst)
+            if counter.isCancelled { throw CocoaError(.userCancelled) }
+            throw NSError(domain: NSPOSIXErrorDomain, code: Int(code), userInfo: [NSFilePathErrorKey: src.path])
+        }
+    }
 }
 
 // MARK: - Kenar çubuğu konumları
@@ -501,6 +666,62 @@ enum FinderTags {
         if let i = labels.firstIndex(where: { $0.caseInsensitiveCompare(name) == .orderedSame }), i > 0 { return i }
         if let i = englishLabels.firstIndex(where: { $0.caseInsensitiveCompare(name) == .orderedSame }), i > 0 { return i }
         return nil
+    }
+
+    /// Finder'ın sağ tık menüsündeki sıra: kırmızı, turuncu, sarı, yeşil, mavi, mor, gri
+    static let menuOrder = [6, 7, 5, 2, 4, 3, 1]
+
+    /// Bir renk için kullanılacak etiket adı (kullanıcının o renkteki etiketi, yoksa sistemin renk adı)
+    static func name(forColor i: Int) -> String {
+        if let t = favorites().first(where: { $0.colorIndex == i }) { return t.name }
+        let labels = NSWorkspace.shared.fileLabels
+        return labels.indices.contains(i) ? labels[i] : englishLabels[i]
+    }
+
+    /// Renk sırasının canlı sistem rengi (Finder'ın soluk etiket renkleri yerine)
+    static func nsColor(_ i: Int) -> NSColor {
+        switch i {
+        case 2: return .systemGreen
+        case 3: return .systemPurple
+        case 4: return .systemBlue
+        case 5: return .systemYellow
+        case 6: return .systemRed
+        case 7: return .systemOrange
+        default: return .systemGray
+        }
+    }
+
+    /// Etiketlerden ilk renklisinin rengi (klasör boyamak için)
+    static func folderColor(_ names: [String]) -> NSColor? {
+        for n in names { if let i = colorIndex(for: n) { return nsColor(i) } }
+        return nil
+    }
+
+    /// Seçili dosyalarda bu renk aç / kapa: hepsinde varsa kaldır, yoksa ekle
+    @MainActor static func toggle(color i: Int, on urls: [URL]) {
+        let all = urls.allSatisfy { u in
+            ((try? u.resourceValues(forKeys: [.tagNamesKey]).tagNames) ?? nil ?? []).contains { colorIndex(for: $0) == i }
+        }
+        for u in urls { set(color: all ? nil : i, replacing: i, on: u) }
+    }
+
+    /// Klasörün tek rengini ayarla (nil: renkleri kaldır, adsız etiketler kalır)
+    static func setOnlyColor(_ i: Int?, on u: URL) {
+        var names = ((try? u.resourceValues(forKeys: [.tagNamesKey]).tagNames) ?? nil) ?? []
+        names.removeAll { colorIndex(for: $0) != nil }
+        if let i { names.insert(name(forColor: i), at: 0) }
+        write(names, to: u)
+    }
+
+    private static func set(color: Int?, replacing i: Int, on u: URL) {
+        var names = ((try? u.resourceValues(forKeys: [.tagNamesKey]).tagNames) ?? nil) ?? []
+        names.removeAll { colorIndex(for: $0) == i }
+        if let color { names.append(name(forColor: color)) }
+        write(names, to: u)
+    }
+
+    private static func write(_ names: [String], to u: URL) {
+        try? (u as NSURL).setResourceValue(names, forKey: .tagNamesKey)
     }
 
     /// Finder kenar çubuğundaki etiketler; okunamazsa yedi renk

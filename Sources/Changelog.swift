@@ -16,6 +16,14 @@ struct ChangelogEntry {
 
 enum Changelog {
     static let entries: [ChangelogEntry] = [
+        ChangelogEntry(version: "4.3.7", items: [
+            ("Dosyalar'da kopyalama / başka diske taşıma ilerlemesi: sağ altta kart ve durum çubuğunda ne kadar gitti, ne kadar kaldı, tahmini süre; kart üzerinden iptal",
+             "Copy / cross-disk move progress in Files: a card at the bottom right and the status bar show how much is done, how much is left and the time remaining; cancel from the card"),
+            ("Yeni klasör için Missing tasarımında pencere: ad ve renk seçilir",
+             "New folder now opens a Missing-style sheet to pick the name and a color"),
+            ("Sağ tıkta Finder gibi renk noktaları: renk etiketi verir, renkli klasörler o renge boyanır",
+             "Color dots in the right-click menu like Finder: they set a color tag, and colored folders are tinted that color"),
+        ]),
         ChangelogEntry(version: "4.3.6", items: [
             ("Dosyalar'ın simge görünümünde sağ / sol oklar satır bitince alt / üst satıra geçer (⇧ ile seçim genişler)",
              "In Files' icon view the left / right arrows continue onto the next / previous row (⇧ extends the selection)"),

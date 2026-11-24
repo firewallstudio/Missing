@@ -516,11 +516,23 @@ private final class FilesNSWindow: NSWindow {
     @objc func closeTab(_ sender: Any?) { close(tabID: model.currentID) }
 
     @objc func newFolder(_ sender: Any?) {
-        guard let dest = FileOps.newFolder(in: tab.url, undo: undo, window: window) else { return }
-        tab.filter = ""
-        tab.pendingSelect = [dest]
-        tab.pendingRename = dest
-        tab.reload()
+        guard let window, window.attachedSheet == nil else { return }
+        let t = tab
+        NewFolderSheet.show(on: window) { [weak self] name, color in
+            guard let self, let dest = FileOps.newFolder(in: t.url, name: name, color: color, undo: self.undo, window: self.window) else { return }
+            t.filter = ""
+            t.pendingSelect = [dest]
+            t.reload()
+            self.browser.focus()
+        }
+    }
+
+    /// Renk etiketi değişti: simgeler yeniden çizilsin
+    func colorsChanged(_ urls: [URL]) {
+        urls.forEach { FileIcons.shared.forget($0) }
+        let t = tab
+        t.pendingSelect = urls
+        t.reload()
     }
 
     @objc func openSelection(_ sender: Any?) { open(selectedItems) }
@@ -776,6 +788,7 @@ struct FilesRootView: View {
             ZStack {
                 BrowserHost(view: controller.browser)
                 FilesEmptyState(tab: tab)
+                FilesCopyCards(activity: FilesActivity.shared)
             }
             if model.previewVisible {
                 Rectangle().fill(FilesPalette(theme: store.theme, dark: store.theme.forcesDark || scheme == .dark).divider)
@@ -1794,8 +1807,7 @@ private struct FilesStatusBar: View {
                 Spacer(minLength: 8)
             }
             if activity.copying > 0 {
-                ProgressView().controlSize(.small).scaleEffect(0.7).frame(width: 14, height: 14)
-                Text(L("Kopyalanıyor…"))
+                FilesCopyStatus(activity: activity)
                 Text("·").foregroundStyle(p.fg.opacity(0.3))
             }
             if tab.searching {
@@ -1868,6 +1880,131 @@ struct FilesZoomSlider: View {
                 value = range.lowerBound + t * (range.upperBound - range.lowerBound)
             })
         }
+    }
+}
+
+// MARK: Kopyalama ilerlemesi
+
+/// Durum çubuğunda: ince çubuk + "1,2 GB / 3,4 GB"
+private struct FilesCopyStatus: View {
+    @ObservedObject var activity: FilesActivity
+    @Environment(\.filesPalette) private var p
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 0.25)) { _ in
+            let total = activity.totalBytes, done = activity.doneBytes
+            HStack(spacing: 6) {
+                FilesProgressBar(fraction: total > 0 ? Double(done) / Double(total) : 0, tint: p.accent, track: p.fg.opacity(0.12))
+                    .frame(width: 70, height: 4)
+                Text(total > 0 ? L("%@ / %@", FilesFormat.size(done), FilesFormat.size(total)) : L("Kopyalanıyor…"))
+                    .monospacedDigit()
+            }
+        }
+    }
+}
+
+struct FilesProgressBar: View {
+    var fraction: Double
+    var tint: Color
+    var track: Color
+    var body: some View {
+        GeometryReader { g in
+            ZStack(alignment: .leading) {
+                Capsule().fill(track)
+                Capsule().fill(tint).frame(width: max(g.size.height, g.size.width * min(max(fraction, 0), 1)))
+                    .animation(.linear(duration: 0.15), value: fraction)
+            }
+        }
+    }
+}
+
+/// İçeriğin sağ altında süren kopyalamalar: ad, hedef, giden / kalan, süre, iptal
+private struct FilesCopyCards: View {
+    @ObservedObject var activity: FilesActivity
+
+    var body: some View {
+        VStack(alignment: .trailing, spacing: 8) {
+            Spacer(minLength: 0)
+            ForEach(activity.jobs) { FilesCopyCard(job: $0) }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+        .padding(12)
+        .animation(.easeOut(duration: 0.2), value: activity.jobs.map(\.id))
+    }
+}
+
+private struct FilesCopyCard: View {
+    @ObservedObject var job: CopyJob
+    @Environment(\.filesPalette) private var p
+    /// Çok kısa kopyalamalarda kart yanıp sönmesin
+    @State private var shown = false
+
+    var body: some View {
+        // Boş Group'ta onAppear çalışmaz: kart hep var, önce görünmez
+        card
+            .opacity(shown ? 1 : 0)
+            .offset(y: shown ? 0 : 12)
+            .allowsHitTesting(shown)
+            .onAppear { DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { withAnimation(.easeOut(duration: 0.2)) { shown = true } } }
+    }
+
+    private var card: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(spacing: 8) {
+                Image(systemName: "doc.on.doc.fill")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(p.onAccent)
+                    .frame(width: 22, height: 22)
+                    .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(p.accent))
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(job.title).font(.system(size: 12, weight: .semibold)).lineLimit(1).truncationMode(.middle)
+                    Text(L("“%@” klasörüne", job.destination.lastPathComponent))
+                        .font(.system(size: 10.5)).foregroundStyle(p.fg.opacity(0.55)).lineLimit(1).truncationMode(.middle)
+                }
+                Spacer(minLength: 6)
+                Button { job.cancel() } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 9, weight: .bold))
+                        .frame(width: 18, height: 18)
+                        .background(Circle().fill(p.fg.opacity(0.10)))
+                }
+                .buttonStyle(.plain)
+                .help(L("Vazgeç"))
+            }
+            FilesProgressBar(fraction: job.fraction, tint: p.accent, track: p.fg.opacity(0.12))
+                .frame(height: 5)
+            HStack(spacing: 4) {
+                if job.measuring {
+                    Text(L("Hesaplanıyor…"))
+                } else {
+                    Text(L("%@ / %@", FilesFormat.size(job.done), FilesFormat.size(job.total))).monospacedDigit()
+                    Text("·").foregroundStyle(p.fg.opacity(0.3))
+                    Text(L("%@ kaldı", FilesFormat.size(max(0, job.total - job.done)))).monospacedDigit()
+                }
+                Spacer(minLength: 4)
+                if let r = job.remaining { Text(Self.time(r)).monospacedDigit() }
+                else if !job.measuring { Text("%\(Int(job.fraction * 100))").monospacedDigit() }
+            }
+            .font(.system(size: 10.5))
+            .foregroundStyle(p.fg.opacity(0.6))
+        }
+        .padding(12)
+        .frame(width: 290)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(.regularMaterial)
+                .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(p.dark ? Color.black.opacity(0.25) : Color.white.opacity(0.3)))
+        )
+        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(p.fg.opacity(0.10), lineWidth: 1))
+        .shadow(color: .black.opacity(0.25), radius: 12, y: 4)
+        .environment(\.colorScheme, p.dark ? .dark : .light)
+    }
+
+    static func time(_ t: TimeInterval) -> String {
+        let s = Int(t.rounded())
+        if s < 60 { return L("~%d sn", max(1, s)) }
+        if s < 3600 { return L("~%d dk", (s + 30) / 60) }
+        return L("~%d sa %d dk", s / 3600, (s % 3600) / 60)
     }
 }
 

@@ -683,6 +683,9 @@ import Quartz
         }
         add(L("Finder'da göster"), #selector(FilesWindowController.revealInFinder(_:)))
         menu.addItem(.separator())
+        let urls = sel.map(\.url)
+        menu.addItem(TagColorMenuRow.menuItem(for: urls) { [weak owner] in owner?.colorsChanged(urls) })
+        menu.addItem(.separator())
         add(L("Çöp sepetine taşı"), #selector(FilesWindowController.trashSelection(_:)))
     }
 

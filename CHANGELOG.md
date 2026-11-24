@@ -2,6 +2,12 @@
 
 Also shown in the app: **Settings › Versions**.
 
+## 4.3.7
+
+- Copy / cross-disk move progress in Files: a card at the bottom right and the status bar show how much is done, how much is left and the time remaining; cancel from the card
+- New folder now opens a Missing-style sheet to pick the name and a color
+- Color dots in the right-click menu like Finder: they set a color tag, and colored folders are tinted that color
+
 ## 4.3.6
 
 - In Files' icon view the left / right arrows continue onto the next / previous row (⇧ extends the selection)
