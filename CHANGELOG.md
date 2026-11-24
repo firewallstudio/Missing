@@ -2,6 +2,10 @@
 
 Also shown in the app: **Settings › Versions**.
 
+## 4.3.13
+
+- Pressing ⌘Tab while dragging a file from Files cancelled the drag; now the panel opens and you can drop the file on an app's card
+
 ## 4.3.12
 
 - Sidebar folders hide their subfolders by default; right-click › Subfolders to show to tick the ones you want

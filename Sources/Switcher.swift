@@ -749,6 +749,10 @@ let perfLog = Logger(subsystem: Bundle.main.bundleIdentifier ?? "com.firewallstu
         guard let t = CGEvent.tapCreate(tap: .cgSessionEventTap, place: .headInsertEventTap, options: .defaultTap,
                                         eventsOfInterest: CGEventMask(mask), callback: tapCallback, userInfo: nil) else { return }
         tap = t
+        // Dosyalar'dan sürüklerken imleç kendi penceremizin üstündeyse AppKit ana döngüyü bu özel modda
+        // döndürür; ortak modlara katılmazsa yakalayıcı çalışmaz, ⌘Tab'ın Tab'ı uygulamaya düşer ve
+        // sürüklemeyi iptal eder. Ortak mod yapınca yakalayıcı da, panelin açılması da sürerken çalışır.
+        CFRunLoopAddCommonMode(CFRunLoopGetMain(), CFRunLoopMode("NSDragTrackerEventCoalescingRunLoopMode" as CFString))
         source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, t, 0)
         CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
         CGEvent.tapEnable(tap: t, enable: true)

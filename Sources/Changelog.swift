@@ -16,6 +16,10 @@ struct ChangelogEntry {
 
 enum Changelog {
     static let entries: [ChangelogEntry] = [
+        ChangelogEntry(version: "4.3.13", items: [
+            ("Dosyalar'dan bir dosyayı sürüklerken ⌘Tab'a basınca sürükleme iptal oluyordu; artık panel açılır, dosyayı bir uygulamanın kartına bırakabilirsin",
+             "Pressing ⌘Tab while dragging a file from Files cancelled the drag; now the panel opens and you can drop the file on an app's card"),
+        ]),
         ChangelogEntry(version: "4.3.12", items: [
             ("Kenar çubuğunda bir klasörün alt klasörleri varsayılan olarak gizli; sağ tık › Gösterilecek alt klasörler ile istediklerini işaretle",
              "Sidebar folders hide their subfolders by default; right-click › Subfolders to show to tick the ones you want"),
