@@ -16,6 +16,18 @@ struct ChangelogEntry {
 
 enum Changelog {
     static let entries: [ChangelogEntry] = [
+        ChangelogEntry(version: "4.3.11", items: [
+            ("İndirilenler en yeniden eskiye sıralanır ve Bugün, Dün, günler ve aylar başlıkları altında gruplanır",
+             "Downloads lists newest first, grouped under Today, Yesterday, days and months"),
+            ("Her klasör kendi sıralamasını ve gruplamasını hatırlar; araç çubuğunda yeni sıralama menüsü (Eklenme tarihi dahil)",
+             "Every folder remembers its own sort order and grouping; new sort menu in the toolbar (Date Added included)"),
+            ("Kenar çubuğunda klasörler ok ile açılıp alt klasörleri gösterilir; bölümler kapatılabilir",
+             "Sidebar folders expand with an arrow to show their subfolders; sections can be collapsed"),
+            ("Kenar çubuğuna kendi başlıklarını ekle ve altına istediğin klasörleri koy",
+             "Add your own headings to the sidebar and put any folders under them"),
+            ("Sekme değiştirici kartlarında resimlerin küçük önizlemesi",
+             "Image thumbnails on tab switcher cards"),
+        ]),
         ChangelogEntry(version: "4.3.10", items: [
             ("⌘\" sekme değiştirici her zaman Dosyalar penceresinin tam ortasında açılır; dar pencerede kartlar alt satıra geçer",
              "The ⌘\" tab switcher always opens in the exact center of the Files window; on a narrow window the cards wrap"),

@@ -2,6 +2,14 @@
 
 Also shown in the app: **Settings › Versions**.
 
+## 4.3.11
+
+- Downloads lists newest first, grouped under Today, Yesterday, days and months
+- Every folder remembers its own sort order and grouping; new sort menu in the toolbar (Date Added included)
+- Sidebar folders expand with an arrow to show their subfolders; sections can be collapsed
+- Add your own headings to the sidebar and put any folders under them
+- Image thumbnails on tab switcher cards
+
 ## 4.3.10
 
 - The ⌘" tab switcher always opens in the exact center of the Files window; on a narrow window the cards wrap

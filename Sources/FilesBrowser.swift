@@ -13,6 +13,12 @@ import Quartz
     private(set) var tab: FilesTab?
     private(set) var mode: FilesViewMode = .list
     private(set) var items: [FileItem] = []
+    /// Tarihe göre gruplanmışsa başlıklar ve her başlığın öğe aralığı (items bu sıradadır)
+    private var groups: [(title: String, range: Range<Int>)] = []
+    /// Liste satırı → öğe sırası (başlık satırında -1)
+    private var rowItem: [Int] = []
+    /// Öğe sırası → liste satırı
+    private var itemRow: [Int] = []
     private var bag = Set<AnyCancellable>()
     private var zoomSub: AnyCancellable?
     private var thumbBucket = FilesGridZoom.shared.thumbSize
@@ -27,6 +33,7 @@ import Quartz
 
     private static let colName = NSUserInterfaceItemIdentifier("name")
     private static let colDate = NSUserInterfaceItemIdentifier("modified")
+    private static let colAdded = NSUserInterfaceItemIdentifier("added")
     private static let colSize = NSUserInterfaceItemIdentifier("size")
     private static let colKind = NSUserInterfaceItemIdentifier("kind")
 
@@ -94,6 +101,7 @@ import Quartz
         name.resizingMask = [.autoresizingMask, .userResizingMask]
         table.addTableColumn(name)
         table.addTableColumn(column(Self.colDate, L("Değiştirilme tarihi"), width: 170, min: 90, key: .modified, ascending: false))
+        table.addTableColumn(column(Self.colAdded, L("Eklenme tarihi"), width: 160, min: 90, key: .added, ascending: false))
         let size = column(Self.colSize, L("Boyut"), width: 80, min: 50, key: .size, ascending: false)
         size.headerCell.alignment = .right
         table.addTableColumn(size)
@@ -101,6 +109,7 @@ import Quartz
         table.autosaveName = "MissingFilesColumns"
         table.autosaveTableColumns = true
         table.sortDescriptors = [NSSortDescriptor(key: FilesSortKey.name.rawValue, ascending: true)]
+        table.floatsGroupRows = false
 
         listScroll.documentView = table
         listScroll.hasVerticalScroller = true
@@ -125,6 +134,8 @@ import Quartz
         grid.dataSource = self
         grid.delegate = self
         grid.register(FilesGridItem.self, forItemWithIdentifier: FilesGridItem.id)
+        grid.register(FilesGridHeader.self, forSupplementaryViewOfKind: NSCollectionView.elementKindSectionHeader,
+                      withIdentifier: FilesGridHeader.id)
         grid.registerForDraggedTypes([.fileURL])
         grid.setDraggingSourceOperationMask([.copy, .move, .link, .generic], forLocal: false)
         grid.setDraggingSourceOperationMask([.copy, .move, .generic], forLocal: true)
@@ -145,9 +156,7 @@ import Quartz
         tab.map { saveScroll(of: $0) }
         tab = t
         bag.removeAll()
-        syncing = true
-        table.sortDescriptors = [NSSortDescriptor(key: t.sortKey.rawValue, ascending: t.ascending)]
-        syncing = false
+        syncSortHeader()
         // @Published yeni değeri atamadan önce yayar: değeri doğrudan kullan
         t.$items.sink { [weak self] new in self?.update(new, restoreScroll: false) }.store(in: &bag)
         update(t.items, restoreScroll: true)
@@ -189,7 +198,8 @@ import Quartz
         guard let tab else { return }
         let keep = tab.pendingSelect ?? (restoreScroll ? tab.selection : selectedURLs)
         let navigated = items.first.map { $0.url.deletingLastPathComponent().fileKey != tab.url.fileKey } ?? true
-        items = new
+        setItems(new, grouped: tab.grouped)
+        syncSortHeader()
         reloadViews()
         let newKeys = Set(new.map(\.url.fileKey))
         let toSelect = keep.filter { newKeys.contains($0.fileKey) }
@@ -205,6 +215,86 @@ import Quartz
             DispatchQueue.main.async { self.beginRename(r) }
         }
     }
+
+    /// Gruplu ise öğeleri başlık sırasına dizer ve satır eşlemelerini kurar
+    private func setItems(_ new: [FileItem], grouped: Bool) {
+        guard grouped, let tab, !new.isEmpty else {
+            items = new
+            groups = []
+            rowItem = Array(new.indices)
+            itemRow = Array(new.indices)
+            return
+        }
+        let g = FilesDateGroups.group(new, by: tab.sortKey, ascending: tab.ascending)
+        var ordered: [FileItem] = []
+        ordered.reserveCapacity(new.count)
+        groups = []
+        for x in g {
+            let start = ordered.count
+            ordered.append(contentsOf: x.indices.map { new[$0] })
+            groups.append((x.title, start..<ordered.count))
+        }
+        items = ordered
+        rowItem = []
+        itemRow = Array(repeating: 0, count: ordered.count)
+        for x in groups {
+            rowItem.append(-1)
+            for i in x.range {
+                itemRow[i] = rowItem.count
+                rowItem.append(i)
+            }
+        }
+    }
+
+    /// Liste başlığındaki sıralama oku ve "Eklenme tarihi" sütunu sekmenin sıralamasına uysun
+    private func syncSortHeader() {
+        guard let tab else { return }
+        let d = table.sortDescriptors.first
+        syncing = true
+        if d?.key != tab.sortKey.rawValue || d?.ascending != tab.ascending {
+            table.sortDescriptors = [NSSortDescriptor(key: tab.sortKey.rawValue, ascending: tab.ascending)]
+        }
+        if let c = table.tableColumn(withIdentifier: Self.colAdded) {
+            let hide = tab.sortKey != .added
+            if c.isHidden != hide { c.isHidden = hide }
+        }
+        syncing = false
+    }
+
+    private func item(atRow row: Int) -> FileItem? {
+        guard rowItem.indices.contains(row) else { return nil }
+        let i = rowItem[row]
+        return i >= 0 ? items[i] : nil
+    }
+
+    private func itemIndex(atRow row: Int) -> Int? {
+        guard rowItem.indices.contains(row), rowItem[row] >= 0 else { return nil }
+        return rowItem[row]
+    }
+
+    /// Simgelerde: IndexPath ↔ öğe sırası
+    func itemIndex(of ip: IndexPath) -> Int? {
+        let i: Int
+        if groups.isEmpty {
+            guard ip.section == 0 else { return nil }
+            i = ip.item
+        } else {
+            guard groups.indices.contains(ip.section) else { return nil }
+            i = groups[ip.section].range.lowerBound + ip.item
+            guard groups[ip.section].range.contains(i) else { return nil }
+        }
+        return items.indices.contains(i) ? i : nil
+    }
+
+    func indexPath(ofItem i: Int) -> IndexPath {
+        guard !groups.isEmpty else { return IndexPath(item: i, section: 0) }
+        for (s, g) in groups.enumerated() where g.range.contains(i) {
+            return IndexPath(item: i - g.range.lowerBound, section: s)
+        }
+        return IndexPath(item: i, section: 0)
+    }
+
+    var itemCount: Int { items.count }
 
     private func scroll(to y: CGFloat) {
         guard mode != .columns else { return }
@@ -229,7 +319,12 @@ import Quartz
         syncing = true
         switch mode {
         case .list: table.reloadData()
-        case .grid: grid.reloadData()
+        case .grid:
+            if let layout = grid.collectionViewLayout as? NSCollectionViewFlowLayout {
+                layout.headerReferenceSize = groups.isEmpty ? .zero : NSSize(width: 0, height: 36)
+                layout.sectionInset = NSEdgeInsets(top: groups.isEmpty ? 12 : 2, left: 12, bottom: 12, right: 12)
+            }
+            grid.reloadData()
         case .columns:
             if let tab { columnsView.update(dir: tab.url, items: items, hidden: tab.showHidden()) }
         }
@@ -259,8 +354,8 @@ import Quartz
 
     var selectedIndexes: IndexSet {
         switch mode {
-        case .list: return table.selectedRowIndexes
-        case .grid: return IndexSet(grid.selectionIndexPaths.map(\.item))
+        case .list: return IndexSet(table.selectedRowIndexes.compactMap { itemIndex(atRow: $0) })
+        case .grid: return IndexSet(grid.selectionIndexPaths.compactMap { itemIndex(of: $0) })
         case .columns:
             guard let tab else { return [] }
             let set = Set(columnsView.selectedItems(in: tab.url).map(\.url.fileKey))
@@ -277,11 +372,12 @@ import Quartz
         syncing = true
         switch mode {
         case .list:
-            table.selectRowIndexes(idx, byExtendingSelection: false)
-            if scroll, let f = idx.first { table.scrollRowToVisible(f) }
+            let rows = IndexSet(idx.map { itemRow[$0] })
+            table.selectRowIndexes(rows, byExtendingSelection: false)
+            if scroll, let f = rows.first { table.scrollRowToVisible(f) }
         case .grid:
-            grid.selectionIndexPaths = Set(idx.map { IndexPath(item: $0, section: 0) })
-            if scroll, let f = idx.first { grid.scrollToItems(at: [IndexPath(item: f, section: 0)], scrollPosition: .nearestHorizontalEdge) }
+            grid.selectionIndexPaths = Set(idx.map { indexPath(ofItem: $0) })
+            if scroll, let f = idx.first { grid.scrollToItems(at: [indexPath(ofItem: f)], scrollPosition: .nearestHorizontalEdge) }
         case .columns:
             if let tab { columnsView.select(idx.map { items[$0].url }, in: tab.url, scroll: scroll) }
         }
@@ -308,10 +404,10 @@ import Quartz
         guard let i = items.firstIndex(where: { $0.url.fileKey == url.fileKey }), let window else { return nil }
         let r: NSRect
         if mode == .list {
-            let row = table.rect(ofRow: i)
+            let row = table.rect(ofRow: itemRow[i])
             r = table.convert(NSRect(x: row.minX + 6, y: row.minY + 2, width: 20, height: 20), to: nil)
         } else {
-            guard let item = grid.item(at: IndexPath(item: i, section: 0)) as? FilesGridItem else { return nil }
+            guard let item = grid.item(at: indexPath(ofItem: i)) as? FilesGridItem else { return nil }
             r = item.iconView.convert(item.iconView.bounds, to: nil)
         }
         return window.convertToScreen(r)
@@ -327,7 +423,7 @@ import Quartz
     }
 
     @objc private func doubleClicked() {
-        guard table.clickedRow >= 0 else { return }
+        guard item(atRow: table.clickedRow) != nil else { return }
         owner?.open(selectedItems)
     }
 
@@ -335,11 +431,24 @@ import Quartz
 
     // MARK: Liste: veri
 
-    func numberOfRows(in tableView: NSTableView) -> Int { items.count }
+    func numberOfRows(in tableView: NSTableView) -> Int { rowItem.count }
+
+    func tableView(_ tv: NSTableView, isGroupRow row: Int) -> Bool { rowItem.indices.contains(row) && rowItem[row] < 0 }
+
+    func tableView(_ tv: NSTableView, shouldSelectRow row: Int) -> Bool { itemIndex(atRow: row) != nil }
+
+    func tableView(_ tv: NSTableView, heightOfRow row: Int) -> CGFloat {
+        itemIndex(atRow: row) == nil && rowItem.indices.contains(row) ? 34 : tv.rowHeight
+    }
 
     func tableView(_ tv: NSTableView, viewFor column: NSTableColumn?, row: Int) -> NSView? {
-        guard let column, items.indices.contains(row) else { return nil }
-        let item = items[row]
+        if rowItem.indices.contains(row), rowItem[row] < 0 {
+            let h = (tv.makeView(withIdentifier: FilesGroupHeaderView.id, owner: nil) as? FilesGroupHeaderView) ?? FilesGroupHeaderView()
+            let n = rowItem[..<row].filter { $0 < 0 }.count
+            if groups.indices.contains(n) { h.configure(groups[n].title, count: groups[n].range.count, inset: 10) }
+            return h
+        }
+        guard let column, let item = item(atRow: row) else { return nil }
         let id = column.identifier
         let cell = (tv.makeView(withIdentifier: id, owner: nil) as? FilesCell) ?? FilesCell(id: id, withIcon: id == Self.colName)
         cell.alphaValue = item.isHidden ? 0.5 : 1
@@ -351,6 +460,9 @@ import Quartz
             cell.textField?.delegate = self
         case Self.colDate:
             cell.textField?.stringValue = item.modified.map { FilesFormat.date.string(from: $0) } ?? "—"
+            cell.textField?.textColor = .secondaryLabelColor
+        case Self.colAdded:
+            cell.textField?.stringValue = item.added.map { FilesFormat.date.string(from: $0) } ?? "—"
             cell.textField?.textColor = .secondaryLabelColor
         case Self.colSize:
             cell.textField?.stringValue = FilesFormat.size(item.size)
@@ -370,7 +482,9 @@ import Quartz
         return cell
     }
 
-    func tableView(_ tv: NSTableView, rowViewForRow row: Int) -> NSTableRowView? { FilesRowView() }
+    func tableView(_ tv: NSTableView, rowViewForRow row: Int) -> NSTableRowView? {
+        itemIndex(atRow: row) == nil && rowItem.indices.contains(row) ? FilesHeaderRowView() : FilesRowView()
+    }
 
     func tableViewSelectionDidChange(_ n: Notification) {
         if !syncing { pushSelection() }
@@ -382,20 +496,20 @@ import Quartz
     }
 
     func tableView(_ tv: NSTableView, typeSelectStringFor column: NSTableColumn?, row: Int) -> String? {
-        column?.identifier == Self.colName && items.indices.contains(row) ? items[row].name : nil
+        column?.identifier == Self.colName ? item(atRow: row)?.name : nil
     }
 
     // MARK: Liste: sürükle-bırak
 
     func tableView(_ tv: NSTableView, pasteboardWriterForRow row: Int) -> NSPasteboardWriting? {
-        items.indices.contains(row) ? items[row].url as NSURL : nil
+        item(atRow: row).map { $0.url as NSURL }
     }
 
     func tableView(_ tv: NSTableView, validateDrop info: NSDraggingInfo, proposedRow row: Int,
                    proposedDropOperation op: NSTableView.DropOperation) -> NSDragOperation {
         var target: FileItem?
-        if op == .on, items.indices.contains(row), items[row].opensAsFolder {
-            target = items[row]
+        if op == .on, let it = item(atRow: row), it.opensAsFolder {
+            target = it
         } else {
             tv.setDropRow(-1, dropOperation: .on)
         }
@@ -403,7 +517,7 @@ import Quartz
     }
 
     func tableView(_ tv: NSTableView, acceptDrop info: NSDraggingInfo, row: Int, dropOperation op: NSTableView.DropOperation) -> Bool {
-        let target = (row >= 0 && items.indices.contains(row) && items[row].opensAsFolder) ? items[row] : nil
+        let target = item(atRow: row).flatMap { $0.opensAsFolder ? $0 : nil }
         return performDrop(info, into: target)
     }
 
@@ -417,8 +531,8 @@ import Quartz
         guard bucket != thumbBucket else { return }
         thumbBucket = bucket
         for ip in grid.indexPathsForVisibleItems() {
-            guard items.indices.contains(ip.item), let cell = grid.item(at: ip) as? FilesGridItem else { continue }
-            let item = items[ip.item]
+            guard let i = itemIndex(of: ip), let cell = grid.item(at: ip) as? FilesGridItem else { continue }
+            let item = items[i]
             if let t = FileIcons.shared.thumbnail(item, size: bucket, ready: { [weak self] in self?.thumbReady(item.url) }) {
                 cell.configure(item, thumb: t)
             }
@@ -427,19 +541,32 @@ import Quartz
 
     private func thumbReady(_ url: URL) {
         guard let i = items.firstIndex(where: { $0.url == url }) else { return }
-        if let cell = grid.item(at: IndexPath(item: i, section: 0)) as? FilesGridItem {
+        if let cell = grid.item(at: indexPath(ofItem: i)) as? FilesGridItem {
             cell.configure(items[i], thumb: nil, refreshThumb: true)
         }
     }
 
     // MARK: Simgeler: veri
 
-    func collectionView(_ cv: NSCollectionView, numberOfItemsInSection section: Int) -> Int { items.count }
+    func numberOfSections(in cv: NSCollectionView) -> Int { groups.isEmpty ? 1 : groups.count }
+
+    func collectionView(_ cv: NSCollectionView, numberOfItemsInSection section: Int) -> Int {
+        groups.isEmpty ? items.count : (groups.indices.contains(section) ? groups[section].range.count : 0)
+    }
+
+    func collectionView(_ cv: NSCollectionView, viewForSupplementaryElementOfKind kind: NSCollectionView.SupplementaryElementKind,
+                        at ip: IndexPath) -> NSView {
+        let v = cv.makeSupplementaryView(ofKind: kind, withIdentifier: FilesGridHeader.id, for: ip)
+        if let h = v as? FilesGridHeader, groups.indices.contains(ip.section) {
+            h.header.configure(groups[ip.section].title, count: groups[ip.section].range.count, inset: 14)
+        }
+        return v
+    }
 
     func collectionView(_ cv: NSCollectionView, itemForRepresentedObjectAt ip: IndexPath) -> NSCollectionViewItem {
         let v = cv.makeItem(withIdentifier: FilesGridItem.id, for: ip) as! FilesGridItem
-        guard items.indices.contains(ip.item) else { return v }
-        let item = items[ip.item]
+        guard let i = itemIndex(of: ip) else { return v }
+        let item = items[i]
         v.configure(item, thumb: FileIcons.shared.thumbnail(item, size: FilesGridZoom.shared.thumbSize) { [weak self] in
             self?.thumbReady(item.url)
         })
@@ -452,27 +579,27 @@ import Quartz
     func collectionView(_ cv: NSCollectionView, canDragItemsAt ip: Set<IndexPath>, with event: NSEvent) -> Bool { true }
 
     func collectionView(_ cv: NSCollectionView, pasteboardWriterForItemAt ip: IndexPath) -> NSPasteboardWriting? {
-        items.indices.contains(ip.item) ? items[ip.item].url as NSURL : nil
+        itemIndex(of: ip).map { items[$0].url as NSURL }
     }
 
     func collectionView(_ cv: NSCollectionView, validateDrop info: NSDraggingInfo,
                         proposedIndexPath ip: AutoreleasingUnsafeMutablePointer<NSIndexPath>,
                         dropOperation op: UnsafeMutablePointer<NSCollectionView.DropOperation>) -> NSDragOperation {
-        let i = ip.pointee.item
         var target: FileItem?
-        if op.pointee == .on, items.indices.contains(i), items[i].opensAsFolder {
+        if op.pointee == .on, let i = itemIndex(of: ip.pointee as IndexPath), items[i].opensAsFolder {
             target = items[i]
         } else {
             // Klasör olmayan yere bırakma: açık klasörün kendisine
             op.pointee = .before
-            ip.pointee = NSIndexPath(forItem: items.count, inSection: 0)
+            let last = max(0, (groups.isEmpty ? 1 : groups.count) - 1)
+            ip.pointee = NSIndexPath(forItem: groups.isEmpty ? items.count : groups[last].range.count, inSection: last)
         }
         return dropOperation(info, into: target)
     }
 
     func collectionView(_ cv: NSCollectionView, acceptDrop info: NSDraggingInfo, indexPath ip: IndexPath,
                         dropOperation op: NSCollectionView.DropOperation) -> Bool {
-        let target = (op == .on && items.indices.contains(ip.item) && items[ip.item].opensAsFolder) ? items[ip.item] : nil
+        let target = op == .on ? itemIndex(of: ip).flatMap { items[$0].opensAsFolder ? items[$0] : nil } : nil
         return performDrop(info, into: target)
     }
 
@@ -537,7 +664,7 @@ import Quartz
             return
         }
         let col = table.column(withIdentifier: Self.colName)
-        guard col >= 0, let cell = table.view(atColumn: col, row: i, makeIfNecessary: true) as? FilesCell,
+        guard col >= 0, let cell = table.view(atColumn: col, row: itemRow[i], makeIfNecessary: true) as? FilesCell,
               let field = cell.textField else { return }
         renaming = url
         field.stringValue = url.lastPathComponent
@@ -619,7 +746,7 @@ import Quartz
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
         guard let owner, let tab else { return }
-        if mode == .list { prepareContextClick(at: table.clickedRow >= 0 ? table.clickedRow : nil) }
+        if mode == .list { prepareContextClick(at: itemIndex(atRow: table.clickedRow)) }
         let sel = selectedItems
 
         func add(_ title: String, _ action: Selector, _ target: AnyObject? = nil, obj: Any? = nil) {
@@ -648,6 +775,7 @@ import Quartz
             cols.target = owner
             cols.state = mode == .columns ? .on : .off
             menu.addItem(cols)
+            menu.addItem(sortMenuItem(for: tab))
             let hidden = NSMenuItem(title: L("Gizli dosyaları göster"), action: #selector(FilesWindowController.toggleHidden(_:)), keyEquivalent: "")
             hidden.target = owner
             hidden.state = owner.model.showHidden ? .on : .off
@@ -687,6 +815,49 @@ import Quartz
         menu.addItem(TagColorMenuRow.menuItem(for: urls) { [weak owner] in owner?.colorsChanged(urls) })
         menu.addItem(.separator())
         add(L("Çöp sepetine taşı"), #selector(FilesWindowController.trashSelection(_:)))
+    }
+
+    /// "Sırala" alt menüsü: anahtar, yön ve tarihe göre gruplama (bu klasör için hatırlanır)
+    private func sortMenuItem(for tab: FilesTab) -> NSMenuItem {
+        let top = NSMenuItem(title: L("Sırala"), action: nil, keyEquivalent: "")
+        let sub = NSMenu()
+        for k in FilesSortKey.allCases {
+            let it = NSMenuItem(title: k.title, action: #selector(sortBy(_:)), keyEquivalent: "")
+            it.target = self
+            it.representedObject = k.rawValue
+            it.state = tab.sortKey == k ? .on : .off
+            sub.addItem(it)
+        }
+        sub.addItem(.separator())
+        for (asc, title) in [(true, L("Artan")), (false, L("Azalan"))] {
+            let it = NSMenuItem(title: title, action: #selector(sortDirection(_:)), keyEquivalent: "")
+            it.target = self
+            it.representedObject = asc
+            it.state = tab.ascending == asc ? .on : .off
+            sub.addItem(it)
+        }
+        sub.addItem(.separator())
+        let g = NSMenuItem(title: L("Tarihe göre grupla"), action: #selector(toggleGrouped(_:)), keyEquivalent: "")
+        g.target = self
+        g.state = tab.grouped ? .on : .off
+        sub.addItem(g)
+        top.submenu = sub
+        return top
+    }
+
+    @objc private func sortBy(_ sender: NSMenuItem) {
+        guard let tab, let raw = sender.representedObject as? String, let k = FilesSortKey(rawValue: raw) else { return }
+        tab.setSort(k, ascending: k == tab.sortKey ? tab.ascending : !(k.isDate || k == .size))
+    }
+
+    @objc private func sortDirection(_ sender: NSMenuItem) {
+        guard let tab, let asc = sender.representedObject as? Bool else { return }
+        tab.setSort(tab.sortKey, ascending: asc)
+    }
+
+    @objc private func toggleGrouped(_ sender: NSMenuItem) {
+        guard let tab else { return }
+        tab.setGrouped(!tab.grouped)
     }
 
     private func openWithItem(for urls: [URL]) -> NSMenuItem {
@@ -908,9 +1079,10 @@ final class FilesCollectionView: NSCollectionView {
 
     /// Sağ / sol oklar satır sonunda alt / üst satıra geçer (sıra boyunca bir sonraki öğe)
     private func stepLinear(by d: Int, extend: Bool) {
-        let n = numberOfItems(inSection: 0)
+        guard let owner else { return }
+        let n = owner.itemCount
         guard n > 0 else { return }
-        let sel = selectionIndexPaths.map(\.item).sorted()
+        let sel = selectionIndexPaths.compactMap { owner.itemIndex(of: $0) }.sorted()
         let target: Int
         if sel.isEmpty {
             target = d > 0 ? 0 : n - 1
@@ -918,7 +1090,7 @@ final class FilesCollectionView: NSCollectionView {
             target = d > 0 ? sel.last! + 1 : sel.first! - 1
         }
         guard target >= 0, target < n else { NSSound.beep(); return }
-        let ip = IndexPath(item: target, section: 0)
+        let ip = owner.indexPath(ofItem: target)
         if extend {
             selectItems(at: [ip], scrollPosition: [])
             delegate?.collectionView?(self, didSelectItemsAt: [ip])
@@ -935,7 +1107,7 @@ final class FilesCollectionView: NSCollectionView {
     override func menu(for event: NSEvent) -> NSMenu? {
         window?.makeFirstResponder(self)
         let p = convert(event.locationInWindow, from: nil)
-        owner?.prepareContextClick(at: indexPathForItem(at: p)?.item)
+        owner?.prepareContextClick(at: indexPathForItem(at: p).flatMap { owner?.itemIndex(of: $0) })
         return super.menu(for: event)
     }
 }
@@ -1025,4 +1197,84 @@ final class FilesGridItem: NSCollectionViewItem {
         label.layer?.backgroundColor = labelBack?.cgColor ?? NSColor.clear.cgColor
         label.textColor = labelBack != nil ? .white : p.nsFG.withAlphaComponent(0.9)
     }
+}
+
+// MARK: - Tarih başlıkları (Bugün, Dün, 22 Kasım Pazartesi, Ekim…)
+
+/// Başlık: kalın ad, sağda sayı, altında ince çizgi
+final class FilesGroupHeaderView: NSTableCellView {
+    static let id = NSUserInterfaceItemIdentifier("FilesGroupHeader")
+    private let title = NSTextField(labelWithString: "")
+    private let count = NSTextField(labelWithString: "")
+    private let line = NSView()
+    private var leading: NSLayoutConstraint!
+    private var lineLeading: NSLayoutConstraint!
+
+    init() {
+        super.init(frame: .zero)
+        identifier = Self.id
+        title.font = .systemFont(ofSize: 12.5, weight: .bold)
+        count.font = .systemFont(ofSize: 11, weight: .medium)
+        line.wantsLayer = true
+        for v in [title, count, line] as [NSView] {
+            v.translatesAutoresizingMaskIntoConstraints = false
+            addSubview(v)
+        }
+        leading = title.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 10)
+        lineLeading = line.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 10)
+        NSLayoutConstraint.activate([
+            leading,
+            title.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -7),
+            count.leadingAnchor.constraint(equalTo: title.trailingAnchor, constant: 7),
+            count.firstBaselineAnchor.constraint(equalTo: title.firstBaselineAnchor),
+            count.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -10),
+            lineLeading,
+            line.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -10),
+            line.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -1),
+            line.heightAnchor.constraint(equalToConstant: 1),
+        ])
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    func configure(_ text: String, count n: Int, inset: CGFloat) {
+        title.stringValue = text
+        count.stringValue = String(n)
+        leading.constant = inset
+        lineLeading.constant = inset
+        refreshLook()
+    }
+
+    private func refreshLook() {
+        let p = FilesPalette.current(for: effectiveAppearance)
+        title.textColor = p.nsFG.withAlphaComponent(0.85)
+        count.textColor = p.nsFG.withAlphaComponent(0.4)
+        line.layer?.backgroundColor = p.nsFG.withAlphaComponent(p.dark ? 0.12 : 0.1).cgColor
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        refreshLook()
+    }
+}
+
+/// Başlık satırı: arka plan ve seçim çizilmez
+final class FilesHeaderRowView: NSTableRowView {
+    override func drawBackground(in dirtyRect: NSRect) {}
+    override func drawSelection(in dirtyRect: NSRect) {}
+}
+
+/// Simgelerde bölüm başlığı
+final class FilesGridHeader: NSView, NSCollectionViewElement {
+    static let id = NSUserInterfaceItemIdentifier("FilesGridHeader")
+    let header = FilesGroupHeaderView()
+
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        header.autoresizingMask = [.width, .height]
+        header.frame = bounds
+        addSubview(header)
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
 }

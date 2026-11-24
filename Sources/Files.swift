@@ -107,7 +107,110 @@ extension URL {
     var fileKey: String { standardizedFileURL.path.precomposedStringWithCanonicalMapping }
 }
 
-enum FilesSortKey: String { case name, modified, size, kind }
+enum FilesSortKey: String, CaseIterable {
+    case name, added, modified, size, kind
+    var isDate: Bool { self == .added || self == .modified }
+    var title: String {
+        switch self {
+        case .name: return L("Ad")
+        case .added: return L("Eklenme tarihi")
+        case .modified: return L("Değiştirilme tarihi")
+        case .size: return L("Boyut")
+        case .kind: return L("Tür")
+        }
+    }
+}
+
+/// Her klasörün kendi sıralaması ve gruplaması (İndirilenler: en yeni üstte, günlere / aylara göre)
+@MainActor enum FolderViewPrefs {
+    struct Prefs: Equatable {
+        var key: FilesSortKey
+        var ascending: Bool
+        var grouped: Bool
+    }
+
+    private static let storeKey = "files.folderView"
+
+    static func defaults(for url: URL) -> Prefs {
+        if let dl = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first, dl.fileKey == url.fileKey {
+            return Prefs(key: .added, ascending: false, grouped: true)
+        }
+        return Prefs(key: .name, ascending: true, grouped: false)
+    }
+
+    static func get(_ url: URL) -> Prefs {
+        let all = UserDefaults.standard.dictionary(forKey: storeKey) as? [String: String] ?? [:]
+        guard let raw = all[url.fileKey] else { return defaults(for: url) }
+        let parts = raw.split(separator: ",").map(String.init)
+        guard parts.count == 3, let k = FilesSortKey(rawValue: parts[0]) else { return defaults(for: url) }
+        return Prefs(key: k, ascending: parts[1] == "1", grouped: parts[2] == "1")
+    }
+
+    static func set(_ p: Prefs, for url: URL) {
+        var all = UserDefaults.standard.dictionary(forKey: storeKey) as? [String: String] ?? [:]
+        if p == defaults(for: url) {
+            all[url.fileKey] = nil
+        } else {
+            all[url.fileKey] = "\(p.key.rawValue),\(p.ascending ? 1 : 0),\(p.grouped ? 1 : 0)"
+        }
+        UserDefaults.standard.set(all, forKey: storeKey)
+    }
+}
+
+/// Tarihe göre gruplar: bu ay ve son yedi gün günlere, daha eskisi aylara bölünür
+enum FilesDateGroups {
+    struct Group { let title: String; var indices: [Int] }
+
+    static func group(_ items: [FileItem], by key: FilesSortKey, ascending: Bool, now: Date = Date()) -> [Group] {
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: now)
+        var order: [String] = []
+        var groups: [String: (title: String, date: Date, indices: [Int])] = [:]
+        for (i, it) in items.enumerated() {
+            let date = key == .modified ? it.modified : (it.added ?? it.modified)
+            let id: String, title: String, start: Date
+            if let date {
+                let day = cal.startOfDay(for: date)
+                let ago = cal.dateComponents([.day], from: day, to: today).day ?? 0
+                let sameMonth = cal.isDate(date, equalTo: now, toGranularity: .month)
+                if ago <= 0 && day >= today {
+                    id = "today"; title = L("Bugün"); start = today
+                } else if ago == 1 {
+                    id = "yesterday"; title = L("Dün"); start = day
+                } else if ago < 7 || sameMonth {
+                    id = "d" + String(Int(day.timeIntervalSince1970)); start = day
+                    title = dayFormatter.string(from: day)
+                } else {
+                    let m = cal.date(from: cal.dateComponents([.year, .month], from: date)) ?? day
+                    id = "m" + String(Int(m.timeIntervalSince1970)); start = m
+                    title = (cal.isDate(m, equalTo: now, toGranularity: .year) ? monthFormatter : monthYearFormatter).string(from: m)
+                }
+            } else {
+                id = "none"; title = L("Tarihsiz"); start = .distantPast
+            }
+            if groups[id] == nil { order.append(id); groups[id] = (title, start, []) }
+            groups[id]!.indices.append(i)
+        }
+        let oldestFirst = key.isDate && ascending
+        let sorted = order.sorted { a, b in
+            let da = groups[a]!.date, db = groups[b]!.date
+            if da == .distantPast || db == .distantPast { return db == .distantPast && da != .distantPast }
+            return oldestFirst ? da < db : da > db
+        }
+        return sorted.map { Group(title: groups[$0]!.title, indices: groups[$0]!.indices) }
+    }
+
+    private static func formatter(_ template: String) -> DateFormatter {
+        let f = DateFormatter()
+        // Başlıklar uygulamanın dilinde (Bugün / Dün ile aynı dil)
+        f.locale = Locale(identifier: AppLanguage.active == .tr ? "tr_TR" : "en_US")
+        f.setLocalizedDateFormatFromTemplate(template)
+        return f
+    }
+    private static let dayFormatter = formatter("EEEEdMMMM")
+    private static let monthFormatter = formatter("MMMM")
+    private static let monthYearFormatter = formatter("MMMMyyyy")
+}
 
 // MARK: - Öğe
 
@@ -121,6 +224,8 @@ struct FileItem: Hashable {
     let isHidden: Bool
     let size: Int64?
     let modified: Date?
+    /// Klasöre eklenme tarihi (İndirilenler'de indirilme anı)
+    let added: Date?
     let kind: String
     /// Klasöre işaret eden takma ad / sembolik bağ
     let isLinkToFolder: Bool
@@ -128,7 +233,7 @@ struct FileItem: Hashable {
     let tags: [String]
 
     static let keys: [URLResourceKey] = [.localizedNameKey, .isDirectoryKey, .isPackageKey, .isHiddenKey,
-                                         .fileSizeKey, .contentModificationDateKey, .localizedTypeDescriptionKey,
+                                         .fileSizeKey, .contentModificationDateKey, .addedToDirectoryDateKey, .localizedTypeDescriptionKey,
                                          .isSymbolicLinkKey, .isAliasFileKey, .isApplicationKey, .tagNamesKey]
 
     init?(url: URL) {
@@ -142,6 +247,7 @@ struct FileItem: Hashable {
         isHidden = v.isHidden ?? url.lastPathComponent.hasPrefix(".")
         size = isFolder ? nil : (v.fileSize.map { Int64($0) })
         modified = v.contentModificationDate
+        added = v.addedToDirectoryDate
         kind = v.localizedTypeDescription ?? ""
         tags = v.tagNames ?? []
         if (v.isSymbolicLink ?? false) || (v.isAliasFile ?? false), !dir,

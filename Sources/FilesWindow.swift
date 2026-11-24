@@ -33,8 +33,10 @@ import UniformTypeIdentifiers
     /// Sekmeye dönünce kaldığı yerden devam
     var scrollY: CGFloat?
 
-    private(set) var sortKey: FilesSortKey = .name
-    private(set) var ascending = true
+    @Published private(set) var sortKey: FilesSortKey = .name
+    @Published private(set) var ascending = true
+    /// Tarihe göre gruplu (günler / aylar)
+    @Published private(set) var grouped = false
     private var back: [URL] = []
     private var forward: [URL] = []
     private var all: [FileItem] = []
@@ -45,7 +47,29 @@ import UniformTypeIdentifiers
     init(url: URL) {
         self.url = URL(fileURLWithPath: url.standardizedFileURL.path)
         watcher.onChange = { [weak self] in self?.reload() }
+        applyFolderPrefs()
         load()
+    }
+
+    /// Bu klasör için kaydedilen sıralama / gruplama
+    private func applyFolderPrefs() {
+        let p = tag == nil ? FolderViewPrefs.get(url) : FolderViewPrefs.Prefs(key: .name, ascending: true, grouped: false)
+        if sortKey != p.key { sortKey = p.key }
+        if ascending != p.ascending { ascending = p.ascending }
+        if grouped != p.grouped { grouped = p.grouped }
+    }
+
+    private func saveFolderPrefs() {
+        guard tag == nil else { return }
+        FolderViewPrefs.set(.init(key: sortKey, ascending: ascending, grouped: grouped), for: url)
+    }
+
+    func setGrouped(_ on: Bool) {
+        guard grouped != on else { return }
+        grouped = on
+        saveFolderPrefs()
+        // Görünüm aynı öğelerle yeniden gruplansın
+        items = items
     }
 
     var title: String {
@@ -76,6 +100,7 @@ import UniformTypeIdentifiers
         selection = []
         scrollY = nil
         updateHistory()
+        applyFolderPrefs()
         load()
     }
 
@@ -109,6 +134,7 @@ import UniformTypeIdentifiers
         selection = []
         scrollY = nil
         updateHistory()
+        applyFolderPrefs()
         load()
     }
 
@@ -162,6 +188,7 @@ import UniformTypeIdentifiers
     func setSort(_ key: FilesSortKey, ascending: Bool) {
         sortKey = key
         self.ascending = ascending
+        saveFolderPrefs()
         resort()
     }
 
@@ -172,6 +199,7 @@ import UniformTypeIdentifiers
             switch key {
             case .name: r = a.name.localizedStandardCompare(b.name)
             case .modified: r = Self.compare(a.modified ?? .distantPast, b.modified ?? .distantPast)
+            case .added: r = Self.compare(a.added ?? a.modified ?? .distantPast, b.added ?? b.modified ?? .distantPast)
             case .size: r = Self.compare(a.size ?? -1, b.size ?? -1)
             case .kind:
                 let k = a.kind.localizedStandardCompare(b.kind)
@@ -1223,6 +1251,7 @@ private struct FilesToolbar: View {
                 FilesToolButton(symbol: "folder.badge.plus", help: L("Yeni klasör") + "  ⇧⌘N") { controller.newFolder(nil) }
             }
             FilesModePicker(model: model)
+            FilesSortMenu(tab: tab)
             FilesToolButton(symbol: "sidebar.right", help: L("Önizleme bölmesi") + "  ⇧⌘P", on: model.previewVisible) {
                 controller.togglePreview(nil)
             }
@@ -1267,6 +1296,40 @@ private struct FilesModePicker: View {
         .buttonStyle(.plain)
         .foregroundStyle(p.theme == .missing && on ? .white : p.fg.opacity(on ? 1 : 0.6))
         .help(help)
+    }
+}
+
+/// Sıralama ve gruplama (her klasör kendi ayarını hatırlar)
+private struct FilesSortMenu: View {
+    @ObservedObject var tab: FilesTab
+    @Environment(\.filesPalette) private var p
+
+    var body: some View {
+        Menu {
+            Picker(L("Sırala"), selection: Binding(get: { tab.sortKey }, set: { k in
+                tab.setSort(k, ascending: k.isDate || k == .size ? false : true)
+            })) {
+                ForEach(FilesSortKey.allCases, id: \.self) { Text($0.title).tag($0) }
+            }
+            .pickerStyle(.inline)
+            Picker(L("Yön"), selection: Binding(get: { tab.ascending }, set: { tab.setSort(tab.sortKey, ascending: $0) })) {
+                Text(L("Artan")).tag(true)
+                Text(L("Azalan")).tag(false)
+            }
+            .pickerStyle(.inline)
+            Divider()
+            Toggle(L("Tarihe göre grupla"), isOn: Binding(get: { tab.grouped }, set: { tab.setGrouped($0) }))
+        } label: {
+            Image(systemName: tab.grouped ? "calendar" : "arrow.up.arrow.down")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(p.fg.opacity(0.75))
+                .frame(width: 26, height: 22)
+                .contentShape(Rectangle())
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help(L("Sıralama ve gruplama — bu klasör için hatırlanır"))
     }
 }
 
@@ -1629,6 +1692,7 @@ private struct FilesPathBar: View {
 private struct FilesSidebar: View {
     @ObservedObject var tab: FilesTab
     @ObservedObject var places = FilesPlaces.shared
+    @ObservedObject var state = FilesSidebarState.shared
     let controller: FilesWindowController
     @Environment(\.filesPalette) private var p
 
@@ -1637,25 +1701,59 @@ private struct FilesSidebar: View {
             VStack(alignment: .leading, spacing: p.theme == .windows ? 0 : 1) {
                 let favs = places.shownFavorites
                 if !favs.isEmpty {
-                    section(L("Sık kullanılanlar"))
-                    ForEach(favs) { row($0, removable: places.isFinderFavorite($0.url)) }
+                    SidebarSectionHeader(title: L("Sık kullanılanlar"), key: "fav")
+                    if !state.isCollapsed(section: "fav") {
+                        ForEach(favs) { f in
+                            SidebarTree(place: f, scope: "fav", tab: tab, controller: controller,
+                                        remove: places.isFinderFavorite(f.url) ? { FilesPlaces.shared.unpin(f.url) } : nil)
+                        }
+                    }
                 }
                 if !places.pinned.isEmpty {
-                    section(L("Sabitlenenler"))
-                    ForEach(places.pinned) { row($0, removable: true) }
+                    SidebarSectionHeader(title: L("Sabitlenenler"), key: "pin")
+                    if !state.isCollapsed(section: "pin") {
+                        ForEach(places.pinned) { f in
+                            SidebarTree(place: f, scope: "pin", tab: tab, controller: controller,
+                                        remove: { FilesPlaces.shared.unpin(f.url) })
+                        }
+                    }
+                }
+                ForEach(state.groups) { g in
+                    SidebarGroupHeader(group: g, controller: controller)
+                    if !g.collapsed {
+                        let items = state.places(g)
+                        if items.isEmpty {
+                            SidebarGroupPlaceholder(group: g)
+                        }
+                        ForEach(items) { f in
+                            SidebarTree(place: f, scope: g.id.uuidString, tab: tab, controller: controller,
+                                        remove: { FilesSidebarState.shared.removeItem(f.url, from: g.id) }, groupID: g.id)
+                        }
+                    }
                 }
                 let locs = places.shownLocations
                 if !locs.isEmpty {
-                    section(L("Konumlar"))
-                    ForEach(locs) { row($0) }
+                    SidebarSectionHeader(title: L("Konumlar"), key: "loc")
+                    if !state.isCollapsed(section: "loc") {
+                        ForEach(locs) { f in
+                            SidebarRow(place: f, selected: selected(f), controller: controller)
+                        }
+                    }
                 }
                 let tags = places.shownTags
                 if !tags.isEmpty {
-                    section(L("Etiketler"))
-                    ForEach(tags) { t in
-                        TagRow(tag: t, selected: tab.tag == t, controller: controller)
+                    SidebarSectionHeader(title: L("Etiketler"), key: "tags")
+                    if !state.isCollapsed(section: "tags") {
+                        ForEach(tags) { t in
+                            TagRow(tag: t, selected: tab.tag == t, controller: controller)
+                        }
                     }
                 }
+                // Boş alan: sağ tıkla yeni başlık
+                Color.clear
+                    .frame(maxWidth: .infinity, minHeight: 60)
+                    .contentShape(Rectangle())
+                    .contextMenu { newGroupButton }
             }
             .padding(.horizontal, p.theme == .windows ? 4 : 8)
             .padding(.vertical, 8)
@@ -1669,29 +1767,210 @@ private struct FilesSidebar: View {
             }
             return true
         }
+        .onChange(of: tab.url) { _ in state.reloadChildren() }
     }
 
-    private func section(_ title: String) -> some View {
-        Text(title)
-            .font(.system(size: p.theme == .finder ? 11 : 10.5, weight: p.theme == .finder ? .semibold : .bold))
-            .foregroundStyle(p.fg.opacity(p.theme == .finder ? 0.45 : 0.4))
-            .padding(.leading, 8)
-            .padding(.top, 10)
-            .padding(.bottom, 3)
+    private var newGroupButton: some View {
+        Button(L("Yeni başlık")) { FilesSidebarState.shared.addGroup() }
     }
 
-    private func row(_ place: SidebarPlace, removable: Bool = false) -> some View {
-        SidebarRow(place: place, selected: tab.tag == nil && place.special != .airdrop && place.special != .network
-                   && tab.url.fileKey == place.url.fileKey, removable: removable,
-                   controller: controller)
+    private func selected(_ place: SidebarPlace) -> Bool {
+        tab.tag == nil && place.special != .airdrop && place.special != .network && tab.url.fileKey == place.url.fileKey
+    }
+}
+
+/// Hazır bölüm başlığı; tıklayınca bölüm kapanır / açılır
+private struct SidebarSectionHeader: View {
+    let title: String
+    let key: String
+    @ObservedObject private var state = FilesSidebarState.shared
+    @Environment(\.filesPalette) private var p
+    @State private var hover = false
+
+    var body: some View {
+        let collapsed = state.isCollapsed(section: key)
+        HStack(spacing: 4) {
+            Text(title)
+                .font(.system(size: p.theme == .finder ? 11 : 10.5, weight: p.theme == .finder ? .semibold : .bold))
+                .foregroundStyle(p.fg.opacity(p.theme == .finder ? 0.45 : 0.4))
+            Spacer(minLength: 0)
+            Image(systemName: "chevron.right")
+                .font(.system(size: 8.5, weight: .bold))
+                .foregroundStyle(p.fg.opacity(0.4))
+                .rotationEffect(.degrees(collapsed ? 0 : 90))
+                .opacity(hover || collapsed ? 1 : 0)
+        }
+        .padding(.leading, 8)
+        .padding(.trailing, 8)
+        .padding(.top, 10)
+        .padding(.bottom, 3)
+        .contentShape(Rectangle())
+        .onHover { hover = $0 }
+        .onTapGesture { withAnimation(.easeOut(duration: 0.15)) { state.toggle(section: key) } }
+        .contextMenu {
+            Button(L("Yeni başlık")) { FilesSidebarState.shared.addGroup() }
+        }
+    }
+}
+
+/// Kullanıcının açtığı başlık: altında ince bir çizgi
+private struct SidebarGroupHeader: View {
+    let group: SidebarGroup
+    let controller: FilesWindowController
+    @ObservedObject private var state = FilesSidebarState.shared
+    @Environment(\.filesPalette) private var p
+    @State private var hover = false
+    @State private var dropTarget = false
+    @State private var text = ""
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 6) {
+                if state.editing == group.id {
+                    TextField("", text: $text)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 11.5, weight: .bold))
+                        .focused($focused)
+                        .onSubmit(commit)
+                        .onExitCommand { state.editing = nil }
+                        .onChange(of: focused) { f in if !f { commit() } }
+                        .padding(.horizontal, 5)
+                        .frame(height: 20)
+                        .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(p.fg.opacity(0.08)))
+                        .overlay(RoundedRectangle(cornerRadius: 5, style: .continuous).strokeBorder(p.accent.opacity(0.7), lineWidth: 1))
+                        .onAppear {
+                            text = group.title
+                            DispatchQueue.main.async {
+                                focused = true
+                                DispatchQueue.main.async { NSApp.keyWindow?.firstResponder.flatMap { $0 as? NSTextView }?.selectAll(nil) }
+                            }
+                        }
+                } else {
+                    Text(group.title)
+                        .font(.system(size: 11.5, weight: .bold))
+                        .foregroundStyle(p.fg.opacity(0.75))
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 0)
+                if hover && state.editing != group.id {
+                    Button { state.chooseFolders(for: group.id, window: controller.window) } label: {
+                        Image(systemName: "plus").font(.system(size: 9.5, weight: .bold))
+                            .frame(width: 16, height: 16).contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(p.fg.opacity(0.55))
+                    .help(L("Klasör ekle…"))
+                }
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 8.5, weight: .bold))
+                    .foregroundStyle(p.fg.opacity(0.45))
+                    .rotationEffect(.degrees(group.collapsed ? 0 : 90))
+                    .opacity(hover || group.collapsed ? 1 : 0)
+            }
+            Rectangle()
+                .fill(dropTarget ? p.accent : p.fg.opacity(p.theme == .finder ? 0.12 : 0.14))
+                .frame(height: dropTarget ? 2 : 1)
+        }
+        .padding(.horizontal, 8)
+        .padding(.top, 12)
+        .padding(.bottom, 4)
+        .contentShape(Rectangle())
+        .onHover { hover = $0 }
+        .onTapGesture(count: 2) { state.editing = group.id }
+        .onTapGesture { withAnimation(.easeOut(duration: 0.15)) { state.toggleCollapsed(group.id) } }
+        .onDrop(of: [UTType.fileURL], isTargeted: $dropTarget) { providers in
+            let id = group.id
+            loadFileURLs(providers) { urls in FilesSidebarState.shared.add(urls, to: id) }
+            return true
+        }
+        .contextMenu {
+            Button(L("Yeniden adlandır")) { state.editing = group.id }
+            Button(L("Klasör ekle…")) { state.chooseFolders(for: group.id, window: controller.window) }
+            Divider()
+            Button(L("Yukarı taşı")) { state.moveGroup(group.id, by: -1) }
+                .disabled(state.groups.first?.id == group.id)
+            Button(L("Aşağı taşı")) { state.moveGroup(group.id, by: 1) }
+                .disabled(state.groups.last?.id == group.id)
+            Divider()
+            Button(L("Yeni başlık")) { state.addGroup() }
+            Button(L("Başlığı sil")) { state.remove(group.id) }
+        }
+    }
+
+    private func commit() {
+        guard state.editing == group.id else { return }
+        state.rename(group.id, text)
+        state.editing = nil
+    }
+}
+
+/// Boş başlığın altında: klasörleri buraya sürükle
+private struct SidebarGroupPlaceholder: View {
+    let group: SidebarGroup
+    @Environment(\.filesPalette) private var p
+    @State private var dropTarget = false
+
+    var body: some View {
+        Text(L("Klasörleri buraya sürükle"))
+            .font(.system(size: 11))
+            .foregroundStyle(p.fg.opacity(0.35))
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 10)
+            .frame(height: 26)
+            .background(RoundedRectangle(cornerRadius: max(4, p.radius - 1), style: .continuous)
+                .strokeBorder(dropTarget ? p.accent : p.fg.opacity(0.12), style: StrokeStyle(lineWidth: 1, dash: [3, 3])))
+            .onDrop(of: [UTType.fileURL], isTargeted: $dropTarget) { providers in
+                let id = group.id
+                loadFileURLs(providers) { urls in FilesSidebarState.shared.add(urls, to: id) }
+                return true
+            }
+    }
+}
+
+/// Bir kenar çubuğu klasörü ve (açıksa) alt klasörleri
+private struct SidebarTree: View {
+    let place: SidebarPlace
+    let scope: String
+    @ObservedObject var tab: FilesTab
+    let controller: FilesWindowController
+    var remove: (() -> Void)? = nil
+    var groupID: UUID? = nil
+    var depth = 0
+    @ObservedObject private var state = FilesSidebarState.shared
+
+    var body: some View {
+        let open = state.isExpanded(scope, place.url)
+        let kids = open ? state.subfolders(place.url) : nil
+        let canExpand = place.special == nil && !(kids?.isEmpty ?? false)
+        VStack(alignment: .leading, spacing: 1) {
+            SidebarRow(place: place,
+                       selected: tab.tag == nil && tab.url.fileKey == place.url.fileKey,
+                       controller: controller, remove: remove, groupID: groupID, depth: depth,
+                       expandable: canExpand, expanded: open && canExpand,
+                       onToggle: { withAnimation(.easeOut(duration: 0.15)) { state.toggle(scope, place.url) } })
+            if open, let kids {
+                ForEach(kids, id: \.self) { u in
+                    AnyView(SidebarTree(place: SidebarPlace(url: u, title: FileManager.default.displayName(atPath: u.path), symbol: "folder"),
+                                        scope: FilesSidebarState.key(scope, place.url), tab: tab, controller: controller, depth: depth + 1))
+                }
+            }
+        }
     }
 }
 
 private struct SidebarRow: View {
     let place: SidebarPlace
     let selected: Bool
-    let removable: Bool
     let controller: FilesWindowController
+    /// Verilirse sağ tık menüsünde "Kenar çubuğundan kaldır" / "Başlıktan kaldır"
+    var remove: (() -> Void)? = nil
+    /// Başlık altındaki klasörse o başlık
+    var groupID: UUID? = nil
+    var depth = 0
+    var expandable = false
+    var expanded = false
+    var onToggle: (() -> Void)? = nil
     @Environment(\.filesPalette) private var p
     @State private var hover = false
     @State private var dropTarget = false
@@ -1706,6 +1985,17 @@ private struct SidebarRow: View {
                 .font(.system(size: 12.5, weight: selected && p.theme != .finder ? .semibold : .regular))
                 .lineLimit(1)
             Spacer(minLength: 0)
+            if expandable && (hover || expanded) {
+                Button { onToggle?() } label: {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 8.5, weight: .bold))
+                        .rotationEffect(.degrees(expanded ? 90 : 0))
+                        .foregroundStyle(p.fg.opacity(expanded ? 0.45 : 0.6))
+                        .frame(width: 16, height: 18).contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help(expanded ? L("Daralt") : L("Alt klasörleri göster"))
+            }
             if place.ejectable {
                 Button { FilesPlaces.shared.eject(place, window: controller.window) } label: {
                     Image(systemName: "eject.fill").font(.system(size: 9.5)).foregroundStyle(p.fg.opacity(0.5))
@@ -1715,7 +2005,8 @@ private struct SidebarRow: View {
                 .help(L("Çıkar"))
             }
         }
-        .padding(.horizontal, 8)
+        .padding(.leading, 8 + CGFloat(depth) * 14)
+        .padding(.trailing, expandable ? 3 : 8)
         .frame(height: p.theme == .windows ? 30 : 26)
         .background(background)
         .overlay(alignment: .leading) {
@@ -1742,9 +2033,19 @@ private struct SidebarRow: View {
                 }
             }
             Button(L("Finder'da göster")) { NSWorkspace.shared.open(place.url) }
-            if removable {
+            if expandable {
+                Button(expanded ? L("Daralt") : L("Alt klasörleri göster")) { onToggle?() }
+            }
+            if place.special == nil && !place.ejectable {
+                groupMenu
+            }
+            if let remove {
                 Divider()
-                Button(L("Kenar çubuğundan kaldır")) { FilesPlaces.shared.unpin(place.url) }
+                Button(groupID == nil ? L("Kenar çubuğundan kaldır") : L("Başlıktan kaldır"), action: remove)
+            }
+            if let g = groupID {
+                Button(L("Yukarı taşı")) { FilesSidebarState.shared.moveItem(place.url, in: g, by: -1) }
+                Button(L("Aşağı taşı")) { FilesSidebarState.shared.moveItem(place.url, in: g, by: 1) }
             }
             if place.ejectable {
                 Divider()
@@ -1755,6 +2056,24 @@ private struct SidebarRow: View {
                 Button(L("Kenar çubuğundan gizle")) { FilesPlaces.shared.setVisible(key, false) }
             }
             Button(L("Kenar çubuğu ayarları…")) { FilesSettingsWindow.shared.show(tab: .sidebar) }
+        }
+    }
+
+    /// "Başlığa ekle" (başlık altındaysa "Başka başlığa taşı")
+    @ViewBuilder private var groupMenu: some View {
+        let state = FilesSidebarState.shared
+        let others = state.groups.filter { $0.id != groupID }
+        Menu(groupID == nil ? L("Başlığa ekle") : L("Başka başlığa taşı")) {
+            ForEach(others) { g in
+                Button(g.title) {
+                    if let from = groupID { state.move(place.url, from: from, to: g.id) } else { state.add([place.url], to: g.id) }
+                }
+            }
+            if !others.isEmpty { Divider() }
+            Button(L("Yeni başlık…")) {
+                if let from = groupID { state.removeItem(place.url, from: from) }
+                state.addGroup(with: [place.url])
+            }
         }
     }
 
