@@ -896,9 +896,37 @@ final class FilesCollectionView: NSCollectionView {
             if selectionIndexPaths.count == 1 { owner?.owner?.renameSelection(nil) } else { NSSound.beep() }
         case 49 where mods.isEmpty:
             owner?.owner?.toggleQuickLook(nil)
+        case 123 where mods.isEmpty || mods == .shift, 124 where mods.isEmpty || mods == .shift:
+            stepLinear(by: e.keyCode == 123 ? -1 : 1, extend: mods == .shift)
         default:
             super.keyDown(with: e)
         }
+    }
+
+    /// Sağ / sol oklar satır sonunda alt / üst satıra geçer (sıra boyunca bir sonraki öğe)
+    private func stepLinear(by d: Int, extend: Bool) {
+        let n = numberOfItems(inSection: 0)
+        guard n > 0 else { return }
+        let sel = selectionIndexPaths.map(\.item).sorted()
+        let target: Int
+        if sel.isEmpty {
+            target = d > 0 ? 0 : n - 1
+        } else {
+            target = d > 0 ? sel.last! + 1 : sel.first! - 1
+        }
+        guard target >= 0, target < n else { NSSound.beep(); return }
+        let ip = IndexPath(item: target, section: 0)
+        if extend {
+            selectItems(at: [ip], scrollPosition: [])
+            delegate?.collectionView?(self, didSelectItemsAt: [ip])
+        } else {
+            let old = selectionIndexPaths
+            deselectItems(at: old)
+            selectItems(at: [ip], scrollPosition: [])
+            delegate?.collectionView?(self, didDeselectItemsAt: old)
+            delegate?.collectionView?(self, didSelectItemsAt: [ip])
+        }
+        scrollToItems(at: [ip], scrollPosition: .nearestHorizontalEdge)
     }
 
     override func menu(for event: NSEvent) -> NSMenu? {

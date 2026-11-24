@@ -2,6 +2,10 @@
 
 Also shown in the app: **Settings › Versions**.
 
+## 4.3.6
+
+- In Files' icon view the left / right arrows continue onto the next / previous row (⇧ extends the selection)
+
 ## 4.3.5
 
 - Icon size slider at the bottom right of Files' icon view (like Finder); pinch on the trackpad to zoom too

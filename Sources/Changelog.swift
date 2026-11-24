@@ -16,6 +16,10 @@ struct ChangelogEntry {
 
 enum Changelog {
     static let entries: [ChangelogEntry] = [
+        ChangelogEntry(version: "4.3.6", items: [
+            ("Dosyalar'ın simge görünümünde sağ / sol oklar satır bitince alt / üst satıra geçer (⇧ ile seçim genişler)",
+             "In Files' icon view the left / right arrows continue onto the next / previous row (⇧ extends the selection)"),
+        ]),
         ChangelogEntry(version: "4.3.5", items: [
             ("Dosyalar'da simge görünümünde sağ altta simge boyutu kaydırıcısı (Finder gibi); izleme dörtgeninde kıstırarak da büyür / küçülür",
              "Icon size slider at the bottom right of Files' icon view (like Finder); pinch on the trackpad to zoom too"),
