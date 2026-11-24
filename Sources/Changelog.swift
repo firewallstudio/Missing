@@ -16,6 +16,12 @@ struct ChangelogEntry {
 
 enum Changelog {
     static let entries: [ChangelogEntry] = [
+        ChangelogEntry(version: "4.3.8", items: [
+            ("Dosyalar'da ⌘\" ile sekmeler arasında geçiş: ⌘Tab panelindeki gibi kartlar, ⇧ ile geri, ⌘ bırakınca geçer",
+             "Switch tabs in Files with ⌘\" (⌘` on US keyboards): cards like the ⌘Tab panel, ⇧ goes back, release ⌘ to switch"),
+            ("Dosyalar artık Ayarlar'da kendi başına bir özellik: Özellikler'de kartı, sol menüde kendi sayfası var",
+             "Files is now a feature of its own in Settings: its own card in Features and its own page in the sidebar"),
+        ]),
         ChangelogEntry(version: "4.3.7", items: [
             ("Dosyalar'da kopyalama / başka diske taşıma ilerlemesi: sağ altta kart ve durum çubuğunda ne kadar gitti, ne kadar kaldı, tahmini süre; kart üzerinden iptal",
              "Copy / cross-disk move progress in Files: a card at the bottom right and the status bar show how much is done, how much is left and the time remaining; cancel from the card"),

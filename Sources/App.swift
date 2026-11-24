@@ -75,7 +75,7 @@ import UserNotifications
         }
         KeepAwake.shared.onNotice = { [weak self] text, symbol in self?.hud.show(name: text, symbol: symbol) }
         model.onFilesChanged = { FilesManager.shared.settingsChanged() }
-        FilesManager.shared.openSettings = { [weak self] in self?.settings.show(page: .quick) }
+        FilesManager.shared.openSettings = { [weak self] in self?.settings.show(page: .files) }
         model.onNativeTabChanged = { [weak self] in self?.switcher.applyNative() }
         model.onDeepScanChanged = { [weak self] in self?.switcher.deepScopeChanged() }
         model.onDockDragChanged = { [weak self] in self?.dockDrag.start() }

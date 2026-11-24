@@ -8,7 +8,7 @@ import SwiftUI
 /// Ayarlardaki sekmeler: her biri bir düğmeyle açılır/kapanır. Kapalı sekme kenar çubuğundan
 /// kalkar ve içindeki her şey durur; açınca içindeki ayarlar kapatmadan önceki haline döner.
 enum Feature: String, CaseIterable, Identifiable {
-    case switcher, sound, screen, quick
+    case switcher, sound, screen, files, quick
 
     var id: String { rawValue }
 
@@ -17,6 +17,7 @@ enum Feature: String, CaseIterable, Identifiable {
         case .switcher: return .switcher
         case .sound: return .audio
         case .screen: return .screen
+        case .files: return .files
         case .quick: return .quick
         }
     }
@@ -29,6 +30,7 @@ enum Feature: String, CaseIterable, Identifiable {
         case .switcher: return L("⌘Tab · ⌥Tab · önizlemeler · tarayıcı profilleri")
         case .sound: return L("Ses kısayolu · uygulamaya göre ses cihazı")
         case .screen: return L("Ekran görüntüsü ve kayıt · ekranı böl · harici monitörler")
+        case .files: return L("Kendi dosya penceresi · dört tema · sekmeler ve ⌘\"")
         case .quick: return L("Ekolayzır · dosya ara · Finder ve Dock")
         }
     }
@@ -39,7 +41,7 @@ enum Feature: String, CaseIterable, Identifiable {
         case .switcher: return .switcher
         case .sound: return .audio
         case .screen: return .tile
-        case .quick: return .search
+        case .files, .quick: return .search
         }
     }
 
@@ -58,13 +60,14 @@ enum Feature: String, CaseIterable, Identifiable {
                     ("tile", { TileSettings.enabled }, { TileSettings.enabled = $0 }, true),
                     ("snapBar", { SnapBarSettings.enabled }, { SnapBarSettings.enabled = $0 }, true),
                     ("monitors", { MonitorSettings.showInMenu }, { MonitorSettings.showInMenu = $0 }, true)]
+        case .files:
+            return [("files", { FilesSettings.enabled }, { FilesSettings.enabled = $0 }, true)]
         case .quick:
             return [("eq", { EQSettings.enabled }, { EQSettings.enabled = $0 }, false),
                     ("search", { FileSearchSettings.enabled }, { FileSearchSettings.enabled = $0 }, true),
                     ("grouped", { Profile.cmd.grouped }, { Profile.cmd.grouped = $0 }, false),
                     ("deepScan", { DeepScanScope.current != .off }, { DeepScanScope.current = $0 ? .browsers : .off }, true),
                     ("mouseNav", { FinderMouseNav.enabled }, { FinderMouseNav.enabled = $0 }, true),
-                    ("files", { FilesSettings.enabled }, { FilesSettings.enabled = $0 }, true),
                     ("dockDrag", { DockDragSettings.enabled }, { DockDragSettings.enabled = $0 }, true)]
         }
     }
@@ -72,11 +75,21 @@ enum Feature: String, CaseIterable, Identifiable {
     private var flagKey: String { "section.\(rawValue).enabled" }
     private var savedKey: String { "section.\(rawValue).saved" }
 
-    var isOn: Bool { UserDefaults.standard.object(forKey: flagKey) as? Bool ?? true }
+    var isOn: Bool {
+        // Dosyalar tek bir anahtar: özellik açık mı, doğrudan ayarın kendisi
+        if self == .files { return FilesSettings.enabled }
+        return UserDefaults.standard.object(forKey: flagKey) as? Bool ?? true
+    }
 
     /// Sekmeyi aç/kapat ve çalışan parçalara uygula
     func set(_ on: Bool, model: SettingsModel) {
         guard on != isOn else { return }
+        if self == .files {
+            FilesSettings.enabled = on
+            model.onFilesChanged()
+            model.refresh()
+            return
+        }
         let d = UserDefaults.standard
         if on {
             let saved = d.dictionary(forKey: savedKey) as? [String: Bool] ?? [:]
@@ -204,7 +217,9 @@ struct FeatureTile: View {
         GeometryReader { geo in
             let k = geo.size.width / DemoStage.size.width
             Group {
-                if hover {
+                if feature == .files {
+                    FilesFeaturePreview()
+                } else if hover {
                     TimelineView(.animation) { ctx in
                         let t = ctx.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 3.2) / 3.2
                         DemoScene(demo: feature.demo, t: t)
@@ -269,5 +284,53 @@ struct RequestPage: View {
             Text(text).font(.system(size: 12)).foregroundStyle(.white.opacity(0.75))
                 .fixedSize(horizontal: false, vertical: true)
         }
+    }
+}
+
+/// Özellikler kartında Dosyalar: küçük bir Dosyalar penceresi (renkli klasörler)
+struct FilesFeaturePreview: View {
+    private static let folder = NSWorkspace.shared.icon(for: .folder)
+    private static let colors: [Int?] = [6, nil, 2, 7, nil, 3, 4, nil]
+
+    var body: some View {
+        ZStack {
+            LinearGradient(colors: [Color(red: 0.16, green: 0.10, blue: 0.14), Color(red: 0.08, green: 0.08, blue: 0.12)],
+                           startPoint: .topLeading, endPoint: .bottomTrailing)
+            HStack(spacing: 0) {
+                VStack(alignment: .leading, spacing: 9) {
+                    HStack(spacing: 5) { ForEach(0..<3) { i in Circle().fill([Color.red, .yellow, .green][i].opacity(0.85)).frame(width: 9, height: 9) } }
+                        .padding(.bottom, 6)
+                    ForEach(0..<6) { i in
+                        RoundedRectangle(cornerRadius: 3).fill(.white.opacity(i == 1 ? 0.45 : 0.18))
+                            .frame(width: [60, 70, 52, 64, 48, 58][i], height: 7)
+                    }
+                    Spacer()
+                }
+                .padding(14)
+                .frame(width: 110)
+                .background(Color.black.opacity(0.25))
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(spacing: 6) {
+                        Capsule().fill(Brand.red.opacity(0.9)).frame(width: 70, height: 16)
+                        Capsule().fill(.white.opacity(0.12)).frame(width: 58, height: 16)
+                        Spacer()
+                    }
+                    LazyVGrid(columns: Array(repeating: GridItem(.fixed(64), spacing: 12), count: 4), spacing: 12) {
+                        ForEach(0..<8) { i in
+                            VStack(spacing: 4) {
+                                Image(nsImage: Self.colors[i].map { FileIcons.tintedFolder(Self.folder, FinderTags.nsColor($0)) } ?? Self.folder)
+                                    .resizable().interpolation(.high).frame(width: 50, height: 50)
+                                RoundedRectangle(cornerRadius: 2).fill(.white.opacity(0.3)).frame(width: 40, height: 5)
+                            }
+                            .padding(4)
+                            .background(RoundedRectangle(cornerRadius: 8).fill(i == 0 ? Brand.red.opacity(0.3) : .clear))
+                        }
+                    }
+                    Spacer()
+                }
+                .padding(14)
+            }
+        }
+        .frame(width: DemoStage.size.width, height: DemoStage.size.height)
     }
 }

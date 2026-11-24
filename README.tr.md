@@ -179,6 +179,7 @@ Menü çubuğundaki yaprağa tıkla: üstte ses çıkışı, altında hızlı ey
 | ⌘⇧< | Uyanık tut aç / kapat |
 | ⌘⇧3 · ⌘⇧4 · ⌘⇧5 · ⌘⇧6 | Ekran · alan · kayıt · kaydırmalı görüntü |
 | ⌘Space (Finder'da) | Dosya ara |
+| ⌘" (Dosyalar'da) | Sekme değiştir |
 
 ## Sende ne eksik?
 

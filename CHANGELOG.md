@@ -2,6 +2,11 @@
 
 Also shown in the app: **Settings › Versions**.
 
+## 4.3.8
+
+- Switch tabs in Files with ⌘" (⌘` on US keyboards): cards like the ⌘Tab panel, ⇧ goes back, release ⌘ to switch
+- Files is now a feature of its own in Settings: its own card in Features and its own page in the sidebar
+
 ## 4.3.7
 
 - Copy / cross-disk move progress in Files: a card at the bottom right and the status bar show how much is done, how much is left and the time remaining; cancel from the card

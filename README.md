@@ -179,6 +179,7 @@ Click the leaf in the menu bar for a glass panel: sound output at the top, then 
 | ⌘⇧< | Keep awake on / off |
 | ⌘⇧3 · ⌘⇧4 · ⌘⇧5 · ⌘⇧6 | Display · area · record · scrolling capture |
 | ⌘Space (in Finder) | Find files |
+| ⌘" (in Files; ⌘` on US keyboards) | Switch tabs |
 
 ## Missing something?
 

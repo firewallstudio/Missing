@@ -153,7 +153,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
 // MARK: - Görünüm
 
 enum SettingsPage: CaseIterable {
-    case features, general, switcher, audio, screen, power, awake, quick, mouse, permissions, shortcuts, request, versions, about
+    case features, general, switcher, audio, screen, files, power, awake, quick, mouse, permissions, shortcuts, request, versions, about
 
     var title: String {
         switch self {
@@ -162,6 +162,7 @@ enum SettingsPage: CaseIterable {
         case .switcher: return L("Pencere Değiştirici")
         case .audio: return L("Ses")
         case .screen: return L("Ekran")
+        case .files: return L("Dosyalar")
         case .power: return L("Pil ve Şarj")
         case .awake: return L("Uyanık Tut")
         case .quick: return L("Hızlı Özellikler")
@@ -181,6 +182,7 @@ enum SettingsPage: CaseIterable {
         case .switcher: return "rectangle.on.rectangle"
         case .audio: return "speaker.wave.2.fill"
         case .screen: return "camera.viewfinder"
+        case .files: return "folder.fill"
         case .power: return "battery.75percent"
         case .awake: return KeepAwake.symbol
         case .quick: return "bolt.fill"
@@ -255,6 +257,7 @@ struct SettingsView: View {
         case .screen: screenTab
         case .power: powerCard
         case .awake: awakeCard
+        case .files: filesTab
         case .quick: quickTab
         case .mouse: MouseSettingsPage(model: MouseModel.shared, devices: MouseDevices.shared)
         case .permissions: permissionsTab
@@ -616,6 +619,51 @@ struct SettingsView: View {
         }
     }
 
+    // MARK: Dosyalar
+
+    @ViewBuilder private var filesTab: some View {
+        Card(title: L("Dosyalar penceresi"), icon: "folder.fill",
+             subtitle: L("Missing'in kendi dosya penceresi: sekmeler, Quick Look, sürükle-bırak"), startOpen: true) {
+            HStack {
+                Button(L("Dosyalar penceresini aç")) { FilesManager.shared.open() }
+                    .buttonStyle(GlassButtonStyle())
+                Button(L("Dosyalar ayarları…")) { FilesSettingsWindow.shared.show() }
+                    .buttonStyle(GlassButtonStyle())
+                if DockPin.isPinned {
+                    Label(L("Dock'ta"), systemImage: "checkmark.circle.fill")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.white.opacity(0.6))
+                } else {
+                    Button(L("Dock'a ekle")) {
+                        DockPin.pin()
+                        model.objectWillChange.send()
+                    }
+                    .buttonStyle(GlassButtonStyle())
+                }
+                Spacer()
+            }
+            note(L("Pencere açıkken Missing Dock'ta klasör simgesiyle görünür. Dock'a ekle (ya da simgeye sağ tıklayıp Seçenekler › Dock'ta Tut) dersen, pencere kapalıyken de simgeye tıklayınca açılır. Son pencerenin sekmeleri bir dahaki açılışta geri gelir."))
+        }
+        Card(title: L("Tema"), icon: "paintbrush.fill", subtitle: L("Missing, Finder, Windows ya da Cam"), startOpen: true) {
+            HStack {
+                Text(L("Tema")).font(.system(size: 12))
+                Spacer()
+                Picker("", selection: model.bind({ FilesThemeStore.shared.theme }, { FilesThemeStore.shared.theme = $0 })) {
+                    ForEach(FilesTheme.allCases) { Text($0.title).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .frame(width: 300)
+            }
+        }
+        Card(title: L("Sekme değiştirici"), icon: "rectangle.stack.fill", subtitle: L("⌘\" ile sekmeler arasında, ⌘Tab gibi"), startOpen: true) {
+            note(L("Dosyalar öndeyken ⌘ basılı tut ve \" tuşuna bas: sekmeler ⌘Tab panelindeki gibi kartlarla açılır. Her basışta bir sonrakine geçer, ⇧ ile geri gider; ⌘'yi bırakınca seçilen sekmeye geçilir. Esc vazgeçer."))
+        }
+        Card(title: L("Arama ve kenar çubuğu"), icon: "magnifyingglass", subtitle: L("Alt klasörlerde arama · Finder'la eşitlenen sık kullanılanlar")) {
+            note(L("Arama kutusu önce bu klasörde, ardından ⌘Space aramasının indeksiyle bütün alt klasörlerde arar. Kenar çubuğundaki sık kullanılanlar Finder'la aynıdır: birinde ekleyip çıkardığın klasör ötekine de yansır. Nelerin görüneceğini Dosyalar ayarlarından seçersin."))
+        }
+    }
+
     // MARK: Hızlı özellikler
 
     @ViewBuilder private var quickTab: some View {
@@ -631,45 +679,6 @@ struct SettingsView: View {
              }),
              subtitle: L("⌘Tab'da Tarayıcılar · Projeler · Uygulamalar · Klasörler bölümleri")) {
             groupedRows
-        }
-        Card(title: L("Dosyalar"), icon: "folder.fill",
-             isOn: model.bind({ FilesSettings.enabled }, { v in
-                 FilesSettings.enabled = v
-                 model.onFilesChanged()
-             }),
-             subtitle: L("Missing'in kendi dosya penceresi: sekmeler, Quick Look, sürükle-bırak, dört tema")) {
-            HStack {
-                Button(L("Dosyalar penceresini aç")) { FilesManager.shared.open() }
-                    .buttonStyle(GlassButtonStyle())
-                    .disabled(!FilesSettings.enabled)
-                Button(L("Dosyalar ayarları…")) { FilesSettingsWindow.shared.show() }
-                    .buttonStyle(GlassButtonStyle())
-                    .disabled(!FilesSettings.enabled)
-                if DockPin.isPinned {
-                    Label(L("Dock'ta"), systemImage: "checkmark.circle.fill")
-                        .font(.system(size: 12))
-                        .foregroundStyle(.white.opacity(0.6))
-                } else {
-                    Button(L("Dock'a ekle")) {
-                        DockPin.pin()
-                        model.objectWillChange.send()
-                    }
-                    .buttonStyle(GlassButtonStyle())
-                    .disabled(!FilesSettings.enabled)
-                }
-                Spacer()
-            }
-            HStack {
-                Text(L("Tema")).font(.system(size: 12))
-                Spacer()
-                Picker("", selection: model.bind({ FilesThemeStore.shared.theme }, { FilesThemeStore.shared.theme = $0 })) {
-                    ForEach(FilesTheme.allCases) { Text($0.title).tag($0) }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .frame(width: 300)
-            }
-            note(L("Pencere açıkken Missing Dock'ta klasör simgesiyle görünür. Dock'a ekle (ya da simgeye sağ tıklayıp Seçenekler › Dock'ta Tut) dersen, pencere kapalıyken de simgeye tıklayınca açılır. Arama kutusu önce bu klasörde, ardından ⌘Space aramasının indeksiyle bütün alt klasörlerde arar. Sekmeler ⌘T / ⌘W, Quick Look boşluk tuşu, yeniden adlandırma Return; son pencerenin sekmeleri bir dahaki açılışta geri gelir. Kenar çubuğundaki sık kullanılanlar Finder'la aynıdır: birinde ekleyip çıkardığın klasör ötekine de yansır."))
         }
         Card(title: L("Finder'da fare tuşları"), icon: "computermouse",
              isOn: model.bind({ FinderMouseNav.enabled }, { FinderMouseNav.enabled = $0 }),

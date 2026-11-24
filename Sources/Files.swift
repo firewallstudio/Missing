@@ -1142,6 +1142,7 @@ enum FinderTags {
 
     /// Farenin yan tuşları: geri / ileri; orta tuş sekmede: kapat
     private func installMouseButtons() {
+        FilesTabSwitcher.shared.install()
         guard mouseMonitor == nil else { return }
         mouseMonitor = NSEvent.addLocalMonitorForEvents(matching: [.otherMouseUp]) { [weak self] e in
             guard let self, let w = e.window, let c = self.windows.first(where: { $0.window === w }) else { return e }
