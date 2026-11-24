@@ -656,7 +656,26 @@ struct SettingsView: View {
                 .frame(width: 300)
             }
         }
-        Card(title: L("Sekme değiştirici"), icon: "rectangle.stack.fill", subtitle: L("⌘\" ile sekmeler arasında, ⌘Tab gibi"), startOpen: true) {
+        Card(title: L("Sekme değiştirici"), icon: "rectangle.stack.fill",
+             isOn: model.bind({ FilesSettings.tabSwitcherEnabled }, { FilesSettings.tabSwitcherEnabled = $0 }),
+             subtitle: L("⌘\" ile sekmeler arasında, ⌘Tab gibi"), startOpen: true) {
+            Row(L("Görünüm"), FilesSettings.tabSwitcherList ? L("Alt alta satırlar, ses listesi gibi") : L("Kartlar yan yana")) {
+                Picker("", selection: model.bind({ FilesSettings.tabSwitcherList ? 1 : 0 }, { FilesSettings.tabSwitcherList = $0 == 1 })) {
+                    Text(L("Izgara")).tag(0)
+                    Text(L("Liste")).tag(1)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .frame(width: 160)
+            }
+            Divider().opacity(0.4)
+            ToggleRow(L("Klasörün içi"), FilesSettings.tabSwitcherList ? L("Liste görünümünde kullanılmaz") : L("Kartta klasördeki ilk öğelerin simgeleri"),
+                      isOn: model.bind({ FilesSettings.tabSwitcherContents }, { FilesSettings.tabSwitcherContents = $0 }))
+                .disabled(FilesSettings.tabSwitcherList)
+            Divider().opacity(0.4)
+            ToggleRow(L("Sık kullanılanlar"), L("Sağda ince bir sütun; tıklayınca bu pencerede yeni sekmede açılır"),
+                      isOn: model.bind({ FilesSettings.tabSwitcherFavorites }, { FilesSettings.tabSwitcherFavorites = $0 }))
+            Divider().opacity(0.4)
             note(L("Dosyalar öndeyken ⌘ basılı tut ve \" tuşuna bas: sekmeler ⌘Tab panelindeki gibi kartlarla açılır. Her basışta bir sonrakine geçer, ⇧ ile geri gider; ⌘'yi bırakınca seçilen sekmeye geçilir. Esc vazgeçer."))
         }
         Card(title: L("Arama ve kenar çubuğu"), icon: "magnifyingglass", subtitle: L("Alt klasörlerde arama · Finder'la eşitlenen sık kullanılanlar")) {

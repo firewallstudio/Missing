@@ -16,6 +16,14 @@ struct ChangelogEntry {
 
 enum Changelog {
     static let entries: [ChangelogEntry] = [
+        ChangelogEntry(version: "4.3.10", items: [
+            ("⌘\" sekme değiştirici her zaman Dosyalar penceresinin tam ortasında açılır; dar pencerede kartlar alt satıra geçer",
+             "The ⌘\" tab switcher always opens in the exact center of the Files window; on a narrow window the cards wrap"),
+            ("Sekme değiştirici ayarları (Ayarlar › Dosyalar): aç / kapat, Izgara ya da Liste görünümü, kartta klasörün içi",
+             "Tab switcher settings (Settings › Files): on / off, grid or list view, folder contents on cards"),
+            ("Sekme değiştiricinin sağında ince bir sık kullanılanlar sütunu: tıklayınca o pencerede yeni sekmede açılır",
+             "A slim favorites column on the right of the tab switcher: click one to open it in a new tab in that window"),
+        ]),
         ChangelogEntry(version: "4.3.9", items: [
             ("Dosyalar'da ⌘\" sekme değiştirici Türkçe Q klavyede çalışmıyordu (\" tuşu yanlış tanınıyordu); artık klavye düzenine göre tanınır",
              "Files' ⌘\" tab switcher didn't work on Turkish Q keyboards (the \" key was misdetected); the key is now detected from the keyboard layout"),

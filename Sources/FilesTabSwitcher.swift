@@ -28,6 +28,7 @@ import SwiftUI
 
     /// Genel olay dinleyicisinden (⌘Tab'ın tap'i) gelen ⌘" basışı; true: tuş yutuldu
     func press(back: Bool) -> Bool {
+        guard FilesSettings.tabSwitcherEnabled else { return false }
         if isVisible { step(back ? -1 : 1); return true }
         guard let c = FilesManager.shared.windows.first(where: { $0.window?.isKeyWindow == true }),
               c.window?.attachedSheet == nil else { return false }
@@ -84,15 +85,35 @@ import SwiftUI
         }
         let p = panel ?? makePanel()
         panel = p
-        let host = p.contentView as! NSHostingView<FilesTabSwitcherView>
-        host.rootView = FilesTabSwitcherView(state: state)
-        let size = host.fittingSize
-        // Pencerenin ortasına; ekrana sığmıyorsa ekranın ortasına
+        // Kartlar pencerenin içine sığsın: satırdaki kart sayısı pencere genişliğinden
         let wf = c.window?.frame ?? NSScreen.main?.visibleFrame ?? .zero
-        let vf = c.window?.screen?.visibleFrame ?? NSScreen.main?.visibleFrame ?? wf
-        var origin = NSPoint(x: wf.midX - size.width / 2, y: wf.midY - size.height / 2)
-        origin.x = min(max(origin.x, vf.minX + 8), vf.maxX - size.width - 8)
-        origin.y = min(max(origin.y, vf.minY + 8), vf.maxY - size.height - 8)
+        state.list = FilesSettings.tabSwitcherList
+        state.contents = FilesSettings.tabSwitcherContents
+        state.favorites = FilesSettings.tabSwitcherFavorites ? Array(FilesPlaces.shared.shownFavorites.prefix(FilesTabSwitcherView.maxFavorites)) : []
+        state.onFavorite = { [weak self, weak c] url in
+            guard let self, let c else { return }
+            self.hide()
+            c.model.addTab(url)
+            c.browser.focus()
+        }
+        let favW = state.favorites.isEmpty ? 0 : FilesTabSwitcherView.favW + FilesTabSwitcherView.pad
+        state.perRow = FilesTabSwitcherView.perRow(count: n, width: wf.width - 40 - favW)
+        var size = state.list ? FilesTabSwitcherView.listSize(count: n) : FilesTabSwitcherView.size(count: n, perRow: state.perRow)
+        state.mainSize = size
+        if !state.favorites.isEmpty {
+            size.width += favW
+            size.height = max(size.height, FilesTabSwitcherView.favoritesHeight(state.favorites.count))
+        }
+        let host = p.contentView as! NSHostingView<FilesTabSwitcherView>
+        state.size = size
+        host.rootView = FilesTabSwitcherView(state: state)
+        host.frame = NSRect(origin: .zero, size: size)
+        // Her zaman Dosyalar penceresinin tam ortasında; yalnızca ekrandan taşarsa içeri itilir
+        var origin = NSPoint(x: (wf.midX - size.width / 2).rounded(), y: (wf.midY - size.height / 2).rounded())
+        if let sf = c.window?.screen?.frame {
+            origin.x = min(max(origin.x, sf.minX), sf.maxX - size.width)
+            origin.y = min(max(origin.y, sf.minY), sf.maxY - size.height)
+        }
         p.setFrame(NSRect(origin: origin, size: size), display: true)
         p.alphaValue = 1
         p.orderFront(nil)
@@ -134,7 +155,10 @@ import SwiftUI
         p.isReleasedWhenClosed = false
         p.animationBehavior = .none
         p.appearance = NSAppearance(named: .darkAqua)
-        p.contentView = NSHostingView(rootView: FilesTabSwitcherView(state: state))
+        let host = NSHostingView(rootView: FilesTabSwitcherView(state: state))
+        // Panelin boyunu biz veriyoruz; SwiftUI pencereyi kendi başına büyütüp kaydırmasın
+        host.sizingOptions = []
+        p.contentView = host
         return p
     }
 }
@@ -142,6 +166,14 @@ import SwiftUI
 @MainActor final class FilesTabSwitcherState: ObservableObject {
     @Published var tabs: [FilesTab] = []
     @Published var selected = 0
+    @Published var perRow = 1
+    @Published var list = false
+    @Published var contents = true
+    @Published var size: CGSize = .zero
+    @Published var mainSize: CGSize = .zero
+    /// Sağdaki ince sütun: tıklanan sık kullanılan bu pencerede yeni sekmede açılır
+    @Published var favorites: [SidebarPlace] = []
+    var onFavorite: (URL) -> Void = { _ in }
     var palette = FilesPalette(theme: .missing, dark: true)
     var onPick: (Int) -> Void = { _ in }
 }
@@ -149,27 +181,50 @@ import SwiftUI
 struct FilesTabSwitcherView: View {
     @ObservedObject var state: FilesTabSwitcherState
 
-    private static let cardW: CGFloat = 220, cardH: CGFloat = 178, gap: CGFloat = 12, pad: CGFloat = 20
-    /// Bir satıra en çok kaç kart
-    private var perRow: Int {
-        let screenW = NSScreen.main?.visibleFrame.width ?? 1400
-        return max(1, min(state.tabs.count, Int((screenW * 0.86 - Self.pad * 2 + Self.gap) / (Self.cardW + Self.gap))))
+    static let cardW: CGFloat = 220, cardH: CGFloat = 178, gap: CGFloat = 12, pad: CGFloat = 20
+    private var perRow: Int { max(1, state.perRow) }
+
+    /// Verilen genişliğe sığan kart sayısı (en az 1)
+    static func perRow(count: Int, width: CGFloat) -> Int {
+        max(1, min(count, Int((width - pad * 2 + gap) / (cardW + gap))))
+    }
+
+    /// Panelin tam boyu: kartlar + aralıklar + kenar boşluğu
+    static func size(count: Int, perRow: Int) -> CGSize {
+        let cols = CGFloat(min(count, perRow)), rows = CGFloat((count + perRow - 1) / perRow)
+        return CGSize(width: cols * cardW + (cols - 1) * gap + pad * 2,
+                      height: rows * cardH + (rows - 1) * gap + pad * 2)
+    }
+
+    // Sık kullanılanlar sütunu: dar ve sade
+    static let favW: CGFloat = 164, favRowH: CGFloat = 24, maxFavorites = 10
+
+    static func favoritesHeight(_ n: Int) -> CGFloat {
+        20 + CGFloat(n) * (favRowH + 2) + 12 + pad * 2
+    }
+
+    // Liste görünümü: ⌘Tab'ın listesi gibi alt alta satırlar
+    static let listW: CGFloat = 480, rowH: CGFloat = 58, rowGap: CGFloat = 4, listPad: CGFloat = 14
+
+    static func listSize(count: Int) -> CGSize {
+        let n = CGFloat(count)
+        return CGSize(width: listW, height: n * rowH + (n - 1) * rowGap + listPad * 2)
     }
 
     var body: some View {
-        let rows = stride(from: 0, to: state.tabs.count, by: perRow).map { Array($0..<min($0 + perRow, state.tabs.count)) }
-        VStack(spacing: Self.gap) {
-            ForEach(rows, id: \.first) { row in
-                HStack(spacing: Self.gap) {
-                    ForEach(row, id: \.self) { i in
-                        FilesTabCard(tab: state.tabs[i], selected: i == state.selected)
-                            .frame(width: Self.cardW, height: Self.cardH)
-                            .onTapGesture { state.onPick(i) }
-                    }
-                }
+        HStack(alignment: .top, spacing: 0) {
+            Group {
+                if state.list { listBody } else { cardsBody }
+            }
+            .frame(width: state.mainSize.width, height: state.mainSize.height)
+            if !state.favorites.isEmpty {
+                FilesTabFavorites(places: state.favorites, open: state.onFavorite)
+                    .frame(width: Self.favW)
+                    .padding(.vertical, state.list ? Self.listPad : Self.pad)
+                    .padding(.trailing, Self.pad)
             }
         }
-        .padding(Self.pad)
+        .frame(width: state.size.width, height: state.size.height, alignment: .topLeading)
         .background(
             ZStack {
                 GlassBlur(material: .hudWindow, appearance: .darkAqua)
@@ -177,18 +232,47 @@ struct FilesTabSwitcherView: View {
                 LinearGradient(colors: [.white.opacity(0.10), .clear], startPoint: .top, endPoint: .center)
             }
         )
-        .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 26, style: .continuous).strokeBorder(.white.opacity(0.14), lineWidth: 1))
+        .clipShape(RoundedRectangle(cornerRadius: state.list ? 22 : 26, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: state.list ? 22 : 26, style: .continuous).strokeBorder(.white.opacity(0.14), lineWidth: 1))
         .foregroundStyle(.white)
         .environment(\.colorScheme, .dark)
-        .fixedSize()
+        .frame(width: state.size.width, height: state.size.height)
     }
+
+    private var listBody: some View {
+        VStack(spacing: Self.rowGap) {
+            ForEach(state.tabs.indices, id: \.self) { i in
+                FilesTabRow(tab: state.tabs[i], selected: i == state.selected)
+                    .frame(width: Self.listW - Self.listPad * 2, height: Self.rowH)
+                    .onTapGesture { state.onPick(i) }
+            }
+        }
+        .padding(Self.listPad)
+    }
+
+    private var cardsBody: some View {
+        let rows = stride(from: 0, to: state.tabs.count, by: perRow).map { Array($0..<min($0 + perRow, state.tabs.count)) }
+        return VStack(spacing: Self.gap) {
+            ForEach(rows, id: \.first) { row in
+                HStack(spacing: Self.gap) {
+                    ForEach(row, id: \.self) { i in
+                        FilesTabCard(tab: state.tabs[i], selected: i == state.selected, contents: state.contents)
+                            .frame(width: Self.cardW, height: Self.cardH)
+                            .onTapGesture { state.onPick(i) }
+                    }
+                }
+            }
+        }
+        .padding(Self.pad)
+    }
+
 }
 
 /// ⌘Tab kartı gibi: üstte simge + ad, altta klasörün içinden küçük bir önizleme
 private struct FilesTabCard: View {
     @ObservedObject var tab: FilesTab
     let selected: Bool
+    var contents = true
 
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -202,7 +286,20 @@ private struct FilesTabCard: View {
                     .lineLimit(1).truncationMode(.middle)
                 Spacer(minLength: 0)
             }
-            preview
+            if contents {
+                preview
+            } else {
+                // İçerik kapalı: büyük klasör simgesi ve konum
+                VStack(spacing: 8) {
+                    Image(nsImage: FileIcons.shared.icon(tab.url))
+                        .resizable().interpolation(.high)
+                        .frame(width: 72, height: 72)
+                    Text(parent).font(.system(size: 10.5)).foregroundStyle(.white.opacity(0.5))
+                        .lineLimit(1).truncationMode(.head)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.white.opacity(0.07)))
+            }
         }
         .padding(10)
         .background(shape.fill(.white.opacity(selected ? 0.22 : 0.06)))
@@ -243,9 +340,87 @@ private struct FilesTabCard: View {
         }
     }
 
-    private var parent: String {
-        let p = tab.url.deletingLastPathComponent().path
+    private var parent: String { Self.parent(of: tab.url) }
+
+    static func parent(of url: URL) -> String {
+        let p = url.deletingLastPathComponent().path
         let home = NSHomeDirectory()
         return p.hasPrefix(home) ? "~" + p.dropFirst(home.count) : p
+    }
+}
+
+/// Liste satırı: ⌘Tab'ın liste görünümündeki gibi simge, ad, konum ve öğe sayısı
+private struct FilesTabRow: View {
+    @ObservedObject var tab: FilesTab
+    let selected: Bool
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: 14, style: .continuous)
+        HStack(spacing: 12) {
+            Image(nsImage: FileIcons.shared.icon(tab.url))
+                .resizable().interpolation(.high)
+                .frame(width: 34, height: 34)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(tab.title).font(.system(size: 14, weight: .semibold)).lineLimit(1).truncationMode(.middle)
+                Text(FilesTabCard.parent(of: tab.url)).font(.system(size: 11)).foregroundStyle(.white.opacity(0.5))
+                    .lineLimit(1).truncationMode(.head)
+            }
+            Spacer(minLength: 8)
+            Text(L("%d öğe", tab.totalCount))
+                .font(.system(size: 11)).monospacedDigit()
+                .foregroundStyle(.white.opacity(0.5))
+        }
+        .padding(.horizontal, 12)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(shape.fill(.white.opacity(selected ? 0.22 : 0.06)))
+        .overlay(shape.strokeBorder(selected ? Brand.red : .white.opacity(0.10), lineWidth: selected ? 2.5 : 1))
+        .shadow(color: selected ? Brand.red.opacity(0.75) : .clear, radius: 14)
+        .contentShape(shape)
+    }
+}
+
+/// Panelin sağında sık kullanılanlar: tıklayınca bu pencerede yeni sekmede açılır
+private struct FilesTabFavorites: View {
+    let places: [SidebarPlace]
+    let open: (URL) -> Void
+    @State private var hover: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(L("Sık kullanılanlar"))
+                .font(.system(size: 10.5, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.45))
+                .padding(.horizontal, 8)
+                .frame(height: 20, alignment: .leading)
+            ForEach(places) { p in
+                let on = hover == p.id
+                HStack(spacing: 7) {
+                    Image(systemName: p.symbol)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(on ? Brand.red : .white.opacity(0.7))
+                        .frame(width: 16)
+                    Text(p.title).font(.system(size: 12)).lineLimit(1).truncationMode(.middle)
+                    Spacer(minLength: 2)
+                    if on {
+                        Image(systemName: "plus")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(.white.opacity(0.6))
+                    }
+                }
+                .padding(.horizontal, 8)
+                .frame(height: FilesTabSwitcherView.favRowH)
+                .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(.white.opacity(on ? 0.12 : 0)))
+                .contentShape(Rectangle())
+                .onHover { hover = $0 ? p.id : (hover == p.id ? nil : hover) }
+                .onTapGesture { open(p.url) }
+                .help(L("Yeni sekmede aç"))
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, 6)
+        .padding(.horizontal, 4)
+        .frame(maxHeight: .infinity, alignment: .top)
+        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(.white.opacity(0.05)))
+        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(.white.opacity(0.08), lineWidth: 1))
     }
 }

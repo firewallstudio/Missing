@@ -2,6 +2,12 @@
 
 Also shown in the app: **Settings › Versions**.
 
+## 4.3.10
+
+- The ⌘" tab switcher always opens in the exact center of the Files window; on a narrow window the cards wrap
+- Tab switcher settings (Settings › Files): on / off, grid or list view, folder contents on cards
+- A slim favorites column on the right of the tab switcher: click one to open it in a new tab in that window
+
 ## 4.3.9
 
 - Files' ⌘" tab switcher didn't work on Turkish Q keyboards (the " key was misdetected); the key is now detected from the keyboard layout

@@ -53,6 +53,23 @@ enum FilesSettings {
         get { FilesViewMode(rawValue: d.string(forKey: "files.viewMode") ?? "") ?? .list }
         set { d.set(newValue.rawValue, forKey: "files.viewMode") }
     }
+    /// ⌘" sekme değiştirici: açık mı, liste mi kartlar mı, kartlarda klasörün içi görünsün mü
+    static var tabSwitcherEnabled: Bool {
+        get { d.object(forKey: "files.tabSwitcher") as? Bool ?? true }
+        set { d.set(newValue, forKey: "files.tabSwitcher") }
+    }
+    static var tabSwitcherList: Bool {
+        get { d.bool(forKey: "files.tabSwitcher.list") }
+        set { d.set(newValue, forKey: "files.tabSwitcher.list") }
+    }
+    static var tabSwitcherFavorites: Bool {
+        get { d.object(forKey: "files.tabSwitcher.favorites") as? Bool ?? true }
+        set { d.set(newValue, forKey: "files.tabSwitcher.favorites") }
+    }
+    static var tabSwitcherContents: Bool {
+        get { d.object(forKey: "files.tabSwitcher.contents") as? Bool ?? true }
+        set { d.set(newValue, forKey: "files.tabSwitcher.contents") }
+    }
     /// Sağdaki önizleme bölmesi (Windows Gezgini gibi)
     static var previewVisible: Bool {
         get { d.bool(forKey: "files.preview") }
