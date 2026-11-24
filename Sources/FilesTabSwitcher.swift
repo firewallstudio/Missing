@@ -1,4 +1,5 @@
 import AppKit
+import Carbon
 import SwiftUI
 
 // MARK: - Dosyalar sekme değiştirici (⌘")
@@ -10,8 +11,30 @@ import SwiftUI
 @MainActor final class FilesTabSwitcher {
     static let shared = FilesTabSwitcher()
 
-    /// " tuşu (ABD'de `): klavye düzeninden bağımsız fiziksel tuş
-    static let keyCode: UInt16 = 50
+    /// ⌘" tuşu mu? Türkçe Q (ISO) klavyede " 1'in solundaki tuştur (kod 10); ISO'da 50 kodu
+    /// ⌘< (ekranı böl) olduğundan 50 yalnızca ANSI (ABD) klavyede, orada ` tuşu olarak sayılır.
+    static func isSwitchKey(_ code: Int64, chars: String? = nil) -> Bool {
+        if let chars, ["\"", "é", "`", "~"].contains(chars) { return true }
+        if code == 10 { return true }
+        if code == 50 { return KBGetLayoutType(Int16(LMGetKbdType())) == kKeyboardANSI }
+        return false
+    }
+
+    /// Önde bir Dosyalar penceresi var mı (genel kısayol dinleyicisi için)
+    var filesInFront: Bool {
+        NSWorkspace.shared.frontmostApplication?.processIdentifier == ProcessInfo.processInfo.processIdentifier
+            && FilesManager.shared.windows.contains { $0.window?.isKeyWindow == true }
+    }
+
+    /// Genel olay dinleyicisinden (⌘Tab'ın tap'i) gelen ⌘" basışı; true: tuş yutuldu
+    func press(back: Bool) -> Bool {
+        if isVisible { step(back ? -1 : 1); return true }
+        guard let c = FilesManager.shared.windows.first(where: { $0.window?.isKeyWindow == true }),
+              c.window?.attachedSheet == nil else { return false }
+        guard c.model.tabs.count > 1 else { NSSound.beep(); return true }
+        show(for: c, back: back)
+        return true
+    }
 
     private var panel: NSPanel?
     private let state = FilesTabSwitcherState()
@@ -44,14 +67,9 @@ import SwiftUI
             }
         }
         let mods = e.modifierFlags.intersection([.command, .option, .control, .shift])
-        guard e.keyCode == Self.keyCode, mods == .command || mods == [.command, .shift] else { return false }
-        let back = mods.contains(.shift)
-        if isVisible { step(back ? -1 : 1); return true }
-        guard let c = FilesManager.shared.windows.first(where: { $0.window?.isKeyWindow == true }),
-              c.window?.attachedSheet == nil else { return false }
-        guard c.model.tabs.count > 1 else { NSSound.beep(); return true }
-        show(for: c, back: back)
-        return true
+        guard mods == .command || mods == [.command, .shift],
+              Self.isSwitchKey(Int64(e.keyCode), chars: e.charactersIgnoringModifiers) else { return false }
+        return press(back: mods.contains(.shift))
     }
 
     private func show(for c: FilesWindowController, back: Bool) {

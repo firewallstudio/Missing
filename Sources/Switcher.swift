@@ -817,6 +817,11 @@ let perfLog = Logger(subsystem: Bundle.main.bundleIdentifier ?? "com.firewallstu
                 }
                 return false
             }
+            // Dosyalar öndeyken ⌘": sekme değiştirici (sistemin "sonraki pencere" kısayolundan önce)
+            if !active, flags.contains(.maskCommand), !flags.contains(.maskAlternate), !flags.contains(.maskControl),
+               FilesTabSwitcher.isSwitchKey(key), FilesTabSwitcher.shared.filesInFront {
+                return FilesTabSwitcher.shared.press(back: shift)
+            }
             guard active else { return false }
             switch key {
             case 53: end()                              // Esc

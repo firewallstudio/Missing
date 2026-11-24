@@ -16,6 +16,10 @@ struct ChangelogEntry {
 
 enum Changelog {
     static let entries: [ChangelogEntry] = [
+        ChangelogEntry(version: "4.3.9", items: [
+            ("Dosyalar'da ⌘\" sekme değiştirici Türkçe Q klavyede çalışmıyordu (\" tuşu yanlış tanınıyordu); artık klavye düzenine göre tanınır",
+             "Files' ⌘\" tab switcher didn't work on Turkish Q keyboards (the \" key was misdetected); the key is now detected from the keyboard layout"),
+        ]),
         ChangelogEntry(version: "4.3.8", items: [
             ("Dosyalar'da ⌘\" ile sekmeler arasında geçiş: ⌘Tab panelindeki gibi kartlar, ⇧ ile geri, ⌘ bırakınca geçer",
              "Switch tabs in Files with ⌘\" (⌘` on US keyboards): cards like the ⌘Tab panel, ⇧ goes back, release ⌘ to switch"),

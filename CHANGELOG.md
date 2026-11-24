@@ -2,6 +2,10 @@
 
 Also shown in the app: **Settings › Versions**.
 
+## 4.3.9
+
+- Files' ⌘" tab switcher didn't work on Turkish Q keyboards (the " key was misdetected); the key is now detected from the keyboard layout
+
 ## 4.3.8
 
 - Switch tabs in Files with ⌘" (⌘` on US keyboards): cards like the ⌘Tab panel, ⇧ goes back, release ⌘ to switch
