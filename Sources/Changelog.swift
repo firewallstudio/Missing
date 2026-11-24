@@ -16,6 +16,10 @@ struct ChangelogEntry {
 
 enum Changelog {
     static let entries: [ChangelogEntry] = [
+        ChangelogEntry(version: "4.3.14", items: [
+            ("Dosyalar'dan bir dosyayı sürüklerken ⌘ ya da ⌥'ye basınca dosya bırakılıyordu; Missing'in kısayolları artık sürüklemeyi bekletmiyor",
+             "Pressing ⌘ or ⌥ while dragging a file from Files dropped it; Missing's shortcuts no longer hold up the drag"),
+        ]),
         ChangelogEntry(version: "4.3.13", items: [
             ("Dosyalar'dan bir dosyayı sürüklerken ⌘Tab'a basınca sürükleme iptal oluyordu; artık panel açılır, dosyayı bir uygulamanın kartına bırakabilirsin",
              "Pressing ⌘Tab while dragging a file from Files cancelled the drag; now the panel opens and you can drop the file on an app's card"),

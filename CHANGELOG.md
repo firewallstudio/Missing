@@ -2,6 +2,10 @@
 
 Also shown in the app: **Settings › Versions**.
 
+## 4.3.14
+
+- Pressing ⌘ or ⌥ while dragging a file from Files dropped it; Missing's shortcuts no longer hold up the drag
+
 ## 4.3.13
 
 - Pressing ⌘Tab while dragging a file from Files cancelled the drag; now the panel opens and you can drop the file on an app's card

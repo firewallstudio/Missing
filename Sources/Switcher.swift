@@ -642,18 +642,81 @@ enum Thumbs {
 @MainActor var gExtraKeys: ExtraKeys?
 @MainActor var gFinderSearch: FinderSearchHook?
 
+/// Ana iş parçacığında olayı işler (ses kısayolu, Finder arama, ekstra tuşlar, ⌘Tab). true: olay yutulur
+@MainActor private func handleTapEvent(_ type: CGEventType, _ code: Int64, _ flags: CGEventFlags, _ event: CGEvent) -> Bool {
+    gAudioKeys?.handle(type, code, flags)              // ses kısayolu (hiçbir tuşu yutmaz)
+    // Finder'ın arama kutusunun altındaki liste açıkken ↓↑↩ listeye
+    if type == .keyDown, gFinderSearch?.handleKey(code, flags) == true { return true }
+    if gExtraKeys?.handle(type, code, flags, event) == true { return true }   // ⌘⇧3/4/5/6, ⌘<
+    if gSwitcher?.isActive != true, FinderMouseNav.handle(type, event) { return true }   // fare 4/5: Finder'da geri/ileri
+    return gSwitcher?.handle(type, code, flags) ?? false
+}
+
+/// Yakalayıcı ile ana iş parçacığı arasındaki tek bir olayın durumu
+private final class TapJob: @unchecked Sendable {
+    enum State { case pending, running, done, abandoned }
+    private var lock = os_unfair_lock()
+    private var state = State.pending
+    var swallow = false
+    let finished = DispatchSemaphore(value: 0)
+
+    /// Ana iş parçacığı işe başlayabilir mi (yakalayıcı vazgeçmediyse)
+    func claim() -> Bool {
+        os_unfair_lock_lock(&lock); defer { os_unfair_lock_unlock(&lock) }
+        guard state == .pending else { return false }
+        state = .running
+        return true
+    }
+
+    /// Yakalayıcı beklemekten vazgeçer; iş zaten başladıysa false (bitmesini bekler)
+    func abandon() -> Bool {
+        os_unfair_lock_lock(&lock); defer { os_unfair_lock_unlock(&lock) }
+        guard state == .pending else { return false }
+        state = .abandoned
+        return true
+    }
+}
+
+/// Yakalayıcının kendisi (devre dışı kalırsa yakalayıcı iş parçacığından geri açılır)
+nonisolated(unsafe) var gSwitcherTap: CFMachPort?
+
+/// Yakalayıcı kendi iş parçacığında çalışır; olayı ana iş parçacığına sorar ve kısa süre bekler.
+/// Ana iş parçacığı meşgulse (ör. Dosyalar'dan sürükleme sürerken AppKit onu kendi döngüsünde tutar)
+/// olay beklemeden geçer: yoksa sistem bütün klavye olaylarını bekletir ve sürükleme ⌘ / ⌥'ye basınca biter.
 let tapCallback: CGEventTapCallBack = { _, type, event, _ in
+    let pass = Unmanaged.passUnretained(event)
+    if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+        if let t = gSwitcherTap { CGEvent.tapEnable(tap: t, enable: true) }
+        return pass
+    }
     let code = event.getIntegerValueField(.keyboardEventKeycode)
     let flags = event.flags
-    let swallow = MainActor.assumeIsolated { () -> Bool in
-        gAudioKeys?.handle(type, code, flags)              // ses kısayolu (hiçbir tuşu yutmaz)
-        // Finder'ın arama kutusunun altındaki liste açıkken ↓↑↩ listeye
-        if type == .keyDown, gFinderSearch?.handleKey(code, flags) == true { return true }
-        if gExtraKeys?.handle(type, code, flags, event) == true { return true }   // ⌘⇧3/4/5/6, ⌘<
-        if gSwitcher?.isActive != true, FinderMouseNav.handle(type, event) { return true }   // fare 4/5: Finder'da geri/ileri
-        return gSwitcher?.handle(type, code, flags) ?? false
+    if Thread.isMainThread {
+        return MainActor.assumeIsolated { handleTapEvent(type, code, flags, event) } ? nil : pass
     }
-    return swallow ? nil : Unmanaged.passUnretained(event)
+    let job = TapJob()
+    let main = CFRunLoopGetMain()
+    CFRunLoopPerformBlock(main, CFRunLoopMode.commonModes.rawValue) {
+        guard job.claim() else { return }
+        job.swallow = MainActor.assumeIsolated { handleTapEvent(type, code, flags, event) }
+        job.finished.signal()
+    }
+    CFRunLoopWakeUp(main)
+    // Sol tuş basılıyken (sürükleme) ana iş parçacığı uzun süre cevap vermeyebilir: kısa bekle
+    let dragging = NSEvent.pressedMouseButtons & 1 != 0
+    if job.finished.wait(timeout: .now() + (dragging ? 0.03 : 0.4)) == .timedOut {
+        // Tuş durumu kaybolmasın: ⌘ / ⌥ değişimi geçer ama ana iş parçacığı boşalınca yine işlenir
+        // (yoksa ⌘ bırakılınca panel kapanmazdı); ⌘Tab / ⌥Tab'ın Tab'ı yutulur, panel sonra açılır
+        if type == .flagsChanged { return pass }
+        if (type == .keyDown || type == .keyUp), code == 48,
+           flags.contains(.maskCommand) || flags.contains(.maskAlternate) { return nil }
+        if job.abandon() {
+            perfLog.notice("tap: main thread busy, event passed through (type \(type.rawValue, privacy: .public))")
+            return pass
+        }
+        job.finished.wait()   // iş tam o an başladı: bitmesini bekle
+    }
+    return job.swallow ? nil : pass
 }
 
 /// Ölçüm ve tanı kayıtları: log show --last 10m --predicate 'subsystem == "com.firewallstudio.audiotab" AND category == "perf"'
@@ -749,13 +812,18 @@ let perfLog = Logger(subsystem: Bundle.main.bundleIdentifier ?? "com.firewallstu
         guard let t = CGEvent.tapCreate(tap: .cgSessionEventTap, place: .headInsertEventTap, options: .defaultTap,
                                         eventsOfInterest: CGEventMask(mask), callback: tapCallback, userInfo: nil) else { return }
         tap = t
-        // Dosyalar'dan sürüklerken imleç kendi penceremizin üstündeyse AppKit ana döngüyü bu özel modda
-        // döndürür; ortak modlara katılmazsa yakalayıcı çalışmaz, ⌘Tab'ın Tab'ı uygulamaya düşer ve
-        // sürüklemeyi iptal eder. Ortak mod yapınca yakalayıcı da, panelin açılması da sürerken çalışır.
-        CFRunLoopAddCommonMode(CFRunLoopGetMain(), CFRunLoopMode("NSDragTrackerEventCoalescingRunLoopMode" as CFString))
-        source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, t, 0)
-        CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
-        CGEvent.tapEnable(tap: t, enable: true)
+        gSwitcherTap = t
+        let src = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, t, 0)
+        source = src
+        // Yakalayıcı kendi iş parçacığında: ana iş parçacığı meşgulken klavye ve fare olayları beklemez
+        let thread = Thread {
+            CFRunLoopAddSource(CFRunLoopGetCurrent(), src, .commonModes)
+            CGEvent.tapEnable(tap: t, enable: true)
+            CFRunLoopRun()
+        }
+        thread.name = "Missing.switcherTap"
+        thread.qualityOfService = .userInteractive
+        thread.start()
         applyNative()
         ui.prewarm()   // ilk ⌘Tab'da gecikme olmasın
         Switcher.refreshRegistry(force: true)
