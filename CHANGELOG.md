@@ -2,6 +2,11 @@
 
 Also shown in the app: **Settings › Versions**.
 
+## 4.3.12
+
+- Sidebar folders hide their subfolders by default; right-click › Subfolders to show to tick the ones you want
+- Clicking the menu bar icon no longer brings the Files window to the front
+
 ## 4.3.11
 
 - Downloads lists newest first, grouped under Today, Yesterday, days and months

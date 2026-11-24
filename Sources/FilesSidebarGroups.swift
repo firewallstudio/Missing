@@ -22,6 +22,8 @@ struct SidebarGroup: Codable, Identifiable, Equatable {
     @Published private(set) var collapsedSections: Set<String>
     /// Açık klasörlerin alt klasörleri (yol → alt klasörler)
     @Published private(set) var children: [String: [URL]] = [:]
+    /// Her klasörde gösterilecek alt klasörler (üst yol → alt yollar). Varsayılan: hiçbiri; kullanıcı seçer
+    @Published private(set) var shown: [String: Set<String>]
     /// Adı yazılmakta olan başlık
     @Published var editing: UUID?
 
@@ -29,11 +31,13 @@ struct SidebarGroup: Codable, Identifiable, Equatable {
     private static let groupsKey = "files.sidebarGroups"
     private static let expandedKey = "files.sidebarExpanded"
     private static let sectionsKey = "files.sidebarCollapsedSections"
+    private static let shownKey = "files.sidebarShownChildren"
 
     private init() {
         groups = (Self.d.data(forKey: Self.groupsKey)).flatMap { try? JSONDecoder().decode([SidebarGroup].self, from: $0) } ?? []
         expanded = Set(Self.d.stringArray(forKey: Self.expandedKey) ?? [])
         collapsedSections = Set(Self.d.stringArray(forKey: Self.sectionsKey) ?? [])
+        shown = ((Self.d.dictionary(forKey: Self.shownKey) as? [String: [String]]) ?? [:]).mapValues(Set.init)
         reloadChildren()
         NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.reloadChildren() }
@@ -55,6 +59,34 @@ struct SidebarGroup: Codable, Identifiable, Equatable {
             load(url)
         }
         Self.d.set(expanded.sorted(), forKey: Self.expandedKey)
+    }
+
+    /// Açık değilse açar (alt klasörleri de okur)
+    func expand(_ scope: String, _ url: URL) {
+        let k = Self.key(scope, url)
+        if !expanded.contains(k) {
+            expanded.insert(k)
+            Self.d.set(expanded.sorted(), forKey: Self.expandedKey)
+        }
+        load(url)
+    }
+
+    // MARK: Gösterilecek alt klasörler
+
+    func shownChildren(of parent: URL) -> Set<String> { shown[parent.standardizedFileURL.path] ?? [] }
+
+    func isShown(_ child: URL, in parent: URL) -> Bool {
+        shownChildren(of: parent).contains(child.standardizedFileURL.path)
+    }
+
+    func setShown(_ children: [URL], in parent: URL, _ on: Bool) {
+        let p = parent.standardizedFileURL.path
+        var set = shown[p] ?? []
+        for c in children {
+            if on { set.insert(c.standardizedFileURL.path) } else { set.remove(c.standardizedFileURL.path) }
+        }
+        shown[p] = set.isEmpty ? nil : set
+        Self.d.set(shown.mapValues { $0.sorted() }, forKey: Self.shownKey)
     }
 
     /// nil: henüz okunmadı

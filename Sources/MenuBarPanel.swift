@@ -61,7 +61,8 @@ private final class MenuPanelWindow: NSPanel {
         }
         p.setFrame(NSRect(origin: origin, size: size), display: true)
         p.alphaValue = 0
-        NSApp.activate(ignoringOtherApps: true)
+        // Uygulamayı öne getirme: getirirsek açık Dosyalar / Ayarlar pencereleri de öne gelir.
+        // Panel etkinleştirmeyen panel; uygulama arkada kalsa da klavyeyi alır.
         p.makeKeyAndOrderFront(nil)
         NSAnimationContext.runAnimationGroup { ctx in
             ctx.duration = 0.14

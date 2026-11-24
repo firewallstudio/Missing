@@ -16,6 +16,12 @@ struct ChangelogEntry {
 
 enum Changelog {
     static let entries: [ChangelogEntry] = [
+        ChangelogEntry(version: "4.3.12", items: [
+            ("Kenar çubuğunda bir klasörün alt klasörleri varsayılan olarak gizli; sağ tık › Gösterilecek alt klasörler ile istediklerini işaretle",
+             "Sidebar folders hide their subfolders by default; right-click › Subfolders to show to tick the ones you want"),
+            ("Menü çubuğu simgesine tıklamak artık Dosyalar penceresini öne getirmez",
+             "Clicking the menu bar icon no longer brings the Files window to the front"),
+        ]),
         ChangelogEntry(version: "4.3.11", items: [
             ("İndirilenler en yeniden eskiye sıralanır ve Bugün, Dün, günler ve aylar başlıkları altında gruplanır",
              "Downloads lists newest first, grouped under Today, Yesterday, days and months"),

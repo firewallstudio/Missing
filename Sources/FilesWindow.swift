@@ -1928,6 +1928,78 @@ private struct SidebarGroupPlaceholder: View {
     }
 }
 
+/// Sağ tık › Gösterilecek alt klasörler: işaretlenenler okla açılınca görünür
+struct SubfolderPicker: View {
+    let parent: URL
+    let palette: FilesPalette
+    let onShow: () -> Void
+    @ObservedObject private var state = FilesSidebarState.shared
+    @State private var list: [URL] = []
+    @State private var loaded = false
+
+    private var p: FilesPalette { palette }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(L("Gösterilecek alt klasörler")).font(.system(size: 13, weight: .bold))
+                Text(FileManager.default.displayName(atPath: parent.path))
+                    .font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
+            }
+            if loaded && list.isEmpty {
+                Text(L("Alt klasör yok")).font(.system(size: 12)).foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 6)
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 1) {
+                        ForEach(list, id: \.self) { u in
+                            row(u)
+                        }
+                    }
+                }
+                .frame(height: min(CGFloat(max(list.count, 1)) * 27, 300))
+                HStack(spacing: 8) {
+                    Button(L("Tümünü seç")) { set(list, true) }
+                    Button(L("Hiçbiri")) { state.setShown(list, in: parent, false) }
+                    Spacer()
+                }
+                .buttonStyle(.link)
+                .font(.system(size: 11.5))
+            }
+        }
+        .padding(14)
+        .frame(width: 250)
+        .tint(p.accent)
+        .onAppear {
+            list = FilesSidebarState.readSubfolders(parent)
+            loaded = true
+        }
+    }
+
+    private func row(_ u: URL) -> some View {
+        let on = state.isShown(u, in: parent)
+        return Button { set([u], !on) } label: {
+            HStack(spacing: 8) {
+                Image(systemName: on ? "checkmark.square.fill" : "square")
+                    .font(.system(size: 13))
+                    .foregroundStyle(on ? p.accent : Color.secondary)
+                Image(nsImage: FileIcons.shared.icon(u)).resizable().frame(width: 16, height: 16)
+                Text(FileManager.default.displayName(atPath: u.path)).font(.system(size: 12.5)).lineLimit(1)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 6)
+            .frame(height: 26)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func set(_ urls: [URL], _ on: Bool) {
+        state.setShown(urls, in: parent, on)
+        if on { onShow() }
+    }
+}
+
 /// Bir kenar çubuğu klasörü ve (açıksa) alt klasörleri
 private struct SidebarTree: View {
     let place: SidebarPlace
@@ -1941,14 +2013,17 @@ private struct SidebarTree: View {
 
     var body: some View {
         let open = state.isExpanded(scope, place.url)
-        let kids = open ? state.subfolders(place.url) : nil
-        let canExpand = place.special == nil && !(kids?.isEmpty ?? false)
+        let chosen = state.shownChildren(of: place.url)
+        let canExpand = place.special == nil && !chosen.isEmpty
+        // Yalnız kullanıcının seçtiği alt klasörler
+        let kids = open && canExpand ? state.subfolders(place.url)?.filter { chosen.contains($0.standardizedFileURL.path) } : nil
         VStack(alignment: .leading, spacing: 1) {
             SidebarRow(place: place,
                        selected: tab.tag == nil && tab.url.fileKey == place.url.fileKey,
                        controller: controller, remove: remove, groupID: groupID, depth: depth,
                        expandable: canExpand, expanded: open && canExpand,
-                       onToggle: { withAnimation(.easeOut(duration: 0.15)) { state.toggle(scope, place.url) } })
+                       onToggle: { withAnimation(.easeOut(duration: 0.15)) { state.toggle(scope, place.url) } },
+                       onShowChildren: { withAnimation(.easeOut(duration: 0.15)) { state.expand(scope, place.url) } })
             if open, let kids {
                 ForEach(kids, id: \.self) { u in
                     AnyView(SidebarTree(place: SidebarPlace(url: u, title: FileManager.default.displayName(atPath: u.path), symbol: "folder"),
@@ -1971,9 +2046,12 @@ private struct SidebarRow: View {
     var expandable = false
     var expanded = false
     var onToggle: (() -> Void)? = nil
+    /// Alt klasör seçilince klasörü açar
+    var onShowChildren: (() -> Void)? = nil
     @Environment(\.filesPalette) private var p
     @State private var hover = false
     @State private var dropTarget = false
+    @State private var picking = false
 
     var body: some View {
         HStack(spacing: 8) {
@@ -1994,7 +2072,7 @@ private struct SidebarRow: View {
                         .frame(width: 16, height: 18).contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .help(expanded ? L("Daralt") : L("Alt klasörleri göster"))
+                .help(expanded ? L("Daralt") : L("Genişlet"))
             }
             if place.ejectable {
                 Button { FilesPlaces.shared.eject(place, window: controller.window) } label: {
@@ -2025,6 +2103,9 @@ private struct SidebarRow: View {
             return true
         }
         .help(place.url.path)
+        .popover(isPresented: $picking, arrowEdge: .trailing) {
+            SubfolderPicker(parent: place.url, palette: p) { onShowChildren?() }
+        }
         .contextMenu {
             if place.special == nil || place.special == .trash {
                 Button(L("Yeni sekmede aç")) { FilesPlaces.shared.open(place, in: controller, newTab: true) }
@@ -2033,8 +2114,12 @@ private struct SidebarRow: View {
                 }
             }
             Button(L("Finder'da göster")) { NSWorkspace.shared.open(place.url) }
-            if expandable {
-                Button(expanded ? L("Daralt") : L("Alt klasörleri göster")) { onToggle?() }
+            if onShowChildren != nil && place.special == nil {
+                Divider()
+                Button(L("Gösterilecek alt klasörler…")) { picking = true }
+                if expandable {
+                    Button(expanded ? L("Daralt") : L("Genişlet")) { onToggle?() }
+                }
             }
             if place.special == nil && !place.ejectable {
                 groupMenu
