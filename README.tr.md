@@ -38,11 +38,60 @@ Seçili sonuç sağda önizlenir; fareyle bir satırın üstüne gelince o öniz
 
 <div align="center"><img src="assets/files-themes.gif" alt="Dosyalar penceresi: Missing, Finder, Windows ve Cam temaları, önizleme bölmesi açık" width="860"></div>
 
-Finder'a bağlı olmayan kendi dosya penceresi, dört temayla: **Missing** (koyu cam, kırmızı vurgu), **Finder** (tam boy kenar çubuğu, araç çubuğunun altında sekmeler), **Windows** (Gezgin tarzı sekmeler, adres ve komut çubuğu) ve **Cam** (renkli bulanık zemin üstünde yüzen buzlu kartlar). Finder ve Windows temaları sistemin açık/koyu ayarını izler. Missing temasında sekmeler Windows'taki gibi soldan dizilir, her biri belli bir genişlikte; sürükleyip sıralarsın, orta tık ya da **⌘W** ile kapatırsın, bir sekmenin üstüne bıraktığın dosya o klasöre gider. Kenar çubuğunda Finder'la iki yönlü eşitlenen sık kullanılanlar ve diskler (çıkarma düğmesiyle); liste ve önizlemeli simge görünümü, **Space** ile Hızlı Bakış, **Return** ile yeniden adlandırma, **⌘⌫** ile çöpe atma; hepsi **⌘Z** ile geri alınır. Diğer uygulamalarla iki yönlü sürükle-bırak; sağ tıkta Birlikte Aç, Paylaş, Yolu kopyala ve Terminal'de aç. Farenin yan tuşları geri / ileri gider.
+Finder'a bağlı olmayan kendi dosya penceresi. Windows Gezgini'nden özlenenleri getirir: yazılabilir adres çubuğu, önizleme bölmesi, gerçek kopyalama ilerlemesi. Finder'ın iyi yaptıklarını da korur: etiketler, sütun görünümü, Hızlı Bakış. **Ayarlar › Dosyalar**'dan ya da Dock'taki Missing simgesine tıklayarak açılır.
 
-Arama kutusu önce o klasörde, ardından ⌘Space aramasıyla aynı indeksle bütün alt klasörlerde arar. **⇧⌘P** sağda, Windows Gezgini'ndeki gibi bir önizleme bölmesi açar.
+### Dört tema
 
-Pencere açıkken Missing Dock'ta Finder gibi klasör simgesiyle görünür. Ayarlar'da **Dock'a ekle**'ye bas (ya da simgeye sağ tıklayıp Seçenekler › **Dock'ta Tut**); simgeye tıklayınca pencere her zaman açılır. Son pencerenin sekmeleri bir dahaki açılışta geri gelir.
+- **Missing:** koyu cam, kırmızı vurgu. Sekmeler Windows'taki gibi soldan dizilir.
+- **Finder:** tam boy kenar çubuğu, araç çubuğunun altında sekmeler, altta yol çubuğu.
+- **Windows:** Gezgin tarzı sekmeler, adres ve komut çubuğu.
+- **Cam:** renkli bulanık zemin üstünde yüzen buzlu kartlar.
+
+Finder ve Windows temaları sistemin açık/koyu ayarını izler. Tema **Görünüm › Tema**'dan ya da Dosyalar Ayarları'ndan değişir.
+
+### Görünümler
+
+- **Liste (⌘1):** sıralanabilir sütunlar.
+- **Simgeler (⌘2):** gerçek küçük resimler. Sağ alttaki kaydırıcı ya da izleme dörtgeninde kıstırma simgeleri küçültüp büyütür. Sağ / sol oklar satır bitince alt / üst satıra geçer.
+- **Sütunlar (⌘3):** Finder'daki gibi; seçilen klasörün içi sağında yeni bir sütunda açılır.
+
+**⇧⌘P** sağda Windows Gezgini'ndeki gibi bir önizleme bölmesi açar: seçili dosyanın Hızlı Bakış'ı, boyutu, türü ve tarihleri. **Space** tam Hızlı Bakış'ı açar.
+
+### Sekmeler ve adres çubuğu
+
+**⌘T** yeni sekme açar. Sekmeleri sürükleyerek sıralarsın; orta tık ya da **⌘W** ile kapatırsın. Bir sekmenin üstüne bıraktığın dosya o klasöre taşınır. Son pencerenin sekmeleri bir dahaki açılışta geri gelir.
+
+Üstteki yola tıkla ya da **⌘L**'ye bas; yol, Windows'taki gibi yazılabilir bir adrese döner. Bir klasör yazıp Enter'a basınca oraya gidersin; dosya yolu yazınca dosya seçilir. Yolun herhangi bir parçasına sağ tıkla: **Yolu kopyala**, **Yolu düzenle**, **Yeni sekmede aç**. **⇧⌘G** klasöre gider, **⌘[ / ⌘]** geri / ileri gider, **⌘↑** üst klasöre çıkar. Farenin yan tuşları da geri / ileri gider.
+
+### Kenar çubuğu
+
+- **Sık kullanılanlar:** Finder'ın kenar çubuğuyla iki yönlü eşitlenir. Buraya eklediğin klasör Finder'da da çıkar, tersi de geçerli.
+- **Konumlar:** diskler (çıkarma düğmesiyle), iCloud Drive, Google Drive, OneDrive, Dropbox gibi bulut klasörleri, ana klasör, AirDrop, Ağ ve Çöp Sepeti.
+- **Etiketler:** Finder'ın etiketleri renkleriyle. Birine tıklayınca o etiketi taşıyan bütün dosyalar listelenir.
+
+Bir öğeye sağ tıklayıp **Kenar çubuğundan gizle**'yi seç ya da nelerin görüneceğini **Dosyalar Ayarları**'ndan (**⌘,**) belirle.
+
+### Renkler ve yeni klasör
+
+**⇧⌘N** küçük bir Yeni klasör penceresi açar: adı yaz, rengini seç, Enter'a bas. Bir dosyaya ya da klasöre sağ tıklayınca Finder'daki renk noktaları çıkar. Renk bir Finder etiketidir, yani Finder'da da görünür; renkli klasörler macOS Tahoe'daki gibi o renge boyanır.
+
+### Kopyalama ve taşıma
+
+Klasörler, sekmeler, kenar çubuğu ve diğer uygulamalar arasında sürükle-bırak. Aynı diske bırakınca taşınır, başka diske bırakınca kopyalanır (her zaman kopyalamak için **⌥**'ye basılı tut). **⌘C / ⌘V** kopyalar, **⌥⌘V** kopyalananları buraya taşır.
+
+Süren her kopyalama sağ altta bir kartta görünür: ne kadarı gitti, ne kadarı kaldı, tahmini süre. **×** kopyalamayı iptal eder ve yarım kalan dosyayı siler. Durum çubuğu toplamı gösterir.
+
+### Arama
+
+Arama kutusu (**⌘F**) önce o klasörü anında süzer, ardından ⌘Space aramasıyla aynı indeksle bütün alt klasörlere bakar. Alt klasörlerdeki sonuçlar nerede olduklarını gösterir; sık açtıkların öne çıkar.
+
+### Gündelik tuşlar
+
+**Return** yeniden adlandırır, **⌘D** çoğaltır, **⌘⌫** çöpe atar, **⌘Z** hepsini geri alır. **⌥⌘C** yolu kopyalar, **⇧⌘.** gizli dosyaları gösterir. Sağ tıkta Birlikte Aç, Paylaş, Yolu kopyala ve Terminal'de aç var.
+
+### Dock'ta
+
+Dosyalar penceresi açıkken Missing, Dock'ta Finder gibi mavi klasör simgesiyle görünür. Ayarlar'da **Dock'a ekle**'ye bas ya da simgeye sağ tıklayıp Seçenekler › **Dock'ta Tut**'u seç; simgeye tıklayınca pencere her zaman açılır.
 
 ## Çentikten ekran bölme
 

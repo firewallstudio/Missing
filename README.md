@@ -38,11 +38,60 @@ The selected result is previewed on the right; hover a row to preview it. **Spac
 
 <div align="center"><img src="assets/files-themes.gif" alt="Files window in the Missing, Finder, Windows and Glass themes, with the preview pane open" width="860"></div>
 
-A file window of its own that doesn't depend on Finder, with four themes: **Missing** (dark glass, red accent), **Finder** (full-height sidebar, tabs under the toolbar), **Windows** (Explorer-style tabs, address bar and command bar) and **Glass** (floating frosted cards on a colorful blur). Finder and Windows follow the system's light/dark mode. In the Missing theme, tabs start on the left like Windows, each up to a set width; drag to reorder, middle-click or **⌘W** to close, drop files on a tab to move them there. Sidebar with favorites, kept in sync with Finder's sidebar both ways, and disks (with eject), list and icon views with previews, **Space** for Quick Look, **Return** to rename, **⌘⌫** to trash, and **⌘Z** undoes it all. Drag and drop works both ways with other apps; right-click for Open With, Share, Copy Path and Open in Terminal. Mouse side buttons go back and forward.
+A file window of its own that doesn't depend on Finder. It takes the parts people miss from Windows Explorer (typeable address bar, preview pane, real copy progress) and keeps what Finder does well (tags, column view, Quick Look). Open it from **Settings › Files**, or click Missing's icon in the Dock.
 
-The search box looks in the current folder first, then in every subfolder through the same index as ⌘Space search. **⇧⌘P** shows a preview pane on the right, like in Windows Explorer.
+### Four themes
 
-While the window is open, Missing shows in the Dock with a folder icon, like Finder. Click **Add to Dock** in Settings (or right-click the icon › Options › **Keep in Dock**) and a click on the icon opens the window any time. The last window's tabs come back next time.
+- **Missing:** dark glass with a red accent. Tabs start on the left like Windows.
+- **Finder:** full-height sidebar, tabs under the toolbar, path bar at the bottom.
+- **Windows:** Explorer-style tabs, address bar and command bar.
+- **Glass:** floating frosted cards on a colorful blur.
+
+Finder and Windows follow the system's light/dark mode. Switch themes in **View › Theme** or in Files Settings.
+
+### Views
+
+- **List (⌘1):** sortable columns.
+- **Icons (⌘2):** real thumbnails. The slider at the bottom right, or a trackpad pinch, sets the icon size from small to large. Left and right arrows continue onto the next or previous row.
+- **Columns (⌘3):** like Finder; a selected folder opens in a new column to the right.
+
+**⇧⌘P** opens a preview pane on the right, like Windows Explorer: Quick Look of the selected file with its size, kind and dates. **Space** opens full Quick Look.
+
+### Tabs and the address bar
+
+**⌘T** opens a new tab. Drag tabs to reorder them; close one with a middle-click or **⌘W**. Drop files on a tab to move them into that folder. The last window's tabs come back next time.
+
+Click the path at the top, or press **⌘L**, and it becomes a typeable address like in Windows. Type a folder and press Enter to go there; type a file path and the file gets selected. Right-click any part of the path for **Copy Path**, **Edit Path** or **Open in New Tab**. **⇧⌘G** goes to a folder, **⌘[ / ⌘]** go back and forward, and **⌘↑** goes to the enclosing folder. Mouse side buttons go back and forward too.
+
+### Sidebar
+
+- **Favorites:** kept in sync with Finder's sidebar both ways. Add a folder here and it appears in Finder, and the other way around.
+- **Locations:** your disks (with an eject button), cloud folders like iCloud Drive, Google Drive, OneDrive and Dropbox, your home folder, AirDrop, Network and Trash.
+- **Tags:** Finder's tags with their colors. Click one to list every file carrying that tag.
+
+Right-click an item › **Hide from Sidebar**, or pick what shows in **Files Settings (⌘,)**.
+
+### Colors and new folders
+
+**⇧⌘N** opens a small New Folder sheet: type the name, pick a color and press Enter. Right-click any file or folder for Finder's color dots. A color is a Finder tag, so it shows up in Finder too, and colored folders are tinted that color, like in macOS Tahoe.
+
+### Copying and moving
+
+Drag between folders, tabs, the sidebar and other apps. Dropping on the same disk moves; dropping on another disk copies (hold **⌥** to always copy). **⌘C / ⌘V** copy, and **⌥⌘V** moves the copied items here.
+
+A card at the bottom right shows each copy as it runs: how much is done, how much is left and the time remaining. The **×** cancels it and removes the half-copied file. The status bar shows the total.
+
+### Search
+
+The search box (**⌘F**) filters the current folder instantly, then looks through every subfolder with the same index as ⌘Space search. Results in subfolders show where they are, and the ones you open often move up.
+
+### Everyday keys
+
+**Return** renames, **⌘D** duplicates, **⌘⌫** moves to the Trash and **⌘Z** undoes it all. **⌥⌘C** copies the path and **⇧⌘.** shows hidden files. Right-click for Open With, Share, Copy Path and Open in Terminal.
+
+### In the Dock
+
+While a Files window is open, Missing shows in the Dock with a blue folder icon, like Finder. Click **Add to Dock** in Settings, or right-click the icon › Options › **Keep in Dock**, and a click on the icon opens the window any time.
 
 ## Split the screen from the notch
 
