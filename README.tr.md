@@ -55,13 +55,19 @@ Finder ve Windows temaları sistemin açık/koyu ayarını izler. Tema **Görün
 - **Simgeler (⌘2):** gerçek küçük resimler. Sağ alttaki kaydırıcı ya da izleme dörtgeninde kıstırma simgeleri küçültüp büyütür. Sağ / sol oklar satır bitince alt / üst satıra geçer.
 - **Sütunlar (⌘3):** Finder'daki gibi; seçilen klasörün içi sağında yeni bir sütunda açılır.
 
+<div align="center"><img src="assets/files-icons.png" alt="Renkli klasörler ve simge boyutu kaydırıcısıyla simge görünümü" width="760"></div>
+
 **⇧⌘P** sağda Windows Gezgini'ndeki gibi bir önizleme bölmesi açar: seçili dosyanın Hızlı Bakış'ı, boyutu, türü ve tarihleri. **Space** tam Hızlı Bakış'ı açar.
+
+<div align="center"><img src="assets/files-columns.png" alt="Finder temasında sütun görünümü, önizleme bölmesi açık" width="760"></div>
 
 ### Sekmeler ve adres çubuğu
 
 **⌘T** yeni sekme açar. Sekmeleri sürükleyerek sıralarsın; orta tık ya da **⌘W** ile kapatırsın. Bir sekmenin üstüne bıraktığın dosya o klasöre taşınır. Son pencerenin sekmeleri bir dahaki açılışta geri gelir.
 
 Üstteki yola tıkla ya da **⌘L**'ye bas; yol, Windows'taki gibi yazılabilir bir adrese döner. Bir klasör yazıp Enter'a basınca oraya gidersin; dosya yolu yazınca dosya seçilir. Yolun herhangi bir parçasına sağ tıkla: **Yolu kopyala**, **Yolu düzenle**, **Yeni sekmede aç**. **⇧⌘G** klasöre gider, **⌘[ / ⌘]** geri / ileri gider, **⌘↑** üst klasöre çıkar. Farenin yan tuşları da geri / ileri gider.
+
+<div align="center"><img src="assets/files-address.png" alt="Windows temasında yazılabilir adres çubuğu" width="760"></div>
 
 ### Kenar çubuğu
 
@@ -75,11 +81,15 @@ Bir öğeye sağ tıklayıp **Kenar çubuğundan gizle**'yi seç ya da nelerin g
 
 **⇧⌘N** küçük bir Yeni klasör penceresi açar: adı yaz, rengini seç, Enter'a bas. Bir dosyaya ya da klasöre sağ tıklayınca Finder'daki renk noktaları çıkar. Renk bir Finder etiketidir, yani Finder'da da görünür; renkli klasörler macOS Tahoe'daki gibi o renge boyanır.
 
+<div align="center"><img src="assets/files-new-folder.png" alt="Ad ve renk seçilen Yeni klasör penceresi" width="760"></div>
+
 ### Kopyalama ve taşıma
 
 Klasörler, sekmeler, kenar çubuğu ve diğer uygulamalar arasında sürükle-bırak. Aynı diske bırakınca taşınır, başka diske bırakınca kopyalanır (her zaman kopyalamak için **⌥**'ye basılı tut). **⌘C / ⌘V** kopyalar, **⌥⌘V** kopyalananları buraya taşır.
 
 Süren her kopyalama sağ altta bir kartta görünür: ne kadarı gitti, ne kadarı kaldı, tahmini süre. **×** kopyalamayı iptal eder ve yarım kalan dosyayı siler. Durum çubuğu toplamı gösterir.
+
+<div align="center"><img src="assets/files-copy.png" alt="Kopyalama kartı: giden, kalan ve tahmini süre" width="760"></div>
 
 ### Arama
 

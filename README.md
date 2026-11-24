@@ -55,13 +55,19 @@ Finder and Windows follow the system's light/dark mode. Switch themes in **View 
 - **Icons (⌘2):** real thumbnails. The slider at the bottom right, or a trackpad pinch, sets the icon size from small to large. Left and right arrows continue onto the next or previous row.
 - **Columns (⌘3):** like Finder; a selected folder opens in a new column to the right.
 
+<div align="center"><img src="assets/files-icons.png" alt="Icon view with colored folders and the icon size slider" width="760"></div>
+
 **⇧⌘P** opens a preview pane on the right, like Windows Explorer: Quick Look of the selected file with its size, kind and dates. **Space** opens full Quick Look.
+
+<div align="center"><img src="assets/files-columns.png" alt="Column view in the Finder theme with the preview pane open" width="760"></div>
 
 ### Tabs and the address bar
 
 **⌘T** opens a new tab. Drag tabs to reorder them; close one with a middle-click or **⌘W**. Drop files on a tab to move them into that folder. The last window's tabs come back next time.
 
 Click the path at the top, or press **⌘L**, and it becomes a typeable address like in Windows. Type a folder and press Enter to go there; type a file path and the file gets selected. Right-click any part of the path for **Copy Path**, **Edit Path** or **Open in New Tab**. **⇧⌘G** goes to a folder, **⌘[ / ⌘]** go back and forward, and **⌘↑** goes to the enclosing folder. Mouse side buttons go back and forward too.
+
+<div align="center"><img src="assets/files-address.png" alt="Typeable address bar in the Windows theme" width="760"></div>
 
 ### Sidebar
 
@@ -75,11 +81,15 @@ Right-click an item › **Hide from Sidebar**, or pick what shows in **Files Set
 
 **⇧⌘N** opens a small New Folder sheet: type the name, pick a color and press Enter. Right-click any file or folder for Finder's color dots. A color is a Finder tag, so it shows up in Finder too, and colored folders are tinted that color, like in macOS Tahoe.
 
+<div align="center"><img src="assets/files-new-folder.png" alt="New Folder sheet with a name and a color" width="760"></div>
+
 ### Copying and moving
 
 Drag between folders, tabs, the sidebar and other apps. Dropping on the same disk moves; dropping on another disk copies (hold **⌥** to always copy). **⌘C / ⌘V** copy, and **⌥⌘V** moves the copied items here.
 
 A card at the bottom right shows each copy as it runs: how much is done, how much is left and the time remaining. The **×** cancels it and removes the half-copied file. The status bar shows the total.
+
+<div align="center"><img src="assets/files-copy.png" alt="Copy progress card: done, left and time remaining" width="760"></div>
 
 ### Search
 
