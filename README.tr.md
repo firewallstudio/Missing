@@ -69,6 +69,16 @@ Finder ve Windows temaları sistemin açık/koyu ayarını izler. Tema **Görün
 
 <div align="center"><img src="assets/files-address.png" alt="Windows temasında yazılabilir adres çubuğu" width="760"></div>
 
+### Sekme değiştirici (⌘")
+
+**⌘** basılı tutup **"** tuşuna bas (ABD klavyesinde **`**): sekmelerin Missing'in ⌘Tab'ındaki gibi kartlarla, pencerenin tam ortasında açılır. Her basış bir sonraki sekmeye geçer, **⇧** geri gider; ⌘'yi bırakınca seçilen sekmeye geçilir. **Esc** vazgeçer, karta tıklamak da seçer. Sağdaki ince sık kullanılanlar sütunundan bir klasöre tıklarsan aynı pencerede yeni sekmede açılır.
+
+<div align="center"><img src="assets/files-tabs-grid.png" alt="Klasörlerin içini gösteren kartlar ve sık kullanılanlar sütunuyla sekme değiştirici" width="760"></div>
+
+**Ayarlar › Dosyalar › Sekme değiştirici**'den ⌘Tab'daki gibi liste görünümüne geçebilir, kartlardaki klasör içeriğini gizleyebilir ya da sık kullanılanlar sütununu kapatabilirsin.
+
+<div align="center"><img src="assets/files-tabs-list.png" alt="Liste görünümünde sekme değiştirici" width="520"></div>
+
 ### Kenar çubuğu
 
 - **Sık kullanılanlar:** Finder'ın kenar çubuğuyla iki yönlü eşitlenir. Buraya eklediğin klasör Finder'da da çıkar, tersi de geçerli.

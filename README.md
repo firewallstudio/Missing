@@ -69,6 +69,16 @@ Click the path at the top, or press **⌘L**, and it becomes a typeable address 
 
 <div align="center"><img src="assets/files-address.png" alt="Typeable address bar in the Windows theme" width="760"></div>
 
+### Tab switcher (⌘")
+
+Hold **⌘** and press **"** (**`** on US keyboards) and your tabs open as cards in the exact center of the window, styled like Missing's ⌘Tab. Each press moves to the next tab and **⇧** goes back; release ⌘ to switch. **Esc** cancels and a click picks a card. A slim favorites column on the right opens a folder in a new tab in the same window.
+
+<div align="center"><img src="assets/files-tabs-grid.png" alt="Tab switcher with cards showing each folder's contents and a favorites column" width="760"></div>
+
+In **Settings › Files › Tab switcher** you can switch to a list like ⌘Tab's list view, hide the folder contents on the cards, or turn the favorites column off.
+
+<div align="center"><img src="assets/files-tabs-list.png" alt="Tab switcher in list view" width="520"></div>
+
 ### Sidebar
 
 - **Favorites:** kept in sync with Finder's sidebar both ways. Add a folder here and it appears in Finder, and the other way around.

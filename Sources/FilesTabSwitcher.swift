@@ -273,6 +273,7 @@ private struct FilesTabCard: View {
     @ObservedObject var tab: FilesTab
     let selected: Bool
     var contents = true
+    @State private var thumbTick = 0
 
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -321,8 +322,10 @@ private struct FilesTabCard: View {
                 } else {
                     LazyVGrid(columns: Array(repeating: GridItem(.fixed(38), spacing: 8), count: 4), spacing: 6) {
                         ForEach(shown, id: \.url) { item in
-                            Image(nsImage: FileIcons.shared.icon(item.url))
-                                .resizable().interpolation(.high)
+                            // Resimlerin küçük önizlemesi; hazır olunca kart yeniden çizilir
+                            let _ = thumbTick
+                            Image(nsImage: FileIcons.shared.thumbnail(item, size: 64) { thumbTick += 1 } ?? FileIcons.shared.icon(item.url))
+                                .resizable().interpolation(.high).aspectRatio(contentMode: .fit)
                                 .frame(width: 34, height: 34)
                         }
                     }
