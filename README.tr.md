@@ -218,6 +218,7 @@ Mac'inden hiçbir şey çıkmaz. Tek ağ isteği GitHub'daki güncelleme denetim
 ```bash
 ./build.sh             # bu Mac için Missing.app
 ./build.sh --install   # derle ve /Applications'a kur
+./release.sh           # VERSION'daki sürümü imzalayıp yayınlar (Missing Code Signing anahtarı gerekir)
 ```
 
 Tüm sürümler aynı sertifikayla imzalanır (`signing/Missing.pem`, "Missing Code Signing"); macOS izinlerini güncellemelerde korur, güncelleyici de sadece bu sertifikayla imzalı sürümleri kurar. 4.3.22'ye kadarki sürümler `signing/AudioTab.pem` ile imzalıydı; onlardan 4.3.23 ve sonrasına geçmek için bir kere elle indirmek gerekir ve macOS Missing'in izinlerini bir kez yeniden ister.
