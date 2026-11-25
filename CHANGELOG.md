@@ -2,6 +2,12 @@
 
 Also shown in the app: **Settings › Versions**.
 
+
+## 4.3.20
+
+- Only one Missing runs at a time: the copy in /Applications replaces one opened from elsewhere (Downloads, a project folder), and updates always install to /Applications
+- Files instead of Finder (Settings › Files, off by default): "Show in Finder" in other apps and desktop folders open in Files
+
 ## 4.3.19
 
 - Chrome's window still didn't show in ⌘Tab: windows that were wrongly filtered out earlier are now listed when they're on screen

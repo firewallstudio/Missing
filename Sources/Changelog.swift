@@ -16,6 +16,12 @@ struct ChangelogEntry {
 
 enum Changelog {
     static let entries: [ChangelogEntry] = [
+        ChangelogEntry(version: "4.3.20", items: [
+            ("Aynı anda iki Missing çalışmaz: /Applications'taki kopya, başka yerden (İndirilenler, proje klasörü) açılan kopyanın yerine geçer; güncellemeler hep /Applications'a kurulur",
+             "Only one Missing runs at a time: the copy in /Applications replaces one opened from elsewhere (Downloads, a project folder), and updates always install to /Applications"),
+            ("Finder yerine Dosyalar (Ayarlar › Dosyalar, varsayılan kapalı): başka uygulamalardaki \"Finder'da göster\" ve masaüstündeki klasörler Dosyalar'da açılır",
+             "Files instead of Finder (Settings › Files, off by default): \"Show in Finder\" in other apps and desktop folders open in Files"),
+        ]),
         ChangelogEntry(version: "4.3.19", items: [
             ("⌘Tab'da Chrome penceresi hâlâ görünmüyordu: daha önce yanlışlıkla ayıklanan pencereler de artık ekrandaysa listede",
              "Chrome's window still didn't show in ⌘Tab: windows that were wrongly filtered out earlier are now listed when they're on screen"),

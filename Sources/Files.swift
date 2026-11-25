@@ -1026,7 +1026,7 @@ enum FinderTags {
             if (try? FileManager.default.contentsOfDirectory(atPath: place.url.path)) != nil {
                 controller.navigate(place.url, newTab: newTab)
             } else {
-                NSWorkspace.shared.open(place.url)
+                FinderReplacement.openInFinder([place.url])
             }
         case nil:
             controller.navigate(place.url, newTab: newTab)

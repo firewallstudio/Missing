@@ -654,6 +654,11 @@ struct SettingsView: View {
              subtitle: L("Dock'ta Finder'a tıklayınca Dosyalar açılır"), startOpen: true) {
             note(L("macOS, Dock'taki Finder simgesini değiştirmeye izin vermez; Missing bu simgeye yapılan tıklamayı yakalayıp Dosyalar'ı açar (açık pencere varsa öne getirir). Gerçek Finder'ı açmak için ⌥ basılıyken tıkla. Sağ tıklama menüsü olduğu gibi kalır. Erişilebilirlik izni gerekir."))
         }
+        Card(title: L("Finder yerine Dosyalar"), icon: "arrow.left.arrow.right.square",
+             isOn: model.bind({ FinderReplacement.enabled }, { FinderReplacement.enabled = $0 }),
+             subtitle: L("Finder'da göster ve masaüstündeki klasörler Dosyalar'da açılır"), startOpen: true) {
+            note(L("Path Finder ve ForkLift gibi: Dosyalar macOS'un varsayılan dosya görüntüleyicisi olur. Başka uygulamalardaki \"Finder'da göster\" (indirmeler, Spotlight ⌘Enter, VS Code, Xcode, Mail ekleri) ve masaüstünde çift tıkladığın klasörler Dosyalar'da açılır. Dock'taki klasör yığınları ve Terminal'deki open komutu Finder'da kalır: macOS klasörlerin varsayılan uygulamasını değiştirmeye izin vermez. Açık uygulamalar değişikliği yeniden açılınca görür."))
+        }
         Card(title: L("Tema"), icon: "paintbrush.fill", subtitle: L("Missing, Finder, Windows ya da Cam"), startOpen: true) {
             HStack {
                 Text(L("Tema")).font(.system(size: 12))

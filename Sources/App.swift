@@ -31,7 +31,18 @@ import UserNotifications
     private var lastSecureNotice = Date.distantPast
     private var bag = Set<AnyCancellable>()
 
+    /// "Finder'da göster" isteği uygulama açılırken gelebilir: dinleyici açılıştan önce kurulur
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        FinderReplacement.installHandlers()
+    }
+
+    /// Klasör açma (Dosyalar varsayılan klasör uygulamasıyken) ya da Missing'e bırakılan dosyalar
+    func application(_ application: NSApplication, open urls: [URL]) {
+        FinderReplacement.show(urls)
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
+        listenForSecondLaunch()
         gSwitcher = switcher
         gAudioKeys = audioKeys
         gExtraKeys = extraKeys
@@ -77,7 +88,9 @@ import UserNotifications
         model.onFilesChanged = {
             FilesManager.shared.settingsChanged()
             FinderDockClick.shared.apply()
+            FinderReplacement.apply()
         }
+        FinderReplacement.apply()
         FilesManager.shared.openSettings = { [weak self] in self?.settings.show(page: .files) }
         model.onNativeTabChanged = { [weak self] in self?.switcher.applyNative() }
         model.onDeepScanChanged = { [weak self] in self?.switcher.deepScopeChanged() }
@@ -239,6 +252,16 @@ import UserNotifications
         dockDrag.start()
         FinderDockClick.shared.apply()
         snapBar.start()
+    }
+
+    /// İkinci bir kopya açılmaya çalıştı ve kendini kapattı: bu kopya öne çıksın
+    private func listenForSecondLaunch() {
+        DistributedNotificationCenter.default().addObserver(forName: SingleInstance.reopenNote, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                _ = self.applicationShouldHandleReopen(NSApp, hasVisibleWindows: false)
+            }
+        }
     }
 
     /// Dock simgesine tıklama ya da Missing'i yeniden açma: dosya penceresi
@@ -500,6 +523,8 @@ import UserNotifications
         if let i = args.firstIndex(of: "--mouse-guard"), i + 1 < args.count, let pid = pid_t(args[i + 1]) {
             MousePointer.runGuard(parent: pid)
         }
+        // Aynı anda iki Missing çalışmasın (ör. /Applications'taki ve proje klasöründeki kopya)
+        SingleInstance.ensure()
         // Önceki çalışma bekçisiz kapandıysa kalan imleç ayarlarını geri al
         MousePointer.restoreLeftovers()
         Onboarding.prepare()   // eski kurulumlarda ilk kurulum ekranı çıkmasın
@@ -509,5 +534,46 @@ import UserNotifications
         app.delegate = delegate
         app.setActivationPolicy(.accessory)
         app.run()
+    }
+}
+
+// MARK: - Tek kopya
+
+/// Missing'in aynı anda yalnızca bir kopyası çalışır. İkinci kopya açılınca:
+/// - Güncelleme / yeniden başlatmada eski kopya zaten kapanıyordur: birkaç saniye beklenir.
+/// - /Applications'taki kopya, başka yerden (İndirilenler, proje klasörü…) çalışan kopyayı kapatıp yerine geçer.
+/// - Aksi halde yeni açılan kopya çalışan kopyayı öne çıkarır ve kendini kapatır.
+enum SingleInstance {
+    static let reopenNote = Notification.Name("com.firewallstudio.missing.reopen")
+
+    static func isInApplications(_ url: URL?) -> Bool {
+        guard let p = url?.resolvingSymlinksInPath().path else { return false }
+        return p.hasPrefix("/Applications/")
+    }
+
+    @MainActor static func ensure() {
+        guard let id = Bundle.main.bundleIdentifier else { return }
+        let me = ProcessInfo.processInfo.processIdentifier
+        // Fare bekçisi gibi arayüzsüz yardımcı süreçler sayılmaz
+        func others() -> [NSRunningApplication] {
+            NSRunningApplication.runningApplications(withBundleIdentifier: id).filter {
+                $0.processIdentifier != me && $0.activationPolicy != .prohibited && kill($0.processIdentifier, 0) == 0
+            }
+        }
+        func wait(_ seconds: Double) {
+            let end = Date().addingTimeInterval(seconds)
+            while !others().isEmpty, Date() < end { RunLoop.current.run(until: Date().addingTimeInterval(0.1)) }
+        }
+        guard !others().isEmpty else { return }
+        wait(3)
+        let list = others()
+        guard !list.isEmpty else { return }
+        if isInApplications(Bundle.main.bundleURL), list.allSatisfy({ !isInApplications($0.bundleURL) }) {
+            list.forEach { $0.terminate() }
+            wait(5)
+            return
+        }
+        DistributedNotificationCenter.default().postNotificationName(reopenNote, object: nil, userInfo: nil, deliverImmediately: true)
+        exit(0)
     }
 }

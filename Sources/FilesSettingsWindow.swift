@@ -149,6 +149,7 @@ private struct FilesGeneralSettings: View {
     @ObservedObject private var zoom = FilesGridZoom.shared
     @State private var viewMode = FilesSettings.viewMode
     @State private var showHidden = FilesSettings.showHidden
+    @State private var replaceFinder = FinderReplacement.enabled
 
     var body: some View {
         FilesSettingsSection(L("Görünüm"), "square.grid.2x2") {
@@ -175,6 +176,11 @@ private struct FilesGeneralSettings: View {
             }
         }
         FilesSettingsSection(L("Dosyalar"), "doc.on.doc") {
+            ToggleRow(L("Finder yerine Dosyalar'ı kullan"),
+                      L("Başka uygulamalardaki \"Finder'da göster\" (indirmeler, Spotlight, VS Code…) ve masaüstündeki klasörler Dosyalar'da açılır. Kapatınca Finder'a döner."),
+                      isOn: $replaceFinder)
+                .onChange(of: replaceFinder) { FinderReplacement.enabled = $0 }
+            Divider().opacity(0.4)
             ToggleRow(L("Gizli dosyaları göster"), nil, isOn: $showHidden)
                 .onChange(of: showHidden) { v in
                     guard v != FilesSettings.showHidden else { return }

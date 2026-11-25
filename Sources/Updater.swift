@@ -287,9 +287,11 @@ final class Updater: ObservableObject {
                 }
                 _ = try? Self.run("/usr/bin/xattr", ["-dr", "com.apple.quarantine", newApp.path])
 
-                // Eski adla (AudioTab.app) kurulmuşsa yeni sürüm Missing.app olarak aynı klasöre gelir
+                // Eski adla (AudioTab.app) kurulmuşsa yeni sürüm Missing.app olarak aynı klasöre gelir.
+                // Uygulamalar dışından (İndirilenler, proje klasörü…) çalışıyorsa yeni sürüm /Applications'a kurulur:
+                // iki ayrı kopya birbirinden kopup farklı sürümlerde kalmasın.
                 let current = Bundle.main.bundleURL
-                let dest = current.deletingLastPathComponent().appendingPathComponent("Missing.app")
+                let dest = Self.installDestination(for: current)
                 try Self.replace(current, at: dest, with: newApp)
 
                 DispatchQueue.main.async {
@@ -301,6 +303,13 @@ final class Updater: ObservableObject {
                 self.set(.failed(error.localizedDescription))
             }
         }
+    }
+
+    static func installDestination(for current: URL) -> URL {
+        let sameFolder = current.deletingLastPathComponent().appendingPathComponent("Missing.app")
+        guard !SingleInstance.isInApplications(current),
+              FileManager.default.isWritableFile(atPath: "/Applications") else { return sameFolder }
+        return URL(fileURLWithPath: "/Applications/Missing.app")
     }
 
     private static func replace(_ current: URL, at dest: URL, with newApp: URL) throws {

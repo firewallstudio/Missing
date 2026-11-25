@@ -592,7 +592,7 @@ private final class FilesNSWindow: NSWindow {
 
     @objc func revealInFinder(_ sender: Any?) {
         let urls = selectedURLs
-        if urls.isEmpty { NSWorkspace.shared.open(tab.url) } else { NSWorkspace.shared.activateFileViewerSelecting(urls) }
+        FinderReplacement.openInFinder(urls.isEmpty ? [tab.url] : urls)
     }
 
     @objc func pinSelection(_ sender: Any?) {
@@ -1187,7 +1187,7 @@ private struct FilesTabChip: View {
                 FilesManager.shared.open(u, newWindow: true)
             }
             Button(L("Kenar çubuğuna ekle")) { FilesPlaces.shared.pin(tab.url) }
-            Button(L("Finder'da göster")) { NSWorkspace.shared.open(tab.url) }
+            Button(L("Finder'da göster")) { FinderReplacement.openInFinder([tab.url]) }
         }
     }
 
@@ -2222,7 +2222,10 @@ private struct SidebarRow: View {
                     Button(L("Yeni pencerede aç")) { FilesManager.shared.open(place.url, newWindow: true) }
                 }
             }
-            Button(L("Finder'da göster")) { NSWorkspace.shared.open(place.url) }
+            Button(L("Finder'da göster")) {
+                if place.special == .airdrop || place.special == .network { NSWorkspace.shared.open(place.url) }
+                else { FinderReplacement.openInFinder([place.url]) }
+            }
             if onShowChildren != nil && place.special == nil {
                 Divider()
                 Button(L("Gösterilecek alt klasörler…")) { picking = true }
