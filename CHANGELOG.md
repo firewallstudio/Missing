@@ -2,6 +2,11 @@
 
 Also shown in the app: **Settings › Versions**.
 
+## 4.3.15
+
+- In Files' icon view, pressing ⌘ or ⌥ while dragging a file dropped it; fixed
+- Dropping in Files works like Finder: ⌘ always moves (it no longer copies), ⌥ always copies
+
 ## 4.3.14
 
 - Pressing ⌘ or ⌥ while dragging a file from Files dropped it; Missing's shortcuts no longer hold up the drag

@@ -633,8 +633,11 @@ private final class FilesNSWindow: NSWindow {
     }
 
     /// Sürükle-bırak ve kenar çubuğuna bırakma: aynı diskte taşı, başka diske kopyala (⌥ ile her zaman kopyala)
-    func drop(_ urls: [URL], into dir: URL, forceCopy: Bool = false) {
-        let copy = forceCopy || NSEvent.modifierFlags.contains(.option) || !urls.allSatisfy { FileOps.sameVolume($0, dir) }
+    /// `mode` verilirse (Dosyalar'ın kendi listesi/simgeleri, bırakma işlemine göre) o kullanılır
+    func drop(_ urls: [URL], into dir: URL, mode: FileOps.Transfer? = nil) {
+        let mods = NSEvent.modifierFlags
+        let copy = mode.map { $0 == .copy }
+            ?? (mods.contains(.option) || (!mods.contains(.command) && !urls.allSatisfy { FileOps.sameVolume($0, dir) }))
         let t = tab
         FileOps.transfer(urls, to: dir, mode: copy ? .copy : .move, undo: undo, window: window) { done in
             if t.url.fileKey == dir.fileKey { t.pendingSelect = done }

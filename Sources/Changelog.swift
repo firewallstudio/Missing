@@ -16,6 +16,12 @@ struct ChangelogEntry {
 
 enum Changelog {
     static let entries: [ChangelogEntry] = [
+        ChangelogEntry(version: "4.3.15", items: [
+            ("Dosyalar'ın simge görünümünde bir dosyayı sürüklerken ⌘ ya da ⌥'ye basınca dosya bırakılıyordu; düzeltildi",
+             "In Files' icon view, pressing ⌘ or ⌥ while dragging a file dropped it; fixed"),
+            ("Dosyalar'da bırakırken Finder gibi: ⌘ her zaman taşır (artık kopyalamıyor), ⌥ her zaman kopyalar",
+             "Dropping in Files works like Finder: ⌘ always moves (it no longer copies), ⌥ always copies"),
+        ]),
         ChangelogEntry(version: "4.3.14", items: [
             ("Dosyalar'dan bir dosyayı sürüklerken ⌘ ya da ⌥'ye basınca dosya bırakılıyordu; Missing'in kısayolları artık sürüklemeyi bekletmiyor",
              "Pressing ⌘ or ⌥ while dragging a file from Files dropped it; Missing's shortcuts no longer hold up the drag"),

@@ -136,6 +136,8 @@ import Quartz
         grid.register(FilesGridItem.self, forItemWithIdentifier: FilesGridItem.id)
         grid.register(FilesGridHeader.self, forSupplementaryViewOfKind: NSCollectionView.elementKindSectionHeader,
                       withIdentifier: FilesGridHeader.id)
+        grid.register(FilesGridGap.self, forSupplementaryViewOfKind: NSCollectionView.elementKindInterItemGapIndicator,
+                      withIdentifier: FilesGridGap.id)
         grid.registerForDraggedTypes([.fileURL])
         grid.setDraggingSourceOperationMask([.copy, .move, .link, .generic], forLocal: false)
         grid.setDraggingSourceOperationMask([.copy, .move, .generic], forLocal: true)
@@ -556,6 +558,11 @@ import Quartz
 
     func collectionView(_ cv: NSCollectionView, viewForSupplementaryElementOfKind kind: NSCollectionView.SupplementaryElementKind,
                         at ip: IndexPath) -> NSView {
+        // Bırakırken AppKit simgelerin arasına "boşluk göstergesi" ister. Başlık nib'i olarak aranırsa
+        // istisna atar ve sürükleme düşer (⌘ / ⌥'ye basınca bırakma işlemi değişip gösterge istenince)
+        guard kind == NSCollectionView.elementKindSectionHeader else {
+            return cv.makeSupplementaryView(ofKind: kind, withIdentifier: FilesGridGap.id, for: ip)
+        }
         let v = cv.makeSupplementaryView(ofKind: kind, withIdentifier: FilesGridHeader.id, for: ip)
         if let h = v as? FilesGridHeader, groups.indices.contains(ip.section) {
             h.header.configure(groups[ip.section].title, count: groups[ip.section].range.count, inset: 14)
@@ -611,34 +618,32 @@ import Quartz
 
     /// Sütunlar için: hedef klasör doğrudan verilir
     func dragOperation(_ info: NSDraggingInfo, dest: URL) -> NSDragOperation {
-        let urls = draggedURLs(info)
+        Self.operation(draggedURLs(info), mask: info.draggingSourceOperationMask, dest: dest)
+    }
+
+    /// Finder gibi: ⌘ her zaman taşır, ⌥ her zaman kopyalar; tuş yoksa aynı diskte taşı, başka diske kopyala.
+    /// Aynı klasöre taşımanın anlamı yok (⌥ ile aynı klasöre bırakmak kopya çıkarır)
+    static func operation(_ urls: [URL], mask: NSDragOperation, dest: URL) -> NSDragOperation {
         guard !urls.isEmpty, !urls.contains(where: { FileOps.isInside(dest, $0) }) else { return [] }
-        let mask = info.draggingSourceOperationMask
-        let same = urls.allSatisfy { FileOps.sameVolume($0, dest) }
-        if mask == .copy || !same || !mask.contains(.move) { return mask.contains(.copy) || mask.contains(.generic) ? .copy : [] }
-        if urls.allSatisfy({ $0.deletingLastPathComponent().fileKey == dest.fileKey }) { return [] }
-        return .move
+        let sameFolder = urls.allSatisfy { $0.deletingLastPathComponent().fileKey == dest.fileKey }
+        if mask == .generic { return sameFolder ? [] : .move }          // ⌘
+        if mask == .copy { return .copy }                                // ⌥
+        let sameVolume = urls.allSatisfy { FileOps.sameVolume($0, dest) }
+        if sameVolume && mask.contains(.move) { return sameFolder ? [] : .move }
+        return mask.contains(.copy) && !sameFolder ? .copy : []
     }
 
     func performDrop(_ info: NSDraggingInfo, dest: URL) -> Bool {
         guard let owner else { return false }
         let op = dragOperation(info, dest: dest)
         guard !op.isEmpty else { return false }
-        owner.drop(draggedURLs(info), into: dest, forceCopy: op == .copy)
+        owner.drop(draggedURLs(info), into: dest, mode: op == .copy ? .copy : .move)
         return true
     }
 
     private func dropOperation(_ info: NSDraggingInfo, into target: FileItem?) -> NSDragOperation {
         guard let tab else { return [] }
-        let urls = draggedURLs(info)
-        let dest = target?.folderTarget ?? tab.url
-        guard !urls.isEmpty, !urls.contains(where: { FileOps.isInside(dest, $0) }) else { return [] }
-        let mask = info.draggingSourceOperationMask
-        let same = urls.allSatisfy { FileOps.sameVolume($0, dest) }
-        if mask == .copy || !same || !mask.contains(.move) { return mask.contains(.copy) || mask.contains(.generic) ? .copy : [] }
-        // Aynı klasöre taşımanın anlamı yok
-        if urls.allSatisfy({ $0.deletingLastPathComponent().fileKey == dest.fileKey }) { return [] }
-        return .move
+        return Self.operation(draggedURLs(info), mask: info.draggingSourceOperationMask, dest: target?.folderTarget ?? tab.url)
     }
 
     private func performDrop(_ info: NSDraggingInfo, into target: FileItem?) -> Bool {
@@ -647,7 +652,7 @@ import Quartz
         let dest = target?.folderTarget ?? tab.url
         let op = dropOperation(info, into: target)
         guard !op.isEmpty else { return false }
-        owner.drop(urls, into: dest, forceCopy: op == .copy)
+        owner.drop(urls, into: dest, mode: op == .copy ? .copy : .move)
         return true
     }
 
@@ -1265,6 +1270,11 @@ final class FilesHeaderRowView: NSTableRowView {
 }
 
 /// Simgelerde bölüm başlığı
+/// Bırakma boşluğu göstergesi: boş; dosyalar açık klasörün kendisine bırakılır, araya değil
+final class FilesGridGap: NSView, NSCollectionViewElement {
+    static let id = NSUserInterfaceItemIdentifier("FilesGridGap")
+}
+
 final class FilesGridHeader: NSView, NSCollectionViewElement {
     static let id = NSUserInterfaceItemIdentifier("FilesGridHeader")
     let header = FilesGroupHeaderView()
