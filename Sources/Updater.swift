@@ -11,11 +11,11 @@ enum UpdateConfig {
     /// "kullanıcı/repo"
     static let repo = "firewallstudio/Missing"
     static var releasesPage: URL { URL(string: "https://github.com/\(repo)/releases")! }
-    /// Güncellemeler yalnızca bu kimliğe uyan paketse kurulur: paket kimliği +
-    /// signing/AudioTab.pem sertifikasının SHA-1 parmak izi. Yerelde ad-hoc derlenmiş
-    /// kopyalar da aynı kurala tabi (eskiden yalnızca paket kimliğine bakılıyordu).
+    /// Güncellemeler yalnızca bu kimliğe uyan paketse kurulur: paket kimliği + sertifikanın SHA-1 parmak izi.
+    /// 4.3.23'ten beri signing/Missing.pem ("Missing Code Signing"); eski signing/AudioTab.pem de kabul edilir.
+    /// Yerelde ad-hoc derlenmiş kopyalar da aynı kurala tabi.
     static let codeRequirement =
-        "identifier \"com.firewallstudio.audiotab\" and certificate leaf = H\"1393C015627262B00A7AABAF54ECDF0AF9C39BAD\""
+        "identifier \"com.firewallstudio.audiotab\" and (certificate leaf = H\"C30DADBB306E2BACBDA0FC550D1091A02A92E7B9\" or certificate leaf = H\"1393C015627262B00A7AABAF54ECDF0AF9C39BAD\")"
     /// Yayındaki paket adı (eski AudioTab.zip de kabul edilir)
     static let assetNames = ["Missing.zip", "AudioTab.zip"]
     static let allowedDownloadHosts: Set<String> = ["github.com", "objects.githubusercontent.com"]

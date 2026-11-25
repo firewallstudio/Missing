@@ -10,8 +10,8 @@ echo "▶ Downloading the latest version..."
 curl -fsSL "https://github.com/$REPO/releases/latest/download/Missing.zip" -o "$TMP/Missing.zip"
 ditto -x -k "$TMP/Missing.zip" "$TMP"
 
-# Only install a package signed with the Missing release certificate (signing/AudioTab.pem)
-REQ='identifier "com.firewallstudio.audiotab" and certificate leaf = H"1393C015627262B00A7AABAF54ECDF0AF9C39BAD"'
+# Only install a package signed with the Missing release certificate (signing/Missing.pem; the older signing/AudioTab.pem is also accepted)
+REQ='identifier "com.firewallstudio.audiotab" and (certificate leaf = H"C30DADBB306E2BACBDA0FC550D1091A02A92E7B9" or certificate leaf = H"1393C015627262B00A7AABAF54ECDF0AF9C39BAD")'
 if ! codesign --verify --deep --strict -R "=$REQ" "$TMP/Missing.app" 2>/dev/null; then
   echo "✖ The download isn't signed with the Missing certificate. Nothing was installed." >&2
   exit 1

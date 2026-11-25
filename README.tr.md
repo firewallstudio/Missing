@@ -220,6 +220,6 @@ Mac'inden hiçbir şey çıkmaz. Tek ağ isteği GitHub'daki güncelleme denetim
 ./build.sh --install   # derle ve /Applications'a kur
 ```
 
-Tüm sürümler aynı sertifikayla imzalanır (`signing/AudioTab.pem`); macOS izinlerini güncellemelerde korur, güncelleyici de sadece bu sertifikayla imzalı sürümleri kurar.
+Tüm sürümler aynı sertifikayla imzalanır (`signing/Missing.pem`, "Missing Code Signing"); macOS izinlerini güncellemelerde korur, güncelleyici de sadece bu sertifikayla imzalı sürümleri kurar. 4.3.22'ye kadarki sürümler `signing/AudioTab.pem` ile imzalıydı; onlardan 4.3.23 ve sonrasına geçmek için bir kere elle indirmek gerekir ve macOS Missing'in izinlerini bir kez yeniden ister.
 
 <sub>Görseller Missing'in gerçek arayüzünü gösterir; arka plandaki pencere içerikleri temsilidir.</sub>

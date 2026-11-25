@@ -220,6 +220,6 @@ Nothing leaves your Mac. The only network request is the update check against Gi
 ./build.sh --install   # build and install to /Applications
 ```
 
-Every release is signed with the same certificate (`signing/AudioTab.pem`), so macOS keeps your permissions across updates, and the updater only installs builds signed with it.
+Every release is signed with the same certificate (`signing/Missing.pem`, "Missing Code Signing"), so macOS keeps your permissions across updates, and the updater only installs builds signed with it. Versions up to 4.3.22 were signed with `signing/AudioTab.pem`; moving from those to 4.3.23 or later needs one manual download, and macOS asks for Missing's permissions again once.
 
 <sub>The images show Missing's real interface; window contents in the backgrounds are illustrations.</sub>

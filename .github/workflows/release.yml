@@ -57,11 +57,11 @@ jobs:
           security set-keychain-settings -t 3600 -u build.keychain
           security import cert.p12 -k build.keychain -P "$(echo -n "$CERT_PASSWORD" | tr -d '[:space:]')" -T /usr/bin/codesign -x
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KC_PW" build.keychain
-          sudo security add-trusted-cert -d -r trustRoot -p codeSign -k /Library/Keychains/System.keychain signing/AudioTab.pem || true
+          sudo security add-trusted-cert -d -r trustRoot -p codeSign -k /Library/Keychains/System.keychain signing/Missing.pem || true
           rm cert.p12
-          IDENTITY=$(security find-identity -p codesigning build.keychain | awk '/AudioTab/ {print $2; exit}')
+          IDENTITY=$(security find-identity -p codesigning build.keychain | awk '/Missing Code Signing/ {print $2; exit}')
           if [ -z "$IDENTITY" ]; then
-            IDENTITY=$(security find-identity build.keychain | awk '/AudioTab/ {print $2; exit}')
+            IDENTITY=$(security find-identity build.keychain | awk '/Missing Code Signing/ {print $2; exit}')
           fi
           echo "SIGN_IDENTITY=$IDENTITY" >> "$GITHUB_ENV"
           echo "İmza kimliği: $IDENTITY"

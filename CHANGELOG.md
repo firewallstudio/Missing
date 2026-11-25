@@ -2,6 +2,11 @@
 
 Also shown in the app: **Settings › Versions**.
 
+## 4.3.23
+
+- Missing is now signed with its own certificate (Missing Code Signing). Coming from 4.3.22 or earlier needs one manual download, and macOS asks for Missing's permissions (Accessibility, Screen Recording…) once more
+- Everything from 4.3.22 below (4.3.22 itself was never published)
+
 ## 4.3.22
 
 - Files has its own context menu: glass background, icons, shortcuts and submenus that open to the side

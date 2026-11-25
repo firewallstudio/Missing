@@ -16,6 +16,12 @@ struct ChangelogEntry {
 
 enum Changelog {
     static let entries: [ChangelogEntry] = [
+        ChangelogEntry(version: "4.3.23", items: [
+            ("Missing artık kendi sertifikasıyla imzalanıyor (Missing Code Signing). 4.3.22 ve öncesinden geçerken bir kere elle indirmek gerekir; macOS Missing'in izinlerini (Erişilebilirlik, Ekran Kaydı…) bir kez yeniden ister",
+             "Missing is now signed with its own certificate (Missing Code Signing). Coming from 4.3.22 or earlier needs one manual download, and macOS asks for Missing's permissions (Accessibility, Screen Recording…) once more"),
+            ("4.3.22'deki bütün yenilikler: Dosyalar'ın kendi sağ tık menüsü, hızlı işlemler, Bilgi al, Çöp Sepeti ve Ağ sayfaları, Son Kullanılanlar, açık / koyu tema",
+             "Everything from 4.3.22: Files' own context menu, Quick Actions, Get Info, Trash and Network pages, Recents, light / dark themes"),
+        ]),
         ChangelogEntry(version: "4.3.22", items: [
             ("Dosyalar'ın kendi sağ tık menüsü: cam zemin, simgeler, kısayollar ve yana açılan alt menüler",
              "Files has its own context menu: glass background, icons, shortcuts and submenus that open to the side"),
