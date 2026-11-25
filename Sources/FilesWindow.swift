@@ -840,7 +840,7 @@ struct FilesRootView: View {
     // Missing: koyu cam, sekmeler en üstte
     private func missingLayout(_ p: FilesPalette) -> some View {
         VStack(spacing: 0) {
-            FilesTabStrip(model: model, controller: controller).frame(height: 30)
+            FilesTabStrip(model: model, controller: controller).frame(height: 36)
             FilesToolbar(model: model, tab: tab, controller: controller).frame(height: 42)
             Rectangle().fill(p.divider).frame(height: 1)
             HStack(spacing: 0) {
@@ -1034,7 +1034,7 @@ struct FilesTabStrip: View {
 
     private var m: Metrics {
         switch p.theme {
-        case .missing: return Metrics(lead: 80, spacing: 4, maxW: 220, minW: 110, chipH: 26)
+        case .missing: return Metrics(lead: 80, spacing: 2, maxW: 220, minW: 110, chipH: 26)
         case .glass: return Metrics(lead: 80, spacing: 6, maxW: 220, minW: 110, chipH: 28)
         case .windows: return Metrics(lead: 80, spacing: 2, maxW: 240, minW: 110, chipH: 32)
         case .finder: return Metrics(lead: 0, spacing: 0, maxW: .infinity, minW: 120, chipH: 28)
@@ -1059,9 +1059,16 @@ struct FilesTabStrip: View {
                                     .id(t.id)
                             }
                         }
+                        // Missing: sekmeler tek bir koyu kabın içinde (Safari gibi), seçili olan kabarık
+                        .padding(p.theme == .missing ? 2 : 0)
+                        .background {
+                            if p.theme == .missing {
+                                RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Color.black.opacity(0.28))
+                            }
+                        }
                         .frame(maxHeight: .infinity, alignment: p.theme == .windows ? .bottom : .center)
                     }
-                    .frame(maxWidth: min(avail, n * (w + m.spacing)), alignment: .leading)
+                    .frame(maxWidth: min(avail, n * (w + m.spacing) + (p.theme == .missing ? 4 : 0)), alignment: .leading)
                     .onChange(of: model.currentID) { id in withAnimation { proxy.scrollTo(id) } }
                 }
                 Button { controller.newTab(nil) } label: {
@@ -1115,13 +1122,13 @@ private struct FilesTabChip: View {
         .padding(.trailing, finder ? 26 : (showClose ? 26 : 10))
         .frame(width: width, height: height)
         .background(background(selected))
-        .overlay(alignment: .bottom) {
-            if selected && p.theme == .missing { Capsule().fill(p.accent).frame(height: 2).padding(.horizontal, 10) }
-        }
         .overlay(alignment: .trailing) {
-            // Finder ve Windows: sekmeler arası ince çizgi
+            // Finder ve Windows: sekmeler arası ince çizgi. Missing: seçili olmayan iki sekmenin arasında kısa çizgi
             if (finder || (p.theme == .windows && !selected)) && index < model.tabs.count - 1 {
                 Rectangle().fill(p.fg.opacity(finder ? 0.12 : 0.15)).frame(width: 1, height: finder ? height : 16)
+            } else if p.theme == .missing, !selected, !hover, index < model.tabs.count - 1,
+                      model.tabs[index + 1].id != model.currentID {
+                Rectangle().fill(p.fg.opacity(0.10)).frame(width: 1, height: 14).offset(x: 1.5)
             }
         }
         .overlay(alignment: finder ? .leading : .trailing) {
@@ -1188,8 +1195,10 @@ private struct FilesTabChip: View {
         let drop = p.accent.opacity(0.45)
         switch p.theme {
         case .missing:
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(dropTarget ? drop : p.fg.opacity(selected ? 0.16 : (hover ? 0.07 : 0)))
+            let shape = RoundedRectangle(cornerRadius: 7, style: .continuous)
+            shape.fill(dropTarget ? drop : p.fg.opacity(selected ? 0.13 : (hover ? 0.06 : 0)))
+                .overlay(shape.strokeBorder(p.fg.opacity(selected ? 0.10 : 0), lineWidth: 1))
+                .shadow(color: .black.opacity(selected ? 0.35 : 0), radius: 3, y: 1)
         case .glass:
             let shape = RoundedRectangle(cornerRadius: 10, style: .continuous)
             shape.fill(dropTarget ? drop : .white.opacity(selected ? 0.18 : (hover ? 0.08 : 0)))

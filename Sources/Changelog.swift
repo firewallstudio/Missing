@@ -16,6 +16,10 @@ struct ChangelogEntry {
 
 enum Changelog {
     static let entries: [ChangelogEntry] = [
+        ChangelogEntry(version: "4.3.17", items: [
+            ("Missing temasında Dosyalar'ın sekmeleri yenilendi: hepsi tek bir koyu kapta, seçili sekme kabarık",
+             "New tabs in Files' Missing theme: all in one dark container, the selected tab raised"),
+        ]),
         ChangelogEntry(version: "4.3.16", items: [
             ("Dosyalar'da fareyle üstüne gelinen dosya hafif griyle belli olur (liste, simge ve sütun görünümü)",
              "In Files, the file under the pointer gets a light gray highlight (list, icon and column views)"),

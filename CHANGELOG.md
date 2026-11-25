@@ -2,6 +2,10 @@
 
 Also shown in the app: **Settings › Versions**.
 
+## 4.3.17
+
+- New tabs in Files' Missing theme: all in one dark container, the selected tab raised
+
 ## 4.3.16
 
 - In Files, the file under the pointer gets a light gray highlight (list, icon and column views)
