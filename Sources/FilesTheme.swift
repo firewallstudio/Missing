@@ -78,6 +78,8 @@ struct FilesPalette {
 
     var divider: Color { fg.opacity(theme == .windows ? (dark ? 0.10 : 0.09) : 0.08) }
     var hoverFill: Color { fg.opacity(dark ? 0.07 : 0.05) }
+    /// Dosya satırı / simgesi fare üstündeyken (hafif gri)
+    var nsHover: NSColor { nsFG.withAlphaComponent(theme == .glass ? 0.08 : (dark ? 0.06 : 0.045)) }
     var pressFill: Color { fg.opacity(dark ? 0.16 : 0.10) }
     var controlFill: Color {
         switch theme {

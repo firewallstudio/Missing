@@ -877,6 +877,8 @@ enum FinderTags {
     @Published private(set) var favorites: [SidebarPlace] = []
     @Published private(set) var pinned: [SidebarPlace] = []
     @Published private(set) var volumes: [SidebarPlace] = []
+    /// Çıkarılmakta olan diskler (düğme dönen bir göstergeye döner)
+    @Published private(set) var ejecting: Set<String> = []
     /// Bulut klasörleri, ana klasör, AirDrop, Ağ, Çöp Sepeti
     @Published private(set) var locations: [SidebarPlace] = []
     @Published private(set) var tags: [FinderTag] = []
@@ -1065,8 +1067,11 @@ enum FinderTags {
             let internalDisk = v?.volumeIsInternal ?? true
             let symbol = (v?.volumeIsRootFileSystem ?? false) ? "internaldrive"
                 : (!internalDisk || removable || ejectable) ? "externaldrive" : "internaldrive"
-            let external = !(v?.volumeIsRootFileSystem ?? false) && (!internalDisk || removable || ejectable)
-            return SidebarPlace(url: u, title: name, symbol: symbol, ejectable: ejectable || removable, removable: removable,
+            let root = (v?.volumeIsRootFileSystem ?? false) || u.path == "/"
+            let external = !root && (!internalDisk || removable || ejectable)
+            // Finder gibi: başlangıç diski dışındaki her disk (harici SSD, ağ paylaşımı, disk görüntüsü) çıkarılabilir
+            let canEject = !root && !u.path.hasPrefix("/System/Volumes")
+            return SidebarPlace(url: u, title: name, symbol: symbol, ejectable: canEject, removable: removable,
                                 hideKey: external ? "external" : "disks")
         }
     }
@@ -1100,11 +1105,21 @@ enum FinderTags {
         rebuild()
     }
 
+    /// Diski çıkarır. Uzun sürebilir (önbellek yazılır), pencere donmasın diye arka planda
     func eject(_ place: SidebarPlace, window: NSWindow?) {
-        do {
-            try NSWorkspace.shared.unmountAndEjectDevice(at: place.url)
-        } catch {
-            FileOps.report(error, in: window)
+        let url = place.url
+        ejecting.insert(url.path)
+        DispatchQueue.global(qos: .userInitiated).async {
+            var failure: Error?
+            do { try NSWorkspace.shared.unmountAndEjectDevice(at: url) } catch { failure = error }
+            let err = failure.map { $0 as NSError }
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    self.ejecting.remove(url.path)
+                    if let err { FileOps.report(err, in: window) }
+                    self.rebuildVolumes()
+                }
+            }
         }
     }
 }

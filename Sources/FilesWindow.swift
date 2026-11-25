@@ -1702,55 +1702,9 @@ private struct FilesSidebar: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: p.theme == .windows ? 0 : 1) {
-                let favs = places.shownFavorites
-                if !favs.isEmpty {
-                    SidebarSectionHeader(title: L("Sık kullanılanlar"), key: "fav")
-                    if !state.isCollapsed(section: "fav") {
-                        ForEach(favs) { f in
-                            SidebarTree(place: f, scope: "fav", tab: tab, controller: controller,
-                                        remove: places.isFinderFavorite(f.url) ? { FilesPlaces.shared.unpin(f.url) } : nil)
-                        }
-                    }
-                }
-                if !places.pinned.isEmpty {
-                    SidebarSectionHeader(title: L("Sabitlenenler"), key: "pin")
-                    if !state.isCollapsed(section: "pin") {
-                        ForEach(places.pinned) { f in
-                            SidebarTree(place: f, scope: "pin", tab: tab, controller: controller,
-                                        remove: { FilesPlaces.shared.unpin(f.url) })
-                        }
-                    }
-                }
-                ForEach(state.groups) { g in
-                    SidebarGroupHeader(group: g, controller: controller)
-                    if !g.collapsed {
-                        let items = state.places(g)
-                        if items.isEmpty {
-                            SidebarGroupPlaceholder(group: g)
-                        }
-                        ForEach(items) { f in
-                            SidebarTree(place: f, scope: g.id.uuidString, tab: tab, controller: controller,
-                                        remove: { FilesSidebarState.shared.removeItem(f.url, from: g.id) }, groupID: g.id)
-                        }
-                    }
-                }
-                let locs = places.shownLocations
-                if !locs.isEmpty {
-                    SidebarSectionHeader(title: L("Konumlar"), key: "loc")
-                    if !state.isCollapsed(section: "loc") {
-                        ForEach(locs) { f in
-                            SidebarRow(place: f, selected: selected(f), controller: controller)
-                        }
-                    }
-                }
-                let tags = places.shownTags
-                if !tags.isEmpty {
-                    SidebarSectionHeader(title: L("Etiketler"), key: "tags")
-                    if !state.isCollapsed(section: "tags") {
-                        ForEach(tags) { t in
-                            TagRow(tag: t, selected: tab.tag == t, controller: controller)
-                        }
-                    }
+                let visible = visibleSections
+                ForEach(visible, id: \.self) { key in
+                    section(key, visible: visible)
                 }
                 // Boş alan: sağ tıkla yeni başlık
                 Color.clear
@@ -1773,6 +1727,68 @@ private struct FilesSidebar: View {
         .onChange(of: tab.url) { _ in state.reloadChildren() }
     }
 
+    /// Görünen bölümler, kullanıcının sırasıyla (boş olanlar atlanır)
+    private var visibleSections: [String] {
+        state.order.filter { key in
+            switch key {
+            case "fav": return !places.shownFavorites.isEmpty
+            case "pin": return !places.pinned.isEmpty
+            case "loc": return !places.shownLocations.isEmpty
+            case "tags": return !places.shownTags.isEmpty
+            default: return state.groups.contains { $0.id.uuidString == key }
+            }
+        }
+    }
+
+    @ViewBuilder private func section(_ key: String, visible: [String]) -> some View {
+        switch key {
+        case "fav":
+            SidebarSectionHeader(title: L("Sık kullanılanlar"), key: key, visible: visible)
+            if !state.isCollapsed(section: key) {
+                ForEach(places.shownFavorites) { f in
+                    SidebarTree(place: f, scope: "fav", tab: tab, controller: controller,
+                                remove: places.isFinderFavorite(f.url) ? { FilesPlaces.shared.unpin(f.url) } : nil)
+                }
+            }
+        case "pin":
+            SidebarSectionHeader(title: L("Sabitlenenler"), key: key, visible: visible)
+            if !state.isCollapsed(section: key) {
+                ForEach(places.pinned) { f in
+                    SidebarTree(place: f, scope: "pin", tab: tab, controller: controller,
+                                remove: { FilesPlaces.shared.unpin(f.url) })
+                }
+            }
+        case "loc":
+            SidebarSectionHeader(title: L("Konumlar"), key: key, visible: visible)
+            if !state.isCollapsed(section: key) {
+                ForEach(places.shownLocations) { f in
+                    SidebarRow(place: f, selected: selected(f), controller: controller)
+                }
+            }
+        case "tags":
+            SidebarSectionHeader(title: L("Etiketler"), key: key, visible: visible)
+            if !state.isCollapsed(section: key) {
+                ForEach(places.shownTags) { t in
+                    TagRow(tag: t, selected: tab.tag == t, controller: controller)
+                }
+            }
+        default:
+            if let g = state.groups.first(where: { $0.id.uuidString == key }) {
+                SidebarGroupHeader(group: g, controller: controller, visible: visible)
+                if !g.collapsed {
+                    let items = state.places(g)
+                    if items.isEmpty {
+                        SidebarGroupPlaceholder(group: g)
+                    }
+                    ForEach(items) { f in
+                        SidebarTree(place: f, scope: g.id.uuidString, tab: tab, controller: controller,
+                                    remove: { FilesSidebarState.shared.removeItem(f.url, from: g.id) }, groupID: g.id)
+                    }
+                }
+            }
+        }
+    }
+
     private var newGroupButton: some View {
         Button(L("Yeni başlık")) { FilesSidebarState.shared.addGroup() }
     }
@@ -1786,9 +1802,11 @@ private struct FilesSidebar: View {
 private struct SidebarSectionHeader: View {
     let title: String
     let key: String
+    let visible: [String]
     @ObservedObject private var state = FilesSidebarState.shared
     @Environment(\.filesPalette) private var p
     @State private var hover = false
+    @State private var sectionDrop = false
 
     var body: some View {
         let collapsed = state.isCollapsed(section: key)
@@ -1809,8 +1827,11 @@ private struct SidebarSectionHeader: View {
         .padding(.bottom, 3)
         .contentShape(Rectangle())
         .onHover { hover = $0 }
-        .onTapGesture { withAnimation(.easeOut(duration: 0.15)) { state.toggle(section: key) } }
+        .onTapGesture { state.toggle(section: key) }
+        .sectionReorder(key: key, isTargeted: $sectionDrop)
         .contextMenu {
+            SectionMoveButtons(key: key, visible: visible)
+            Divider()
             Button(L("Yeni başlık")) { FilesSidebarState.shared.addGroup() }
         }
     }
@@ -1820,6 +1841,8 @@ private struct SidebarSectionHeader: View {
 private struct SidebarGroupHeader: View {
     let group: SidebarGroup
     let controller: FilesWindowController
+    let visible: [String]
+    @State private var sectionDrop = false
     @ObservedObject private var state = FilesSidebarState.shared
     @Environment(\.filesPalette) private var p
     @State private var hover = false
@@ -1880,21 +1903,23 @@ private struct SidebarGroupHeader: View {
         .padding(.bottom, 4)
         .contentShape(Rectangle())
         .onHover { hover = $0 }
-        .onTapGesture(count: 2) { state.editing = group.id }
-        .onTapGesture { withAnimation(.easeOut(duration: 0.15)) { state.toggleCollapsed(group.id) } }
+        // Tek tık hemen açar / kapar (çift tık beklenmez); çift tıkın ikinci tıkı geri alıp adı düzenlemeye açar
+        .onTapGesture {
+            guard state.editing != group.id else { return }
+            state.toggleCollapsed(group.id)
+            if (NSApp.currentEvent?.clickCount ?? 1) >= 2 { state.editing = group.id }
+        }
         .onDrop(of: [UTType.fileURL], isTargeted: $dropTarget) { providers in
             let id = group.id
             loadFileURLs(providers) { urls in FilesSidebarState.shared.add(urls, to: id) }
             return true
         }
+        .sectionReorder(key: group.id.uuidString, isTargeted: $sectionDrop)
         .contextMenu {
             Button(L("Yeniden adlandır")) { state.editing = group.id }
             Button(L("Klasör ekle…")) { state.chooseFolders(for: group.id, window: controller.window) }
             Divider()
-            Button(L("Yukarı taşı")) { state.moveGroup(group.id, by: -1) }
-                .disabled(state.groups.first?.id == group.id)
-            Button(L("Aşağı taşı")) { state.moveGroup(group.id, by: 1) }
-                .disabled(state.groups.last?.id == group.id)
+            SectionMoveButtons(key: group.id.uuidString, visible: visible)
             Divider()
             Button(L("Yeni başlık")) { state.addGroup() }
             Button(L("Başlığı sil")) { state.remove(group.id) }
@@ -1905,6 +1930,72 @@ private struct SidebarGroupHeader: View {
         guard state.editing == group.id else { return }
         state.rename(group.id, text)
         state.editing = nil
+    }
+}
+
+// MARK: - Bölümleri sıralama
+
+/// Sürüklenen bölüm kendi türüyle taşınır: dosya sürüklemeleriyle (ve başlığa klasör bırakmayla) karışmaz
+private let sectionDragType = UTType(exportedAs: "com.firewallstudio.missing.sidebar-section")
+
+/// Sağ tık › Yukarı taşı / Aşağı taşı
+private struct SectionMoveButtons: View {
+    let key: String
+    let visible: [String]
+
+    var body: some View {
+        let state = FilesSidebarState.shared
+        Button(L("Yukarı taşı")) { state.moveSection(key, by: -1, among: visible) }
+            .disabled(visible.first == key)
+        Button(L("Aşağı taşı")) { state.moveSection(key, by: 1, among: visible) }
+            .disabled(visible.last == key)
+    }
+}
+
+private struct SectionReorder: ViewModifier {
+    let key: String
+    @Binding var isTargeted: Bool
+    @Environment(\.filesPalette) private var p
+
+    func body(content: Content) -> some View {
+        content
+            .onDrag {
+                FilesSidebarState.shared.draggingSection = key
+                let pr = NSItemProvider()
+                pr.registerDataRepresentation(forTypeIdentifier: sectionDragType.identifier, visibility: .ownProcess) { done in
+                    done(Data(key.utf8), nil)
+                    return nil
+                }
+                return pr
+            }
+            .onDrop(of: [sectionDragType], isTargeted: Binding(
+                get: { isTargeted },
+                set: { isTargeted = $0 && FilesSidebarState.shared.draggingSection != nil && FilesSidebarState.shared.draggingSection != key }
+            )) { providers in
+                guard let pr = providers.first else { return false }
+                let target = key
+                _ = pr.loadDataRepresentation(forTypeIdentifier: sectionDragType.identifier) { data, _ in
+                    guard let data, let moved = String(data: data, encoding: .utf8) else { return }
+                    DispatchQueue.main.async {
+                        MainActor.assumeIsolated {
+                            let state = FilesSidebarState.shared
+                            withAnimation(.easeOut(duration: 0.15)) { state.moveSection(moved, before: target) }
+                            state.draggingSection = nil
+                        }
+                    }
+                }
+                return true
+            }
+            // Bırakılınca sürüklenen bölüm bu başlığın üstüne gelir: üstte kırmızı çizgi
+            .overlay(alignment: .top) {
+                if isTargeted { Capsule().fill(p.accent).frame(height: 2).padding(.horizontal, 6) }
+            }
+    }
+}
+
+extension View {
+    fileprivate func sectionReorder(key: String, isTargeted: Binding<Bool>) -> some View {
+        modifier(SectionReorder(key: key, isTargeted: isTargeted))
     }
 }
 
@@ -2055,6 +2146,7 @@ private struct SidebarRow: View {
     @State private var hover = false
     @State private var dropTarget = false
     @State private var picking = false
+    @ObservedObject private var places = FilesPlaces.shared
 
     var body: some View {
         HStack(spacing: 8) {
@@ -2078,12 +2170,17 @@ private struct SidebarRow: View {
                 .help(expanded ? L("Daralt") : L("Genişlet"))
             }
             if place.ejectable {
-                Button { FilesPlaces.shared.eject(place, window: controller.window) } label: {
-                    Image(systemName: "eject.fill").font(.system(size: 9.5)).foregroundStyle(p.fg.opacity(0.5))
-                        .frame(width: 18, height: 18).contentShape(Rectangle())
+                if places.ejecting.contains(place.url.path) {
+                    ProgressView().controlSize(.mini).frame(width: 18, height: 18)
+                } else {
+                    Button { FilesPlaces.shared.eject(place, window: controller.window) } label: {
+                        Image(systemName: "eject.fill").font(.system(size: 9.5))
+                            .foregroundStyle(p.fg.opacity(hover ? 0.75 : 0.5))
+                            .frame(width: 18, height: 18).contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .help(L("Çıkar"))
                 }
-                .buttonStyle(.plain)
-                .help(L("Çıkar"))
             }
         }
         .padding(.leading, 8 + CGFloat(depth) * 14)

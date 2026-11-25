@@ -405,7 +405,7 @@ final class FilesColumnsDocument: NSView {
     }
 }
 
-final class FilesColumnTable: NSTableView {
+final class FilesColumnTable: FilesHoverTable {
     weak var owner: FilesColumnsView?
 
     override func keyDown(with e: NSEvent) {

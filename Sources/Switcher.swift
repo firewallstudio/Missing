@@ -759,9 +759,9 @@ let perfLog = Logger(subsystem: Bundle.main.bundleIdentifier ?? "com.firewallstu
         u.onTileItem = { [weak self] i in self?.tileItem(at: i) }
         u.onPickFilter = { [weak self] i in self?.setFilter(index: i) }
         u.onDropFiles = { [weak self] i, urls in self?.dropFiles(urls, onto: i) }
-        u.onOpenFavorite = { [weak self] url in
+        u.onOpenFavorite = { [weak self] e in
             self?.end()
-            NSWorkspace.shared.open(url)
+            if e.inFiles && FilesSettings.enabled { FilesManager.shared.open(e.url) } else { NSWorkspace.shared.open(e.url) }
         }
         return u
     }()
@@ -1300,7 +1300,7 @@ let perfLog = Logger(subsystem: Bundle.main.bundleIdentifier ?? "com.firewallstu
     var onPickFilter: ((Int) -> Void)?
     /// En sağda kenar çubuğu: sık kullanılan klasörler / Finder favorileri (boşsa gösterilmez)
     var favorites: [(title: String, items: [Favorites.Entry])] = []
-    var onOpenFavorite: ((URL) -> Void)?
+    var onOpenFavorite: ((Favorites.Entry) -> Void)?
     /// Tarayıcı penceresinin profili (küçük rozet olarak gösterilir)
     var profileFor: ((Item) -> BrowserProfiles.Profile?)?
     private let sidebar = FavoritesSidebarView()

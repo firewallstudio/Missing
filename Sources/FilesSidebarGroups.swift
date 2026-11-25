@@ -26,18 +26,26 @@ struct SidebarGroup: Codable, Identifiable, Equatable {
     @Published private(set) var shown: [String: Set<String>]
     /// Adı yazılmakta olan başlık
     @Published var editing: UUID?
+    /// Bölümlerin sırası: hazır bölümler ("fav", "pin", "loc", "tags") ve başlıkların UUID'leri
+    @Published private(set) var order: [String] = []
+    /// Sürüklenen bölüm (bırakma çizgisi için)
+    @Published var draggingSection: String?
 
     private static let d = UserDefaults.standard
     private static let groupsKey = "files.sidebarGroups"
     private static let expandedKey = "files.sidebarExpanded"
     private static let sectionsKey = "files.sidebarCollapsedSections"
     private static let shownKey = "files.sidebarShownChildren"
+    private static let orderKey = "files.sidebarOrder"
+    static let builtinSections = ["fav", "pin", "loc", "tags"]
 
     private init() {
         groups = (Self.d.data(forKey: Self.groupsKey)).flatMap { try? JSONDecoder().decode([SidebarGroup].self, from: $0) } ?? []
         expanded = Set(Self.d.stringArray(forKey: Self.expandedKey) ?? [])
         collapsedSections = Set(Self.d.stringArray(forKey: Self.sectionsKey) ?? [])
         shown = ((Self.d.dictionary(forKey: Self.shownKey) as? [String: [String]]) ?? [:]).mapValues(Set.init)
+        order = Self.d.stringArray(forKey: Self.orderKey) ?? []
+        normalizeOrder()
         reloadChildren()
         NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.reloadChildren() }
@@ -131,6 +139,74 @@ struct SidebarGroup: Codable, Identifiable, Equatable {
         Self.d.set(collapsedSections.sorted(), forKey: Self.sectionsKey)
     }
 
+    // MARK: Bölüm sırası
+
+    /// Eksik bölümleri ekler, silinmiş başlıkları çıkarır. İlk açılışta eski düzen:
+    /// sık kullanılanlar, sabitlenenler, başlıklar, konumlar, etiketler
+    private func normalizeOrder() {
+        let ids = groups.map(\.id.uuidString)
+        var o = order.filter { Self.builtinSections.contains($0) || ids.contains($0) }
+        for b in ["fav", "pin"] where !o.contains(b) { o.append(b) }
+        for id in ids where !o.contains(id) {
+            if let i = o.firstIndex(of: "loc") { o.insert(id, at: i) } else { o.append(id) }
+        }
+        for b in ["loc", "tags"] where !o.contains(b) { o.append(b) }
+        if o != order { order = o }
+    }
+
+    private func saveOrder() { Self.d.set(order, forKey: Self.orderKey) }
+
+    /// Bölümü `target`'ın önüne taşır (nil: en sona)
+    func moveSection(_ key: String, before target: String?) {
+        guard key != target, let from = order.firstIndex(of: key) else { return }
+        var o = order
+        o.remove(at: from)
+        if let target, let to = o.firstIndex(of: target) { o.insert(key, at: to) } else { o.append(key) }
+        guard o != order else { return }
+        order = o
+        saveOrder()
+    }
+
+    /// Görünen bölümler arasında bir yukarı / aşağı (boş, gizli bölümler atlanır)
+    func moveSection(_ key: String, by offset: Int, among visible: [String]) {
+        guard let i = visible.firstIndex(of: key) else { return }
+        let j = i + offset
+        guard visible.indices.contains(j) else { return }
+        if offset < 0 {
+            moveSection(key, before: visible[j])
+        } else {
+            moveSection(key, before: visible.indices.contains(j + 1) ? visible[j + 1] : nil)
+        }
+    }
+
+    // MARK: ⌘Tab paneli ve Ayarlar için
+
+    /// ⌘Tab'da gösterilebilecek bölümler, kenar çubuğundaki sırayla: sık kullanılanlar, sabitlenenler ve başlıklar
+    func switcherSections() -> [(key: String, title: String, places: [SidebarPlace])] {
+        let pl = FilesPlaces.shared
+        return order.compactMap { key in
+            switch key {
+            case "fav": return (key, L("Sık kullanılanlar"), pl.shownFavorites)
+            case "pin": return (key, L("Sabitlenenler"), pl.pinned)
+            case "loc", "tags": return nil
+            default:
+                guard let g = groups.first(where: { $0.id.uuidString == key }) else { return nil }
+                return (key, g.title, places(g))
+            }
+        }
+    }
+
+    /// Bölümün görünen adı
+    func title(ofSection key: String) -> String {
+        switch key {
+        case "fav": return L("Sık kullanılanlar")
+        case "pin": return L("Sabitlenenler")
+        case "loc": return L("Konumlar")
+        case "tags": return L("Etiketler")
+        default: return groups.first { $0.id.uuidString == key }?.title ?? ""
+        }
+    }
+
     // MARK: Başlıklar
 
     private func save() {
@@ -143,6 +219,8 @@ struct SidebarGroup: Codable, Identifiable, Equatable {
         g.paths = Self.folders(urls).map(\.path)
         groups.append(g)
         save()
+        normalizeOrder()
+        saveOrder()
         editing = g.id
         return g.id
     }
@@ -156,6 +234,8 @@ struct SidebarGroup: Codable, Identifiable, Equatable {
 
     func remove(_ id: UUID) {
         groups.removeAll { $0.id == id }
+        order.removeAll { $0 == id.uuidString }
+        saveOrder()
         let prefix = id.uuidString + "|"
         let e = expanded.filter { !$0.hasPrefix(prefix) }
         if e != expanded { expanded = e; Self.d.set(expanded.sorted(), forKey: Self.expandedKey) }
@@ -165,14 +245,6 @@ struct SidebarGroup: Codable, Identifiable, Equatable {
     func toggleCollapsed(_ id: UUID) {
         guard let i = groups.firstIndex(where: { $0.id == id }) else { return }
         groups[i].collapsed.toggle()
-        save()
-    }
-
-    func moveGroup(_ id: UUID, by offset: Int) {
-        guard let i = groups.firstIndex(where: { $0.id == id }) else { return }
-        let j = i + offset
-        guard groups.indices.contains(j) else { return }
-        groups.swapAt(i, j)
         save()
     }
 

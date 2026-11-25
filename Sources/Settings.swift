@@ -644,6 +644,16 @@ struct SettingsView: View {
             }
             note(L("Pencere açıkken Missing Dock'ta klasör simgesiyle görünür. Dock'a ekle (ya da simgeye sağ tıklayıp Seçenekler › Dock'ta Tut) dersen, pencere kapalıyken de simgeye tıklayınca açılır. Son pencerenin sekmeleri bir dahaki açılışta geri gelir."))
         }
+        Card(title: L("Kenar çubuğu düzeni"), icon: "sidebar.left",
+             subtitle: L("Başlıklar, sıraları ve içindeki klasörler")) {
+            SidebarLayoutEditor()
+            note(L("Dosyalar'daki kenar çubuğunun aynısı: buradaki değişiklik açık pencerelere hemen yansır. Başlık adına çift tıklayıp değiştirebilirsin. Dosyalar'da da başlıkları sürükleyerek ya da sağ tıklayıp sıralayabilirsin."))
+        }
+        Card(title: L("Dock'taki Finder"), icon: "dock.rectangle",
+             isOn: model.bind({ FinderDockSettings.enabled }, { FinderDockSettings.enabled = $0; FinderDockClick.shared.apply() }),
+             subtitle: L("Dock'ta Finder'a tıklayınca Dosyalar açılır"), startOpen: true) {
+            note(L("macOS, Dock'taki Finder simgesini değiştirmeye izin vermez; Missing bu simgeye yapılan tıklamayı yakalayıp Dosyalar'ı açar (açık pencere varsa öne getirir). Gerçek Finder'ı açmak için ⌥ basılıyken tıkla. Sağ tıklama menüsü olduğu gibi kalır. Erişilebilirlik izni gerekir."))
+        }
         Card(title: L("Tema"), icon: "paintbrush.fill", subtitle: L("Missing, Finder, Windows ya da Cam"), startOpen: true) {
             HStack {
                 Text(L("Tema")).font(.system(size: 12))
@@ -796,6 +806,13 @@ struct SettingsView: View {
                   isOn: model.bind({ Favorites.showOwn(p) }, { Favorites.setShowOwn($0, p) }))
         ToggleRow(L("Kenar çubuğu: Finder favorileri"), L("Finder'ın kenar çubuğundaki Favoriler, Finder'daki gibi listelenir"),
                   isOn: model.bind({ Favorites.showFinder(p) }, { Favorites.setShowFinder($0, p) }))
+        if FilesSettings.enabled {
+            ToggleRow(L("Kenar çubuğu: Dosyalar'daki başlıklarım"), L("Dosyalar'ın kenar çubuğunda kurduğun başlıklar ve klasörleri; tıklayınca Dosyalar'da açılır"),
+                      isOn: model.bind({ Favorites.showFiles(p) }, { Favorites.setShowFiles($0, p) }))
+            if Favorites.showFiles(p) {
+                SwitcherFilesSectionsPicker(profile: p)
+            }
+        }
         if Favorites.showOwn(p) {
             Row(L("Klasörler"), L("Tıklayınca Finder'da açılır")) {
                 Button(L("Klasör ekle…")) { addFavoriteFolders(p) }

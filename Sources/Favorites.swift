@@ -24,7 +24,20 @@ enum Favorites {
     }
     static func setShowFinder(_ v: Bool, _ p: Profile) { d.set(v, forKey: key(p, "finder")) }
 
-    static func enabled(_ p: Profile) -> Bool { showOwn(p) || showFinder(p) }
+    /// Dosyalar'ın kenar çubuğundaki başlıklar ve klasörleri (hangileri seçildiyse)
+    static func showFiles(_ p: Profile) -> Bool { d.bool(forKey: key(p, "files")) }
+    static func setShowFiles(_ v: Bool, _ p: Profile) { d.set(v, forKey: key(p, "files")) }
+
+    /// Gizlenen Dosyalar bölümleri ("fav", "pin" ya da başlığın UUID'si). Varsayılan: hepsi görünür
+    static func hiddenFilesSections(_ p: Profile) -> Set<String> { Set(d.stringArray(forKey: key(p, "files.hidden")) ?? []) }
+    static func isFilesSectionShown(_ section: String, _ p: Profile) -> Bool { !hiddenFilesSections(p).contains(section) }
+    static func setFilesSection(_ section: String, shown: Bool, _ p: Profile) {
+        var h = hiddenFilesSections(p)
+        if shown { h.remove(section) } else { h.insert(section) }
+        d.set(h.sorted(), forKey: key(p, "files.hidden"))
+    }
+
+    static func enabled(_ p: Profile) -> Bool { showOwn(p) || showFinder(p) || showFiles(p) }
 
     /// Sık kullanılan klasörlerin yolları (sırasıyla)
     static func folders(_ p: Profile) -> [String] {
@@ -42,11 +55,20 @@ enum Favorites {
     struct Entry {
         let name: String
         let url: URL
+        var symbol: String? = nil
+        /// Dosyalar'ın kenar çubuğundan: tıklayınca Dosyalar'da açılır
+        var inFiles = false
     }
 
     /// Kenar çubuğu bölümleri (boş bölümler gösterilmez)
-    static func sections(_ p: Profile) -> [(title: String, items: [Entry])] {
+    @MainActor static func sections(_ p: Profile) -> [(title: String, items: [Entry])] {
         var out: [(String, [Entry])] = []
+        if showFiles(p), FilesSettings.enabled {
+            let hidden = hiddenFilesSections(p)
+            for s in FilesSidebarState.shared.switcherSections() where !hidden.contains(s.key) && !s.places.isEmpty {
+                out.append((s.title, s.places.map { Entry(name: $0.title, url: $0.url, symbol: $0.symbol, inFiles: true) }))
+            }
+        }
         if showOwn(p) {
             let own = folders(p).compactMap { p -> Entry? in
                 var isDir: ObjCBool = false
@@ -163,14 +185,14 @@ enum Favorites {
 // MARK: - Kenar çubuğu görünümü (Finder'ın kenar çubuğu gibi)
 
 final class FavoritesSidebarView: NSView {
-    var onOpen: ((URL) -> Void)?
-    private var rows: [(rect: NSRect, url: URL)] = []
+    var onOpen: ((Favorites.Entry) -> Void)?
+    private var rows: [(rect: NSRect, entry: Favorites.Entry)] = []
     private var sections: [(title: String, items: [Favorites.Entry])] = []
     private var hovered: Int? { didSet { if oldValue != hovered { needsDisplay = true } } }
     private var tracking: NSTrackingArea?
 
     static let width: CGFloat = 210
-    static let rowH: CGFloat = 26, headerH: CGFloat = 24, sectionGap: CGFloat = 10
+    static let rowH: CGFloat = 26, headerH: CGFloat = 28, sectionGap: CGFloat = 8
 
     static func neededHeight(_ sections: [(title: String, items: [Favorites.Entry])]) -> CGFloat {
         guard !sections.isEmpty else { return 0 }
@@ -194,35 +216,50 @@ final class FavoritesSidebarView: NSView {
         tracking = t
     }
 
+    /// Dosyalar'ın Missing temasındaki kenar çubuğu gibi: başlık, altında ince çizgi; satırda simge ve ad
     override func draw(_ dirtyRect: NSRect) {
         rows.removeAll()
         // Sol kenarda ince ayırıcı çizgi
         NSColor.white.withAlphaComponent(0.16).setFill()
         NSRect(x: 0, y: 0, width: 1, height: bounds.height).fill()
 
-        let x0: CGFloat = 14
-        var y: CGFloat = 4
-        let headAttrs: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 11, weight: .bold),
-                                                        .foregroundColor: NSColor.white.withAlphaComponent(0.5)]
-        let nameAttrs: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 13, weight: .medium),
+        let x0: CGFloat = 16
+        var y: CGFloat = 2
+        let headAttrs: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 11.5, weight: .bold),
+                                                        .foregroundColor: NSColor.white.withAlphaComponent(0.75)]
+        let nameAttrs: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 12.5, weight: .regular),
                                                         .foregroundColor: NSColor.white.withAlphaComponent(0.92)]
+        let symConf = NSImage.SymbolConfiguration(pointSize: 12.5, weight: .medium)
         for (k, s) in sections.enumerated() {
             if k > 0 { y += Self.sectionGap }
-            let loc = Locale(identifier: AppLanguage.active == .tr ? "tr_TR" : "en_US")
-            (s.title.uppercased(with: loc) as NSString).draw(at: NSPoint(x: x0, y: y + 5), withAttributes: headAttrs)
+            let title = s.title as NSString
+            let tsz = title.size(withAttributes: headAttrs)
+            title.draw(with: NSRect(x: x0, y: y + 7, width: bounds.width - x0 - 10, height: tsz.height),
+                       options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine], attributes: headAttrs)
+            NSColor.white.withAlphaComponent(0.14).setFill()
+            NSRect(x: x0, y: y + Self.headerH - 4, width: bounds.width - x0 - 10, height: 1).fill()
             y += Self.headerH
             for it in s.items {
                 guard y + Self.rowH <= bounds.height else { return }
-                let r = NSRect(x: 6, y: y, width: bounds.width - 10, height: Self.rowH)
+                let r = NSRect(x: 8, y: y, width: bounds.width - 14, height: Self.rowH)
                 let i = rows.count
-                rows.append((r, it.url))
+                rows.append((r, it))
                 if hovered == i {
-                    NSColor.white.withAlphaComponent(0.16).setFill()
+                    NSColor.white.withAlphaComponent(0.12).setFill()
                     NSBezierPath(roundedRect: r, xRadius: 7, yRadius: 7).fill()
                 }
-                let icon = NSWorkspace.shared.icon(forFile: it.url.path)
-                icon.draw(in: NSRect(x: r.minX + 8, y: r.midY - 9, width: 18, height: 18), from: .zero, operation: .sourceOver,
-                          fraction: 1, respectFlipped: true, hints: nil)
+                let iconR = NSRect(x: r.minX + 8, y: r.midY - 9, width: 18, height: 18)
+                if let sym = it.symbol, let img = NSImage(systemSymbolName: sym, accessibilityDescription: nil)?
+                    .withSymbolConfiguration(symConf) {
+                    // Missing teması: simgeler sade beyaz, üstüne gelince Missing kırmızısı
+                    let tinted = img.tinted(hovered == i ? Brand.nsRed : NSColor.white.withAlphaComponent(0.7))
+                    let sz = tinted.size
+                    tinted.draw(in: NSRect(x: iconR.midX - sz.width / 2, y: iconR.midY - sz.height / 2, width: sz.width, height: sz.height),
+                                from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
+                } else {
+                    NSWorkspace.shared.icon(forFile: it.url.path)
+                        .draw(in: iconR, from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
+                }
                 let s = it.name as NSString
                 let sz = s.size(withAttributes: nameAttrs)
                 s.draw(with: NSRect(x: r.minX + 34, y: r.midY - sz.height / 2, width: r.width - 40, height: sz.height),
@@ -241,7 +278,21 @@ final class FavoritesSidebarView: NSView {
     override func mouseExited(with event: NSEvent) { hovered = nil }
     override func mouseDown(with event: NSEvent) {}
     override func mouseUp(with event: NSEvent) {
-        if let i = row(at: event) { onOpen?(rows[i].url) }
+        if let i = row(at: event) { onOpen?(rows[i].entry) }
     }
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+}
+
+private extension NSImage {
+    /// Şablon simgeyi tek renge boyar
+    func tinted(_ color: NSColor) -> NSImage {
+        let img = NSImage(size: size, flipped: false) { r in
+            self.draw(in: r)
+            color.set()
+            r.fill(using: .sourceAtop)
+            return true
+        }
+        img.isTemplate = false
+        return img
+    }
 }

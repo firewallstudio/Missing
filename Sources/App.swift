@@ -74,7 +74,10 @@ import UserNotifications
             self?.menuPanel.actions.refresh()
         }
         KeepAwake.shared.onNotice = { [weak self] text, symbol in self?.hud.show(name: text, symbol: symbol) }
-        model.onFilesChanged = { FilesManager.shared.settingsChanged() }
+        model.onFilesChanged = {
+            FilesManager.shared.settingsChanged()
+            FinderDockClick.shared.apply()
+        }
         FilesManager.shared.openSettings = { [weak self] in self?.settings.show(page: .files) }
         model.onNativeTabChanged = { [weak self] in self?.switcher.applyNative() }
         model.onDeepScanChanged = { [weak self] in self?.switcher.deepScopeChanged() }
@@ -234,6 +237,7 @@ import UserNotifications
         switcher.start()
         applyExtraNative()
         dockDrag.start()
+        FinderDockClick.shared.apply()
         snapBar.start()
     }
 

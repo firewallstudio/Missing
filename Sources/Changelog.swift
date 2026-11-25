@@ -16,6 +16,22 @@ struct ChangelogEntry {
 
 enum Changelog {
     static let entries: [ChangelogEntry] = [
+        ChangelogEntry(version: "4.3.16", items: [
+            ("Dosyalar'da fareyle üstüne gelinen dosya hafif griyle belli olur (liste, simge ve sütun görünümü)",
+             "In Files, the file under the pointer gets a light gray highlight (list, icon and column views)"),
+            ("Kenar çubuğundaki başlıklar tıklayınca anında açılıp kapanır",
+             "Sidebar headings in Files open and close instantly when clicked"),
+            ("Kenar çubuğu bölümlerinin sırası değişir: başlığı sürükle ya da sağ tık › Yukarı / Aşağı taşı",
+             "Reorder the Files sidebar sections: drag a heading, or right-click › Move Up / Move Down"),
+            ("Dosyalar'daki başlıkların ve klasörlerin ⌘Tab panelinin kenar çubuğunda; hangilerinin görüneceğini Ayarlar'dan seçersin",
+             "Your Files headings and folders in the ⌘Tab panel's sidebar; pick which ones to show in Settings"),
+            ("Ayarlar › Dosyalar › Kenar çubuğu düzeni: başlıkları, sıralarını ve içindeki klasörleri buradan da düzenle",
+             "Settings › Files › Sidebar layout: edit headings, their order and their folders from there too"),
+            ("Harici diskleri kenar çubuğundaki ⏏ düğmesiyle çıkar; artık bütün harici disklerde görünür",
+             "Eject external disks with the ⏏ button in the sidebar; it now shows on every external disk"),
+            ("İsteğe bağlı: Dock'ta Finder'a tıklayınca Dosyalar açılır (Ayarlar › Dosyalar; ⌥ ile tıklayınca gerçek Finder)",
+             "Optional: clicking Finder in the Dock opens Files (Settings › Files; ⌥-click opens the real Finder)"),
+        ]),
         ChangelogEntry(version: "4.3.15", items: [
             ("Dosyalar'ın simge görünümünde bir dosyayı sürüklerken ⌘ ya da ⌥'ye basınca dosya bırakılıyordu; düzeltildi",
              "In Files' icon view, pressing ⌘ or ⌥ while dragging a file dropped it; fixed"),

@@ -2,6 +2,16 @@
 
 Also shown in the app: **Settings › Versions**.
 
+## 4.3.16
+
+- In Files, the file under the pointer gets a light gray highlight (list, icon and column views)
+- Sidebar headings in Files open and close instantly when clicked
+- Reorder the Files sidebar sections: drag a heading, or right-click › Move Up / Move Down
+- Your Files headings and folders in the ⌘Tab panel's sidebar; pick which ones to show in Settings
+- Settings › Files › Sidebar layout: edit headings, their order and their folders from there too
+- Eject external disks with the ⏏ button in the sidebar; it now shows on every external disk
+- Optional: clicking Finder in the Dock opens Files (Settings › Files; ⌥-click opens the real Finder)
+
 ## 4.3.15
 
 - In Files' icon view, pressing ⌘ or ⌥ while dragging a file dropped it; fixed

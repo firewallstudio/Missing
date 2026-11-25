@@ -926,7 +926,56 @@ import Quartz
 
 // MARK: - Liste parçaları
 
-final class FilesTableView: NSTableView {
+/// Fareyle üstüne gelinen satırı hafif gri gösterir (Dosyalar'ın liste ve sütun tabloları)
+class FilesHoverTable: NSTableView {
+    private var hoverRow = -1
+    private var tracking: NSTrackingArea?
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let tracking { removeTrackingArea(tracking) }
+        let t = NSTrackingArea(rect: .zero, options: [.mouseMoved, .mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect],
+                               owner: self, userInfo: nil)
+        addTrackingArea(t)
+        tracking = t
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        super.mouseMoved(with: event)
+        updateHover(event)
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        super.mouseExited(with: event)
+        setHover(-1)
+    }
+
+    override func scrollWheel(with event: NSEvent) {
+        super.scrollWheel(with: event)
+        updateHover(nil)
+    }
+
+    override func reloadData() {
+        setHover(-1)
+        super.reloadData()
+    }
+
+    private func updateHover(_ event: NSEvent?) {
+        guard let window else { return setHover(-1) }
+        let loc = event?.locationInWindow ?? window.mouseLocationOutsideOfEventStream
+        let p = convert(loc, from: nil)
+        setHover(visibleRect.contains(p) ? row(at: p) : -1)
+    }
+
+    private func setHover(_ r: Int) {
+        guard r != hoverRow else { return }
+        if hoverRow >= 0, hoverRow < numberOfRows { (rowView(atRow: hoverRow, makeIfNecessary: false) as? FilesRowView)?.hovered = false }
+        hoverRow = r
+        if r >= 0 { (rowView(atRow: r, makeIfNecessary: false) as? FilesRowView)?.hovered = true }
+    }
+}
+
+final class FilesTableView: FilesHoverTable {
     weak var owner: FilesBrowser?
 
     override func keyDown(with e: NSEvent) {
@@ -1009,6 +1058,22 @@ final class FilesCell: NSTableCellView {
 /// Seçili satır: temanın vurgusu, yuvarlak köşe
 final class FilesRowView: NSTableRowView {
     private var palette: FilesPalette { FilesPalette.current(for: effectiveAppearance) }
+    /// Fare üstünde: hafif gri
+    var hovered = false { didSet { if hovered != oldValue { needsDisplay = true } } }
+
+    override func drawBackground(in dirtyRect: NSRect) {
+        super.drawBackground(in: dirtyRect)
+        guard hovered, !isSelected else { return }
+        let p = palette
+        let r = bounds.insetBy(dx: p.rowInset, dy: 1)
+        p.nsHover.setFill()
+        NSBezierPath(roundedRect: r, xRadius: p.rowRadius, yRadius: p.rowRadius).fill()
+    }
+
+    override func prepareForReuse() {
+        super.prepareForReuse()
+        hovered = false
+    }
 
     func refreshStyle() {
         // Dolu vurgu yoksa metin normal renginde kalsın
@@ -1052,6 +1117,52 @@ final class FilesRowView: NSTableRowView {
 
 final class FilesCollectionView: NSCollectionView {
     weak var owner: FilesBrowser?
+    private var hoverPath: IndexPath?
+    private var tracking: NSTrackingArea?
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let tracking { removeTrackingArea(tracking) }
+        let t = NSTrackingArea(rect: .zero, options: [.mouseMoved, .mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect],
+                               owner: self, userInfo: nil)
+        addTrackingArea(t)
+        tracking = t
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        super.mouseMoved(with: event)
+        updateHover(event)
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        super.mouseExited(with: event)
+        setHover(nil)
+    }
+
+    override func scrollWheel(with event: NSEvent) {
+        super.scrollWheel(with: event)
+        updateHover(nil)
+    }
+
+    override func reloadData() {
+        setHover(nil)
+        super.reloadData()
+    }
+
+    private func updateHover(_ event: NSEvent?) {
+        guard let window else { return setHover(nil) }
+        let p = convert(event?.locationInWindow ?? window.mouseLocationOutsideOfEventStream, from: nil)
+        guard visibleRect.contains(p), let ip = indexPathForItem(at: p),
+              let item = item(at: ip), item.view.frame.contains(p) else { return setHover(nil) }
+        setHover(ip)
+    }
+
+    private func setHover(_ ip: IndexPath?) {
+        guard ip != hoverPath else { return }
+        if let old = hoverPath { (item(at: old) as? FilesGridItem)?.hovered = false }
+        hoverPath = ip
+        if let ip { (item(at: ip) as? FilesGridItem)?.hovered = true }
+    }
 
     /// İzleme dörtgeninde kıstırma: simgeleri büyüt / küçült
     override func magnify(with event: NSEvent) {
@@ -1176,6 +1287,8 @@ final class FilesGridItem: NSCollectionViewItem {
 
     override var isSelected: Bool { didSet { updateLook() } }
     override var highlightState: NSCollectionViewItem.HighlightState { didSet { updateLook() } }
+    /// Fare üstünde: hafif gri zemin
+    var hovered = false { didSet { if hovered != oldValue { updateLook() } } }
 
     func refreshLook() { updateLook() }
 
@@ -1187,6 +1300,7 @@ final class FilesGridItem: NSCollectionViewItem {
 
     override func prepareForReuse() {
         super.prepareForReuse()
+        hovered = false
         setIconSize(FilesGridZoom.shared.size)
     }
 
@@ -1195,7 +1309,7 @@ final class FilesGridItem: NSCollectionViewItem {
         let dropping = highlightState == .forSelection && !isSelected
         let on = isSelected || dropping
         back.layer?.cornerRadius = p.rowRadius + 3
-        back.layer?.backgroundColor = on ? p.gridBack.cgColor : NSColor.clear.cgColor
+        back.layer?.backgroundColor = on ? p.gridBack.cgColor : (hovered ? p.nsHover.cgColor : NSColor.clear.cgColor)
         back.layer?.borderWidth = on && p.gridStroke != nil ? 1 : 0
         back.layer?.borderColor = p.gridStroke?.cgColor
         let labelBack = on ? p.gridLabelBack : nil
