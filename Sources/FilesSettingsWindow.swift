@@ -177,7 +177,7 @@ private struct FilesGeneralSettings: View {
         }
         FilesSettingsSection(L("Dosyalar"), "doc.on.doc") {
             ToggleRow(L("Finder yerine Dosyalar'ı kullan"),
-                      L("Başka uygulamalardaki \"Finder'da göster\" (indirmeler, Spotlight, VS Code…) ve masaüstündeki klasörler Dosyalar'da açılır. Kapatınca Finder'a döner."),
+                      L("Başka uygulamalardaki \"Finder'da göster\" (indirmeler, Spotlight, VS Code…) ve masaüstündeki klasörler Dosyalar'da açılır. Açık uygulamalar değişikliği yeniden açılınca görür. Kapatınca Finder'a döner."),
                       isOn: $replaceFinder)
                 .onChange(of: replaceFinder) { FinderReplacement.enabled = $0 }
             Divider().opacity(0.4)

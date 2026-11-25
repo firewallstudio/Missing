@@ -2,7 +2,6 @@
 
 Also shown in the app: **Settings › Versions**.
 
-
 ## 4.3.21
 
 - In Files, dropping a file on a folder's icon did nothing (only its name worked); now it moves into the folder in icon, list and column views
