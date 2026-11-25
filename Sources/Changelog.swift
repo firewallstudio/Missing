@@ -16,6 +16,10 @@ struct ChangelogEntry {
 
 enum Changelog {
     static let entries: [ChangelogEntry] = [
+        ChangelogEntry(version: "4.3.18", items: [
+            ("⌘Tab'da Chrome pencereleri bazen görünmüyordu (Chrome yoğunken macOS'a cevap vermeyince); ekrandaki tarayıcı pencereleri artık her zaman listede",
+             "Chrome windows sometimes didn't show in ⌘Tab (when Chrome was too busy to answer macOS); browser windows on screen are now always listed"),
+        ]),
         ChangelogEntry(version: "4.3.17", items: [
             ("Missing temasında Dosyalar'ın sekmeleri yenilendi: hepsi tek bir koyu kapta, seçili sekme kabarık",
              "New tabs in Files' Missing theme: all in one dark container, the selected tab raised"),

@@ -441,6 +441,23 @@ enum AX {
                                        system: !info.isRegular)))
         }
         if info.deep { WindowRegistry.shared.remember(info.pid, good) }
+        // Tarayıcının şu an ekranda duran normal bir penceresi AX ile bulunamadıysa (Chrome yoğunken geç
+        // cevap verir ya da hiç vermez) pencere sunucusundaki bilgiyle yine de listeye al. Sadece ekranda
+        // görünen, makul boyutta ve daha önce "pencere değil" diye ayıklanmamış olanlar.
+        if info.deep && info.isRegular {
+            let listed = Set(result.map { $0.1.wid })
+            let ignored = WindowRegistry.shared.ignoredWindows(info.pid)
+            var added = 0
+            for (wid, w) in info.expected where z[wid] != nil && !listed.contains(wid) && !ignored.contains(wid) {
+                result.append((z[wid]!, Item(app: app, window: nil, wid: wid, title: w.title.isEmpty ? info.name : w.title,
+                                             minimized: false, aspect: w.aspect)))
+                added += 1
+            }
+            if added > 0 {
+                let name = info.name
+                perfLog.notice("scan: \(name, privacy: .public) AX gave \(wins.count) windows, \(added) added from window server")
+            }
+        }
         // Pencere sunucusunda olup AX ile henüz bulunamayan pencereler (ör. az önce başka masaüstünde
         // açılan Chrome profil penceresi) varsa arka planda aramaya başla. Listeye sadece gerçekten
         // bulunan pencereler girer (kimliği belli olmayanları göstermek gizli yardımcı pencereleri de getiriyordu).

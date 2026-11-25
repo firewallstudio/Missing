@@ -2,6 +2,10 @@
 
 Also shown in the app: **Settings › Versions**.
 
+## 4.3.18
+
+- Chrome windows sometimes didn't show in ⌘Tab (when Chrome was too busy to answer macOS); browser windows on screen are now always listed
+
 ## 4.3.17
 
 - New tabs in Files' Missing theme: all in one dark container, the selected tab raised
