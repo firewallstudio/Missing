@@ -16,6 +16,10 @@ struct ChangelogEntry {
 
 enum Changelog {
     static let entries: [ChangelogEntry] = [
+        ChangelogEntry(version: "4.3.19", items: [
+            ("⌘Tab'da Chrome penceresi hâlâ görünmüyordu: daha önce yanlışlıkla ayıklanan pencereler de artık ekrandaysa listede",
+             "Chrome's window still didn't show in ⌘Tab: windows that were wrongly filtered out earlier are now listed when they're on screen"),
+        ]),
         ChangelogEntry(version: "4.3.18", items: [
             ("⌘Tab'da Chrome pencereleri bazen görünmüyordu (Chrome yoğunken macOS'a cevap vermeyince); ekrandaki tarayıcı pencereleri artık her zaman listede",
              "Chrome windows sometimes didn't show in ⌘Tab (when Chrome was too busy to answer macOS); browser windows on screen are now always listed"),

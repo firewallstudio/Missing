@@ -2,6 +2,10 @@
 
 Also shown in the app: **Settings › Versions**.
 
+## 4.3.19
+
+- Chrome's window still didn't show in ⌘Tab: windows that were wrongly filtered out earlier are now listed when they're on screen
+
 ## 4.3.18
 
 - Chrome windows sometimes didn't show in ⌘Tab (when Chrome was too busy to answer macOS); browser windows on screen are now always listed
