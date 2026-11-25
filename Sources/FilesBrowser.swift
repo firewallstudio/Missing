@@ -179,6 +179,21 @@ import Quartz
         layer?.masksToBounds = p.theme == .glass
     }
 
+    /// macOS açık/koyu değişince: elle atanan yazı ve seçim renkleri de yenilensin
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        applyTheme()
+        let sel = selectedURLs
+        syncing = true
+        switch mode {
+        case .list: table.reloadData()
+        case .grid: grid.reloadData()
+        case .columns: break
+        }
+        syncing = false
+        if mode != .columns { select(sel, scroll: false) }
+    }
+
     func setMode(_ m: FilesViewMode) {
         let sel = selectedURLs
         mode = m
@@ -467,7 +482,12 @@ import Quartz
             cell.textField?.stringValue = item.added.map { FilesFormat.date.string(from: $0) } ?? "—"
             cell.textField?.textColor = .secondaryLabelColor
         case Self.colSize:
-            cell.textField?.stringValue = FilesFormat.size(item.size)
+            if item.isFolder, FilesSettings.folderSizes {
+                let size = FolderSizes.shared.size(item.url) { [weak self] in self?.folderSizesReady() }
+                cell.textField?.stringValue = size.map { FilesFormat.size($0) } ?? "…"
+            } else {
+                cell.textField?.stringValue = FilesFormat.size(item.size)
+            }
             cell.textField?.alignment = .right
             cell.textField?.textColor = .secondaryLabelColor
         default:
@@ -515,7 +535,9 @@ import Quartz
         } else {
             tv.setDropRow(-1, dropOperation: .on)
         }
-        return dropOperation(info, into: target)
+        let r = dropOperation(info, into: target)
+        springLoad(target, op: r)
+        return r
     }
 
     func tableView(_ tv: NSTableView, acceptDrop info: NSDraggingInfo, row: Int, dropOperation op: NSTableView.DropOperation) -> Bool {
@@ -601,7 +623,9 @@ import Quartz
             let last = max(0, (groups.isEmpty ? 1 : groups.count) - 1)
             ip.pointee = NSIndexPath(forItem: groups.isEmpty ? items.count : groups[last].range.count, inSection: last)
         }
-        return dropOperation(info, into: target)
+        let r = dropOperation(info, into: target)
+        springLoad(target, op: r)
+        return r
     }
 
     func collectionView(_ cv: NSCollectionView, acceptDrop info: NSDraggingInfo, indexPath ip: IndexPath,
@@ -639,6 +663,44 @@ import Quartz
         guard !op.isEmpty else { return false }
         owner.drop(draggedURLs(info), into: dest, mode: op == .copy ? .copy : .move)
         return true
+    }
+
+    /// Sağ tık: menüyü Dosyalar'ın kendi cam menüsünde göster
+    func showContextMenu(_ menu: NSMenu, event: NSEvent) {
+        guard let window else { return }
+        FilesContextMenu.shared.show(menu, at: window.convertPoint(toScreen: event.locationInWindow), eventTime: event.timestamp)
+    }
+
+    /// Klasör boyutları geldikçe boyut sütununu yenile (toplu)
+    private var sizeRefresh: DispatchWorkItem?
+    private func folderSizesReady() {
+        guard sizeRefresh == nil else { return }
+        let w = DispatchWorkItem { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.sizeRefresh = nil
+                let col = self.table.column(withIdentifier: Self.colSize)
+                guard col >= 0, self.table.numberOfRows > 0 else { return }
+                self.table.reloadData(forRowIndexes: IndexSet(integersIn: 0..<self.table.numberOfRows), columnIndexes: [col])
+            }
+        }
+        sizeRefresh = w
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: w)
+    }
+
+    /// Sürüklerken bir klasörün üstünde bekleyince içine gir (Finder'daki gibi)
+    private var springTarget: URL?
+    private var springSince = Date()
+    private func springLoad(_ target: FileItem?, op: NSDragOperation) {
+        guard let t = target?.folderTarget, !op.isEmpty else { springTarget = nil; return }
+        if springTarget?.fileKey != t.fileKey {
+            springTarget = t
+            springSince = Date()
+            return
+        }
+        guard Date().timeIntervalSince(springSince) > 1.0 else { return }
+        springTarget = nil
+        DispatchQueue.main.async { [weak self] in self?.owner?.navigate(t) }
     }
 
     private func dropOperation(_ info: NSDraggingInfo, into target: FileItem?) -> NSDragOperation {
@@ -809,6 +871,8 @@ import Quartz
         let share = NSSharingServicePicker(items: sel.map { $0.url as NSURL }).standardShareMenuItem
         share.title = L("Paylaş")
         menu.addItem(share)
+        menu.addItem(.separator())
+        FilesQuickActions.menuItems(for: sel, controller: owner).forEach(menu.addItem)
         menu.addItem(.separator())
         if sel.allSatisfy(\.opensAsFolder) {
             add(L("Kenar çubuğuna ekle"), #selector(FilesWindowController.pinSelection(_:)))
@@ -992,7 +1056,10 @@ final class FilesTableView: FilesHoverTable {
 
     override func menu(for event: NSEvent) -> NSMenu? {
         window?.makeFirstResponder(self)
-        return super.menu(for: event)
+        // Kendi cam menümüz: içerik aynı NSMenu'dan gelir, macOS'unki açılmaz
+        guard let m = super.menu(for: event), let owner else { return nil }
+        owner.showContextMenu(m, event: event)
+        return nil
     }
 
     /// Boş alana tıklayınca seçim kalksın, sürükleyerek çoklu seçim olsun
@@ -1224,7 +1291,9 @@ final class FilesCollectionView: NSCollectionView {
         window?.makeFirstResponder(self)
         let p = convert(event.locationInWindow, from: nil)
         owner?.prepareContextClick(at: indexPathForItem(at: p).flatMap { owner?.itemIndex(of: $0) })
-        return super.menu(for: event)
+        guard let m = super.menu(for: event), let owner else { return nil }
+        owner.showContextMenu(m, event: event)
+        return nil
     }
 }
 

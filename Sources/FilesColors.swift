@@ -173,7 +173,10 @@ private struct NewFolderView: View {
     @ViewBuilder private var background: some View {
         switch p.theme {
         case .missing, .glass:
-            ZStack { GlassBlur(material: .hudWindow, appearance: .darkAqua); Color.black.opacity(0.35) }
+            ZStack {
+                GlassBlur(material: .hudWindow, appearance: p.dark ? .darkAqua : .aqua)
+                p.dark ? Color.black.opacity(0.35) : Color.white.opacity(0.35)
+            }
         case .finder:
             Color(nsColor: .windowBackgroundColor)
         case .windows:

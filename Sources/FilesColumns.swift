@@ -136,6 +136,12 @@ import Cocoa
         return true
     }
 
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        refreshLook()
+        for c in columns { c.table.reloadData(forRowIndexes: IndexSet(integersIn: 0..<c.table.numberOfRows), columnIndexes: [0]) }
+    }
+
     func refreshLook() {
         let p = FilesPalette.current(for: window?.appearance ?? effectiveAppearance)
         for c in columns {
@@ -434,7 +440,9 @@ final class FilesColumnTable: FilesHoverTable {
         window?.makeFirstResponder(self)
         let p = convert(event.locationInWindow, from: nil)
         owner?.contextClick(in: self, row: row(at: p))
-        return super.menu(for: event)
+        guard let m = super.menu(for: event), let browser = owner?.browser else { return nil }
+        browser.showContextMenu(m, event: event)
+        return nil
     }
 }
 

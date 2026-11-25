@@ -45,6 +45,11 @@ enum FilesSettings {
         get { d.object(forKey: "files.enabled") as? Bool ?? true }
         set { d.set(newValue, forKey: "files.enabled") }
     }
+    /// Liste görünümünde klasörlerin boyutu da hesaplansın (Finder'daki "Tüm boyutları hesapla")
+    static var folderSizes: Bool {
+        get { d.object(forKey: "files.folderSizes") as? Bool ?? true }
+        set { d.set(newValue, forKey: "files.folderSizes") }
+    }
     static var showHidden: Bool {
         get { d.bool(forKey: "files.showHidden") }
         set { d.set(newValue, forKey: "files.showHidden") }
@@ -666,6 +671,8 @@ final class UndoTarget { static let shared = UndoTarget() }
     @Published var itemsDone = 0
     /// Toplam boyut hesaplanırken true
     @Published var measuring = true
+    /// Bayt değil öğe sayar (hızlı işlemler: "2 / 5")
+    var countsItems = false
     let counter = CopyCounter()
 
     init(title: String, destination: URL) {
@@ -764,7 +771,7 @@ struct SidebarPlace: Identifiable, Hashable {
     var hideKey: String?
     var id: String { special.map { "special:\($0)" } ?? url.path }
 
-    enum Special: Hashable { case airdrop, network, trash }
+    enum Special: Hashable { case airdrop, network, trash, recents }
 }
 
 /// Finder etiketi (kenar çubuğundaki Etiketler)
@@ -772,7 +779,9 @@ struct FinderTag: Identifiable, Hashable {
     let name: String
     /// NSWorkspace.fileLabelColors sırası (1 gri … 7 turuncu); renksiz etiket için nil
     let colorIndex: Int?
-    var id: String { name }
+    /// Etiket değil "Son kullanılanlar" (Spotlight'tan son açılan dosyalar)
+    var recents = false
+    var id: String { recents ? "recents" : name }
 
     var color: Color? {
         guard let i = colorIndex, NSWorkspace.shared.fileLabelColors.indices.contains(i) else { return nil }
@@ -858,6 +867,27 @@ enum FinderTags {
     }
 
     /// Bu etiketi taşıyan dosyalar (Spotlight; arka planda çağrılır)
+    static var recents: FinderTag { FinderTag(name: L("Son Kullanılanlar"), colorIndex: nil, recents: true) }
+
+    /// Etiketin dosyaları ya da son 30 günde açılanlar (en yenisi başta, en fazla 300)
+    static func files(for t: FinderTag) -> [URL] {
+        guard t.recents else { return files(tagged: t.name) }
+        let query = "kMDItemLastUsedDate >= $time.today(-30) && kMDItemContentType != \"public.folder\" && kMDItemContentType != \"com.apple.application-bundle\" && kMDItemContentType != \"com.apple.systempreference.prefpane\""
+        guard let q = MDQueryCreate(kCFAllocatorDefault, query as CFString, nil, nil) else { return [] }
+        MDQuerySetSearchScope(q, [kMDQueryScopeHome] as CFArray, 0)
+        guard MDQueryExecute(q, CFOptionFlags(kMDQuerySynchronous.rawValue)) else { return [] }
+        var out: [(URL, Date)] = []
+        for i in 0..<MDQueryGetResultCount(q) {
+            guard let raw = MDQueryGetResultAtIndex(q, i) else { continue }
+            let item = Unmanaged<MDItem>.fromOpaque(raw).takeUnretainedValue()
+            guard let path = MDItemCopyAttribute(item, kMDItemPath) as? String,
+                  !path.contains("/Library/"), !path.contains("/."), !path.contains(".app/") else { continue }
+            let d = MDItemCopyAttribute(item, kMDItemLastUsedDate) as? Date ?? .distantPast
+            out.append((URL(fileURLWithPath: path), d))
+        }
+        return out.sorted { $0.1 > $1.1 }.prefix(300).map(\.0)
+    }
+
     static func files(tagged name: String) -> [URL] {
         let escaped = name.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
         guard let q = MDQueryCreate(kCFAllocatorDefault, "kMDItemUserTags == \"\(escaped)\"" as CFString, nil, nil) else { return [] }
@@ -974,7 +1004,7 @@ enum FinderTags {
     func rebuildLocations() {
         let fm = FileManager.default
         let home = fm.homeDirectoryForCurrentUser
-        var l: [SidebarPlace] = []
+        var l: [SidebarPlace] = [SidebarPlace(url: home, title: L("Son Kullanılanlar"), symbol: "clock", special: .recents, hideKey: "recents")]
         // Google Drive, OneDrive, Dropbox… (File Provider klasörleri)
         let cloud = home.appendingPathComponent("Library/CloudStorage")
         let dirs = (try? fm.contentsOfDirectory(at: cloud, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles])) ?? []
@@ -1020,14 +1050,16 @@ enum FinderTags {
     /// AirDrop ve Ağ Finder'da açılır; Çöp Sepeti okunamıyorsa (izin) Finder'da açılır
     func open(_ place: SidebarPlace, in controller: FilesWindowController, newTab: Bool = false) {
         switch place.special {
-        case .airdrop, .network:
+        case .airdrop:
+            // AirDrop'un yakındaki cihazlar ekranı başka uygulamalara açık değil: Finder'da açılır
             NSWorkspace.shared.open(place.url)
+        case .network:
+            controller.showNetwork(newTab: newTab)
+        case .recents:
+            controller.showTag(FinderTags.recents, newTab: newTab)
         case .trash:
-            if (try? FileManager.default.contentsOfDirectory(atPath: place.url.path)) != nil {
-                controller.navigate(place.url, newTab: newTab)
-            } else {
-                FinderReplacement.openInFinder([place.url])
-            }
+            // İzin yoksa Dosyalar "Tam Disk Erişimi ver" sayfasını gösterir
+            controller.navigate(place.url, newTab: newTab)
         case nil:
             controller.navigate(place.url, newTab: newTab)
         }
@@ -1336,6 +1368,8 @@ enum FinderTags {
             .separator(),
             item(L("Yeniden adlandır"), #selector(FilesWindowController.renameSelection(_:))),
             item(L("Çoğalt"), #selector(FilesWindowController.duplicateSelection(_:)), "d"),
+            item(L("Bilgi al"), #selector(FilesWindowController.getInfo(_:)), "i"),
+            item(L("Sıkıştır"), #selector(FilesWindowController.compressSelection(_:))),
             item(L("Çöp sepetine taşı"), #selector(FilesWindowController.trashSelection(_:)), "\u{8}"),
             .separator(),
             item(L("Quick Look"), #selector(FilesWindowController.toggleQuickLook(_:)), "y"),
@@ -1433,6 +1467,11 @@ enum FinderTags {
     static let shared = FilesMenuTarget()
     @objc func openSettings() { FilesManager.shared.openSettings() }
     @objc func openFilesSettings() { FilesSettingsWindow.shared.show() }
+    @objc func openRecent(_ sender: NSMenuItem) {
+        guard let u = sender.representedObject as? URL else { return }
+        FilesManager.shared.open(u)
+    }
+    @objc func clearRecent() { RecentFolders.clear() }
     @objc func newWindow() { FilesManager.shared.open(newWindow: true) }
 }
 
@@ -1478,5 +1517,97 @@ enum FinderTags {
         p.executableURL = URL(fileURLWithPath: "/usr/bin/killall")
         p.arguments = ["Dock"]
         try? p.run()
+    }
+}
+
+// MARK: - Son klasörler
+
+/// Dosyalar'da açılan son klasörler (Dock menüsündeki Son klasörler, Finder'daki gibi)
+@MainActor enum RecentFolders {
+    static let limit = 10
+    private static let key = "files.recentFolders"
+
+    /// Hâlâ var olanlar, en yenisi başta
+    static var list: [URL] {
+        (UserDefaults.standard.stringArray(forKey: key) ?? [])
+            .filter { FileManager.default.fileExists(atPath: $0) }
+            .map { URL(fileURLWithPath: $0) }
+    }
+
+    static func add(_ url: URL) {
+        let path = url.standardizedFileURL.path
+        var paths = UserDefaults.standard.stringArray(forKey: key) ?? []
+        guard paths.first != path else { return }
+        let k = url.fileKey
+        paths.removeAll { URL(fileURLWithPath: $0).fileKey == k }
+        paths.insert(path, at: 0)
+        UserDefaults.standard.set(Array(paths.prefix(limit)), forKey: key)
+    }
+
+    static func clear() { UserDefaults.standard.removeObject(forKey: key) }
+
+    /// Dock menüsü için yana açılan alt menü
+    static func menuItem() -> NSMenuItem {
+        let top = NSMenuItem(title: L("Son klasörler"), action: nil, keyEquivalent: "")
+        let sub = NSMenu(title: L("Son klasörler"))
+        let items = list
+        if items.isEmpty {
+            let none = NSMenuItem(title: L("Son klasör yok"), action: nil, keyEquivalent: "")
+            none.isEnabled = false
+            sub.addItem(none)
+        }
+        for u in items {
+            let i = NSMenuItem(title: FileManager.default.displayName(atPath: u.path),
+                               action: #selector(FilesMenuTarget.openRecent(_:)), keyEquivalent: "")
+            i.target = FilesMenuTarget.shared
+            i.representedObject = u
+            i.toolTip = (u.path as NSString).abbreviatingWithTildeInPath
+            let icon = (FileIcons.shared.icon(u).copy() as? NSImage) ?? NSImage()
+            icon.size = NSSize(width: 16, height: 16)
+            i.image = icon
+            sub.addItem(i)
+        }
+        sub.addItem(.separator())
+        let clear = NSMenuItem(title: L("Menüyü temizle"), action: items.isEmpty ? nil : #selector(FilesMenuTarget.clearRecent),
+                               keyEquivalent: "")
+        clear.target = FilesMenuTarget.shared
+        clear.isEnabled = !items.isEmpty
+        sub.addItem(clear)
+        top.submenu = sub
+        return top
+    }
+}
+
+// MARK: - Klasör boyutları
+
+/// Klasörlerin toplam boyutu arka planda, sırayla hesaplanır; değişiklik tarihine göre önbellekte tutulur
+@MainActor final class FolderSizes {
+    static let shared = FolderSizes()
+    private var cache: [String: (date: Date, bytes: Int64)] = [:]
+    private var pending = Set<String>()
+    private var waiters: [String: [() -> Void]] = [:]
+    private let queue = DispatchQueue(label: "missing.files.foldersize", qos: .utility)
+
+    /// Hazırsa boyut; değilse nil döner, hesaplanınca `ready` çağrılır
+    func size(_ url: URL, ready: @escaping () -> Void) -> Int64? {
+        let key = url.path
+        let mod = (try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+        if let c = cache[key], c.date == mod { return c.bytes }
+        waiters[key, default: []].append(ready)
+        guard !pending.contains(key) else { return nil }
+        pending.insert(key)
+        queue.async { [weak self] in
+            let bytes = FileCopier.measure(url).bytes
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    guard let self else { return }
+                    self.pending.remove(key)
+                    self.cache[key] = (mod, bytes)
+                    let w = self.waiters.removeValue(forKey: key) ?? []
+                    w.forEach { $0() }
+                }
+            }
+        }
+        return nil
     }
 }

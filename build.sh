@@ -133,6 +133,8 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>LSUIElement</key><true/>
   <key>NSAudioCaptureUsageDescription</key><string>Ekolayzır sistemin sesini işleyip hoparlöre geri verir; hiçbir şey kaydedilmez · The equalizer processes system audio and plays it back to your speakers; nothing is recorded</string>
   <key>NSAppleEventsUsageDescription</key><string>Finder'da açık klasörün içinde dosya aramak için · To search inside the folder open in Finder</string>
+  <key>NSLocalNetworkUsageDescription</key><string>Dosyalar'daki Ağ sayfası yerel ağdaki paylaşım yapan bilgisayarları bulur · The Network page in Files finds computers sharing files on your local network</string>
+  <key>NSBonjourServices</key><array><string>_smb._tcp</string><string>_afpovertcp._tcp</string></array>
   <key>NSHighResolutionCapable</key><true/>
   <key>NSSupportsAutomaticGraphicsSwitching</key><true/>
   <key>CFBundleDocumentTypes</key>

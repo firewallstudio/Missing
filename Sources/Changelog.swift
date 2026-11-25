@@ -16,6 +16,20 @@ struct ChangelogEntry {
 
 enum Changelog {
     static let entries: [ChangelogEntry] = [
+        ChangelogEntry(version: "4.3.22", items: [
+            ("Dosyalar'ın kendi sağ tık menüsü: cam zemin, simgeler, kısayollar ve yana açılan alt menüler",
+             "Files has its own context menu: glass background, icons, shortcuts and submenus that open to the side"),
+            ("Hızlı işlemler (dosya türüne göre): görsel döndür / dönüştür / boyutlandır, görsellerden PDF, PDF birleştir ya da sayfaları görsele çevir, video dönüştür / küçült, sesi çıkar, ses dönüştür",
+             "Quick Actions by file type: rotate / convert / resize images, images to PDF, combine PDFs or turn pages into images, convert / shrink video, extract audio, convert audio"),
+            ("Bilgi al (⌘I), Sıkıştır / Buraya aç, Takma ad oluştur, Aslını göster, Paket içeriğini göster, iCloud'dan indir / indirileni kaldır",
+             "Get Info (⌘I), Compress / Extract Here, Make Alias, Show Original, Show Package Contents, iCloud Download Now / Remove Download"),
+            ("Çöp Sepeti ve Ağ artık Dosyalar'ın içinde açılır: Çöp Sepeti boşaltılabilir, Ağ sayfası paylaşım yapan bilgisayarları bulur ve sunucuya bağlanır",
+             "Trash and Network now open inside Files: the Trash can be emptied, and the Network page finds computers sharing files and connects to servers"),
+            ("Kenar çubuğunda Son Kullanılanlar, liste görünümünde klasör boyutları, sürüklerken üstünde bekleyince açılan klasörler, Dock menüsünde Son klasörler",
+             "Recents in the sidebar, folder sizes in list view, folders that open when you hover while dragging, Recent Folders in the Dock menu"),
+            ("Dört tema da macOS'un açık / koyu ayarını izler",
+             "All four themes follow the macOS light / dark setting"),
+        ]),
         ChangelogEntry(version: "4.3.21", items: [
             ("Dosyalar'da bir dosyayı klasörün simgesinin üstüne bırakınca hiçbir şey olmuyordu (sadece adının üstü çalışıyordu); artık simge, liste ve sütun görünümünde klasöre taşınır",
              "In Files, dropping a file on a folder's icon did nothing (only its name worked); now it moves into the folder in icon, list and column views"),

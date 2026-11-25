@@ -2,6 +2,15 @@
 
 Also shown in the app: **Settings › Versions**.
 
+## 4.3.22
+
+- Files has its own context menu: glass background, icons, shortcuts and submenus that open to the side
+- Quick Actions by file type: rotate / convert / resize images, images to PDF, combine PDFs or turn pages into images, convert / shrink video, extract audio, convert audio
+- Get Info (⌘I), Compress / Extract Here, Make Alias, Show Original, Show Package Contents, iCloud Download Now / Remove Download
+- Trash and Network now open inside Files: the Trash can be emptied, and the Network page finds computers sharing files and connects to servers
+- Recents in the sidebar, folder sizes in list view, folders that open when you hover while dragging, Recent Folders in the Dock menu
+- All four themes follow the macOS light / dark setting
+
 ## 4.3.21
 
 - In Files, dropping a file on a folder's icon did nothing (only its name worked); now it moves into the folder in icon, list and column views

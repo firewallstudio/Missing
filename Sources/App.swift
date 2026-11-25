@@ -276,6 +276,7 @@ import UserNotifications
         let i = NSMenuItem(title: L("Yeni pencere"), action: #selector(FilesMenuTarget.newWindow), keyEquivalent: "")
         i.target = FilesMenuTarget.shared
         m.addItem(i)
+        m.addItem(RecentFolders.menuItem())
         return m
     }
 

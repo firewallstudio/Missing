@@ -24,6 +24,10 @@ import UniformTypeIdentifiers
     @Published var selection: [URL] = []
     /// Bir etiketin dosyaları gösteriliyorsa o etiket (adres yine son klasörde kalır)
     @Published private(set) var tag: FinderTag?
+    /// Ağ sayfası gösteriliyor (Finder'daki Ağ gibi)
+    @Published private(set) var network = false
+    /// Çöp Sepeti açık
+    var isTrash: Bool { tag == nil && !network && FilesTrash.isTrash(url) }
     @Published private(set) var canGoBack = false
     @Published private(set) var canGoForward = false
 
@@ -53,7 +57,9 @@ import UniformTypeIdentifiers
 
     /// Bu klasör için kaydedilen sıralama / gruplama
     private func applyFolderPrefs() {
-        let p = tag == nil ? FolderViewPrefs.get(url) : FolderViewPrefs.Prefs(key: .name, ascending: true, grouped: false)
+        let p = tag == nil ? FolderViewPrefs.get(url)
+            : tag!.recents ? FolderViewPrefs.Prefs(key: .modified, ascending: false, grouped: true)
+            : FolderViewPrefs.Prefs(key: .name, ascending: true, grouped: false)
         if sortKey != p.key { sortKey = p.key }
         if ascending != p.ascending { ascending = p.ascending }
         if grouped != p.grouped { grouped = p.grouped }
@@ -74,14 +80,16 @@ import UniformTypeIdentifiers
 
     var title: String {
         if let tag { return tag.name }
+        if network { return L("Ağ") }
         return url.path == "/" ? (FilesPlaces.shared.volumes.first { $0.url.path == "/" }?.title ?? "/")
             : FileManager.default.displayName(atPath: url.path)
     }
 
     func go(_ target: URL, record: Bool = true) {
         let target = URL(fileURLWithPath: target.standardizedFileURL.path)
-        guard target.fileKey != url.fileKey || tag != nil else { return }
+        guard target.fileKey != url.fileKey || tag != nil || network else { return }
         tag = nil
+        network = false
         // Finder gibi: başka klasöre geçince arama biter
         if !filter.isEmpty { filter = "" }
         if record {
@@ -122,7 +130,20 @@ import UniformTypeIdentifiers
         go(parent)
     }
 
-    var canGoUp: Bool { url.path != "/" && tag == nil }
+    var canGoUp: Bool { url.path != "/" && tag == nil && !network }
+
+    /// Ağ sayfası: ağdaki paylaşım sunucuları ve bağlı paylaşımlar
+    func showNetwork() {
+        guard !network else { return }
+        if !filter.isEmpty { filter = "" }
+        back.append(url)
+        forward.removeAll()
+        tag = nil
+        network = true
+        selection = []
+        updateHistory()
+        load()
+    }
 
     /// Etiketin dosyaları (Finder'daki gibi bütün Mac'ten)
     func showTag(_ t: FinderTag) {
@@ -130,6 +151,7 @@ import UniformTypeIdentifiers
         if !filter.isEmpty { filter = "" }
         back.append(url)
         forward.removeAll()
+        network = false
         tag = t
         selection = []
         scrollY = nil
@@ -149,11 +171,20 @@ import UniformTypeIdentifiers
         generation += 1
         let gen = generation
         let target = url
+        if network {
+            watcher.stop()
+            error = nil
+            all = []
+            loaded = true
+            freeSpace = nil
+            resort()
+            return
+        }
         if let t = tag {
             watcher.stop()
             let hidden = showHidden()
             DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-                let list = FinderTags.files(tagged: t.name).compactMap { FileItem(url: $0) }.filter { hidden || !$0.isHidden }
+                let list = FinderTags.files(for: t).compactMap { FileItem(url: $0) }.filter { hidden || !$0.isHidden }
                 DispatchQueue.main.async {
                     MainActor.assumeIsolated {
                         guard let self, gen == self.generation else { return }
@@ -172,6 +203,7 @@ import UniformTypeIdentifiers
             guard let self, gen == self.generation else { return }
             switch r {
             case .success(let list):
+                RecentFolders.add(target)
                 self.error = nil
                 self.all = list
             case .failure(let e):
@@ -391,10 +423,9 @@ private final class FilesNSWindow: NSWindow {
         currentTabChanged()
     }
 
-    /// Tema değişince: Missing ve Cam koyu görünümü dayatır, Finder ve Windows sistemi izler
+    /// Tema değişince: bütün temalar macOS'un açık/koyu ayarını izler
     func applyTheme() {
-        let t = FilesThemeStore.shared.theme
-        window?.appearance = t.forcesDark ? NSAppearance(named: .darkAqua) : nil
+        window?.appearance = nil
         browser.applyTheme()
     }
 
@@ -455,6 +486,14 @@ private final class FilesNSWindow: NSWindow {
     func openTab(_ url: URL) { model.addTab(url) }
 
     /// Kenar çubuğundaki etiket: o etiketi taşıyan bütün dosyalar
+    func showNetwork(newTab: Bool = false) {
+        if newTab || NSEvent.modifierFlags.contains(.command) {
+            model.addTab(tab.url).showNetwork()
+        } else {
+            tab.showNetwork()
+        }
+    }
+
     func showTag(_ t: FinderTag, newTab: Bool = false) {
         // Etiket sonuçları farklı klasörlerden gelir: sütunlarda değil listede gösterilir
         if model.viewMode == .columns { model.viewMode = .list }
@@ -569,6 +608,17 @@ private final class FilesNSWindow: NSWindow {
     @objc func renameSelection(_ sender: Any?) {
         guard selectedItems.count == 1, let u = selectedURLs.first else { return }
         browser.beginRename(u)
+    }
+
+    @objc func getInfo(_ sender: Any?) {
+        let urls = selectedURLs
+        FilesQuickActions.perform(.info, urls.isEmpty ? [tab.url] : urls, self)
+    }
+
+    @objc func compressSelection(_ sender: Any?) {
+        let urls = selectedURLs
+        guard !urls.isEmpty else { NSSound.beep(); return }
+        FilesQuickActions.perform(.compress, urls, self)
     }
 
     @objc func duplicateSelection(_ sender: Any?) {
@@ -816,11 +866,7 @@ struct FilesRootView: View {
 
     private var content: some View {
         HStack(spacing: 0) {
-            ZStack {
-                BrowserHost(view: controller.browser)
-                FilesEmptyState(tab: tab)
-                FilesCopyCards(activity: FilesActivity.shared)
-            }
+            FilesContentArea(tab: tab, controller: controller)
             if model.previewVisible {
                 Rectangle().fill(FilesPalette(theme: store.theme, dark: store.theme.forcesDark || scheme == .dark).divider)
                     .frame(width: 1)
@@ -845,17 +891,20 @@ struct FilesRootView: View {
             Rectangle().fill(p.divider).frame(height: 1)
             HStack(spacing: 0) {
                 if model.sidebarVisible {
-                    sidebar().background(Color.black.opacity(0.10))
+                    sidebar().background(p.dark ? Color.black.opacity(0.10) : Color.black.opacity(0.03))
                     Rectangle().fill(p.divider).frame(width: 1)
                 }
                 VStack(spacing: 0) {
-                    content.background(Color.black.opacity(0.18))
+                    content.background(p.dark ? Color.black.opacity(0.18) : Color.white.opacity(0.55))
                     Rectangle().fill(p.divider).frame(height: 1)
                     FilesStatusBar(tab: tab, activity: FilesActivity.shared, mode: model.viewMode).frame(height: 26)
                 }
             }
         }
-        .background(ZStack { GlassBlur(material: .hudWindow); Color.black.opacity(0.42) }.ignoresSafeArea())
+        .background(ZStack {
+            GlassBlur(material: .hudWindow, appearance: p.dark ? .darkAqua : .aqua)
+            p.dark ? Color.black.opacity(0.42) : Color.white.opacity(0.35)
+        }.ignoresSafeArea())
     }
 
     // Cam: renkli bulanık zemin, yüzen kartlar
@@ -981,10 +1030,12 @@ private struct FilesEmptyState: View {
             if let e = tab.error {
                 VStack(spacing: 10) {
                     Image(systemName: "lock.fill").font(.system(size: 28)).foregroundStyle(p.fg.opacity(0.4))
-                    Text(L("Bu klasör açılamadı")).font(.system(size: 14, weight: .semibold))
-                    Text(e.localizedDescription).font(.system(size: 11.5)).foregroundStyle(p.fg.opacity(0.55))
+                    Text(tab.isTrash ? L("Çöp Sepeti'ni görmek için izin gerekiyor") : L("Bu klasör açılamadı"))
+                        .font(.system(size: 14, weight: .semibold))
+                    Text(tab.isTrash ? L("macOS, Çöp Sepeti'ni yalnızca Tam Disk Erişimi olan uygulamalara gösterir. İzni verip Missing'i yeniden açınca Çöp Sepeti burada açılır.") : e.localizedDescription)
+                        .font(.system(size: 11.5)).foregroundStyle(p.fg.opacity(0.55))
                         .multilineTextAlignment(.center).frame(maxWidth: 360)
-                    if (e as NSError).code == NSFileReadNoPermissionError {
+                    if tab.isTrash || (e as NSError).code == NSFileReadNoPermissionError {
                         Button(L("Tam Disk Erişimi ver")) { SettingsModel.open("Privacy_AllFiles") }
                             .buttonStyle(GlassButtonStyle())
                     }
@@ -1063,7 +1114,7 @@ struct FilesTabStrip: View {
                         .padding(p.theme == .missing ? 2 : 0)
                         .background {
                             if p.theme == .missing {
-                                RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Color.black.opacity(0.28))
+                                RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Color.black.opacity(p.dark ? 0.28 : 0.07))
                             }
                         }
                         .frame(maxHeight: .infinity, alignment: p.theme == .windows ? .bottom : .center)
@@ -1196,14 +1247,16 @@ private struct FilesTabChip: View {
         switch p.theme {
         case .missing:
             let shape = RoundedRectangle(cornerRadius: 7, style: .continuous)
-            shape.fill(dropTarget ? drop : p.fg.opacity(selected ? 0.13 : (hover ? 0.06 : 0)))
-                .overlay(shape.strokeBorder(p.fg.opacity(selected ? 0.10 : 0), lineWidth: 1))
-                .shadow(color: .black.opacity(selected ? 0.35 : 0), radius: 3, y: 1)
+            // Açık modda seçili sekme beyaz ve kabarık (Safari gibi)
+            shape.fill(dropTarget ? drop : selected ? (p.dark ? p.fg.opacity(0.13) : Color.white)
+                                                    : p.fg.opacity(hover ? 0.06 : 0))
+                .overlay(shape.strokeBorder(p.fg.opacity(selected ? (p.dark ? 0.10 : 0.06) : 0), lineWidth: 1))
+                .shadow(color: .black.opacity(selected ? (p.dark ? 0.35 : 0.12) : 0), radius: 3, y: 1)
         case .glass:
             let shape = RoundedRectangle(cornerRadius: 10, style: .continuous)
-            shape.fill(dropTarget ? drop : .white.opacity(selected ? 0.18 : (hover ? 0.08 : 0)))
-                .overlay(shape.strokeBorder(.white.opacity(selected ? 0.32 : 0), lineWidth: 1))
-                .shadow(color: .black.opacity(selected ? 0.2 : 0), radius: 6, y: 2)
+            shape.fill(dropTarget ? drop : p.glassFill(selected ? 0.18 : (hover ? 0.08 : 0)))
+                .overlay(shape.strokeBorder(p.glassStroke(selected ? 0.32 : 0), lineWidth: 1))
+                .shadow(color: .black.opacity(selected ? (p.dark ? 0.2 : 0.08) : 0), radius: 6, y: 2)
         case .windows:
             TopRounded(radius: 7)
                 .fill(dropTarget ? drop : selected ? p.winChrome : p.fg.opacity(hover ? 0.05 : 0))
@@ -1291,7 +1344,7 @@ private struct FilesModePicker: View {
         .padding(2)
         .background(RoundedRectangle(cornerRadius: p.radius, style: .continuous).fill(p.controlFill))
         .overlay(RoundedRectangle(cornerRadius: p.radius, style: .continuous)
-            .strokeBorder(p.theme == .glass ? Color.white.opacity(0.15) : .clear, lineWidth: 1))
+            .strokeBorder(p.theme == .glass ? p.glassStroke(0.15) : .clear, lineWidth: 1))
     }
 
     private func button(_ m: FilesViewMode, _ symbol: String, _ help: String) -> some View {
@@ -1394,7 +1447,7 @@ private struct FilesSearchField: View {
     @ViewBuilder private func border(_ shape: RoundedRectangle) -> some View {
         switch p.theme {
         case .missing: shape.strokeBorder(focused ? p.accent.opacity(0.8) : .clear, lineWidth: 1)
-        case .glass: shape.strokeBorder(.white.opacity(focused ? 0.45 : 0.15), lineWidth: 1)
+        case .glass: shape.strokeBorder(p.glassStroke(focused ? 0.45 : 0.15), lineWidth: 1)
         case .finder: shape.strokeBorder(focused ? p.accent.opacity(0.7) : p.fg.opacity(0.08), lineWidth: focused ? 2 : 1)
         case .windows: shape.strokeBorder(p.fg.opacity(0.10), lineWidth: 1)
         }
@@ -1540,6 +1593,7 @@ private struct FilesPathBar: View {
         .onChange(of: model.pathEdit) { _ in beginEdit() }
         .onChange(of: tab.url) { _ in editing = false }
         .onChange(of: tab.tag) { _ in editing = false }
+        .onChange(of: tab.network) { _ in editing = false }
     }
 
     private var editor: some View {
@@ -1597,9 +1651,17 @@ private struct FilesPathBar: View {
     }
 
     @ViewBuilder private var crumbs: some View {
-        if let t = tab.tag {
+        if tab.network {
             HStack(spacing: 6) {
-                TagDot(tag: t, size: 9)
+                Image(systemName: "network").font(.system(size: 11))
+                Text(L("Ağ")).font(.system(size: 12, weight: p.theme != .windows ? .semibold : .regular)).lineLimit(1)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 5)
+            .frame(minHeight: 22)
+        } else if let t = tab.tag {
+            HStack(spacing: 6) {
+                if t.recents { Image(systemName: "clock").font(.system(size: 11)) } else { TagDot(tag: t, size: 9) }
                 Text(t.name).font(.system(size: 12, weight: p.theme != .windows ? .semibold : .regular)).lineLimit(1)
                 Spacer(minLength: 0)
             }
@@ -1803,7 +1865,9 @@ private struct FilesSidebar: View {
     }
 
     private func selected(_ place: SidebarPlace) -> Bool {
-        tab.tag == nil && place.special != .airdrop && place.special != .network && tab.url.fileKey == place.url.fileKey
+        if place.special == .network { return tab.network }
+        if place.special == .recents { return tab.tag?.recents == true }
+        return tab.tag == nil && !tab.network && place.special != .airdrop && tab.url.fileKey == place.url.fileKey
     }
 }
 
@@ -2122,7 +2186,9 @@ private struct SidebarTree: View {
         let kids = open && canExpand ? state.subfolders(place.url)?.filter { chosen.contains($0.standardizedFileURL.path) } : nil
         VStack(alignment: .leading, spacing: 1) {
             SidebarRow(place: place,
-                       selected: tab.tag == nil && tab.url.fileKey == place.url.fileKey,
+                       selected: place.special == .network ? tab.network
+                           : place.special == .recents ? tab.tag?.recents == true
+                           : (tab.tag == nil && !tab.network && tab.url.fileKey == place.url.fileKey),
                        controller: controller, remove: remove, groupID: groupID, depth: depth,
                        expandable: canExpand, expanded: open && canExpand,
                        onToggle: { withAnimation(.easeOut(duration: 0.15)) { state.toggle(scope, place.url) } },
@@ -2206,7 +2272,7 @@ private struct SidebarRow: View {
         .onTapGesture { FilesPlaces.shared.open(place, in: controller) }
         .onDrop(of: [UTType.fileURL], isTargeted: $dropTarget) { providers in
             // AirDrop / Ağ klasör değil; Çöp Sepeti'ne bırakmak çöpe atmak demek
-            guard place.special != .airdrop, place.special != .network else { return false }
+            guard place.special != .airdrop, place.special != .network, place.special != .recents else { return false }
             let dest = place.url
             loadFileURLs(providers) { urls in controller.drop(urls, into: dest) }
             return true
@@ -2248,6 +2314,10 @@ private struct SidebarRow: View {
                 Divider()
                 Button(L("Çıkar")) { FilesPlaces.shared.eject(place, window: controller.window) }
             }
+            if place.special == .trash {
+                Divider()
+                Button(L("Çöp Sepetini Boşalt…")) { FilesTrash.empty(in: controller.window) }
+            }
             Divider()
             if let key = place.hideKey {
                 Button(L("Kenar çubuğundan gizle")) { FilesPlaces.shared.setVisible(key, false) }
@@ -2279,7 +2349,7 @@ private struct SidebarRow: View {
         case .missing: return selected ? p.accent : p.fg.opacity(0.7)
         case .finder: return p.accent
         case .windows: return selected ? p.fg.opacity(0.95) : p.fg.opacity(0.75)
-        case .glass: return selected ? .white : .white.opacity(0.75)
+        case .glass: return selected ? p.fg : p.fg.opacity(0.75)
         }
     }
 
@@ -2290,8 +2360,8 @@ private struct SidebarRow: View {
         } else {
             switch p.theme {
             case .glass:
-                shape.fill(.white.opacity(selected ? 0.18 : (hover ? 0.07 : 0)))
-                    .overlay(shape.strokeBorder(.white.opacity(selected ? 0.28 : 0), lineWidth: 1))
+                shape.fill(p.glassFill(selected ? 0.18 : (hover ? 0.07 : 0)))
+                    .overlay(shape.strokeBorder(p.glassStroke(selected ? 0.28 : 0), lineWidth: 1))
             case .finder:
                 shape.fill(p.fg.opacity(selected ? (p.dark ? 0.14 : 0.10) : (hover ? 0.04 : 0)))
             case .windows:
@@ -2493,9 +2563,13 @@ private struct FilesCopyCard: View {
                 if job.measuring {
                     Text(L("Hesaplanıyor…"))
                 } else {
-                    Text(L("%@ / %@", FilesFormat.size(job.done), FilesFormat.size(job.total))).monospacedDigit()
-                    Text("·").foregroundStyle(p.fg.opacity(0.3))
-                    Text(L("%@ kaldı", FilesFormat.size(max(0, job.total - job.done)))).monospacedDigit()
+                    if job.countsItems {
+                        Text(L("%d / %d öğe", Int(job.done), Int(job.total))).monospacedDigit()
+                    } else {
+                        Text(L("%@ / %@", FilesFormat.size(job.done), FilesFormat.size(job.total))).monospacedDigit()
+                        Text("·").foregroundStyle(p.fg.opacity(0.3))
+                        Text(L("%@ kaldı", FilesFormat.size(max(0, job.total - job.done)))).monospacedDigit()
+                    }
                 }
                 Spacer(minLength: 4)
                 if let r = job.remaining { Text(Self.time(r)).monospacedDigit() }
@@ -2654,6 +2728,56 @@ struct TagDot: View {
             Circle().fill(c).frame(width: size, height: size)
         } else {
             Circle().strokeBorder(Color.secondary, lineWidth: 1.2).frame(width: size, height: size)
+        }
+    }
+}
+
+// MARK: Çöp Sepeti şeridi
+
+/// Çöp Sepeti açıkken üstte: öğe sayısı ve Boşalt
+private struct FilesTrashBar: View {
+    @ObservedObject var tab: FilesTab
+    let controller: FilesWindowController
+    @Environment(\.filesPalette) private var p
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "trash").font(.system(size: 12)).foregroundStyle(p.fg.opacity(0.6))
+            Text(L("Çöp Sepeti")).font(.system(size: 12, weight: .semibold))
+            Spacer()
+            Button(L("Boşalt")) { FilesTrash.empty(in: controller.window) }
+                .controlSize(.small)
+                .disabled(tab.items.isEmpty)
+        }
+        .padding(.horizontal, 12)
+        .frame(height: 34)
+        .background(p.fg.opacity(p.dark ? 0.04 : 0.03))
+        .overlay(alignment: .bottom) { Rectangle().fill(p.divider).frame(height: 1) }
+    }
+}
+
+// MARK: İçerik alanı
+
+/// Dosya görünümü, Çöp Sepeti şeridi, boş/izin sayfası ya da Ağ sayfası.
+/// Sekmeyi kendisi izler: Ağ'a ya da Çöp Sepeti'ne geçince hemen yenilenir.
+private struct FilesContentArea: View {
+    @ObservedObject var tab: FilesTab
+    let controller: FilesWindowController
+
+    var body: some View {
+        ZStack {
+            VStack(spacing: 0) {
+                if tab.isTrash && tab.error == nil { FilesTrashBar(tab: tab, controller: controller) }
+                BrowserHost(view: controller.browser)
+            }
+            .opacity(tab.network ? 0 : 1)
+            .allowsHitTesting(!tab.network)
+            if tab.network {
+                FilesNetworkView(controller: controller)
+            } else {
+                FilesEmptyState(tab: tab)
+            }
+            FilesCopyCards(activity: FilesActivity.shared)
         }
     }
 }

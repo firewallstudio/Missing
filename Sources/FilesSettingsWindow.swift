@@ -181,6 +181,12 @@ private struct FilesGeneralSettings: View {
                       isOn: $replaceFinder)
                 .onChange(of: replaceFinder) { FinderReplacement.enabled = $0 }
             Divider().opacity(0.4)
+            ToggleRow(L("Klasör boyutlarını hesapla"), L("Liste görünümünde klasörlerin boyutu da yazar (arka planda hesaplanır)"),
+                      isOn: Binding(get: { FilesSettings.folderSizes }, set: { v in
+                          FilesSettings.folderSizes = v
+                          FilesManager.shared.windows.forEach { $0.model.tabs.forEach { $0.reload() } }
+                      }))
+            Divider().opacity(0.4)
             ToggleRow(L("Gizli dosyaları göster"), nil, isOn: $showHidden)
                 .onChange(of: showHidden) { v in
                     guard v != FilesSettings.showHidden else { return }
@@ -212,6 +218,7 @@ private struct FilesSidebarSettings: View {
             check("airplayaudio", "AirDrop", "airdrop")
             check("network", L("Ağ"), "network")
             check("trash", L("Çöp Sepeti"), "trash")
+            check("clock", L("Son Kullanılanlar"), "recents")
         }
         FilesSettingsSection(L("Etiketler"), "tag") {
             FilesSettingsToggle(isOn: binding("tags")) {
