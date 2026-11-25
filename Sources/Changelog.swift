@@ -16,6 +16,10 @@ struct ChangelogEntry {
 
 enum Changelog {
     static let entries: [ChangelogEntry] = [
+        ChangelogEntry(version: "4.3.21", items: [
+            ("Dosyalar'da bir dosyayı klasörün simgesinin üstüne bırakınca hiçbir şey olmuyordu (sadece adının üstü çalışıyordu); artık simge, liste ve sütun görünümünde klasöre taşınır",
+             "In Files, dropping a file on a folder's icon did nothing (only its name worked); now it moves into the folder in icon, list and column views"),
+        ]),
         ChangelogEntry(version: "4.3.20", items: [
             ("Aynı anda iki Missing çalışmaz: /Applications'taki kopya, başka yerden (İndirilenler, proje klasörü) açılan kopyanın yerine geçer; güncellemeler hep /Applications'a kurulur",
              "Only one Missing runs at a time: the copy in /Applications replaces one opened from elsewhere (Downloads, a project folder), and updates always install to /Applications"),

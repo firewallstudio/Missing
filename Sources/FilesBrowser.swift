@@ -1023,7 +1023,7 @@ final class FilesCell: NSTableCellView {
         addSubview(t)
         textField = t
         if withIcon {
-            let i = NSImageView()
+            let i = FilesIconView()
             i.imageScaling = .scaleProportionallyUpOrDown
             i.translatesAutoresizingMaskIntoConstraints = false
             addSubview(i)
@@ -1230,7 +1230,7 @@ final class FilesCollectionView: NSCollectionView {
 
 final class FilesGridItem: NSCollectionViewItem {
     static let id = NSUserInterfaceItemIdentifier("FilesGridItem")
-    let iconView = NSImageView()
+    let iconView = FilesIconView()
     private let label = NSTextField(wrappingLabelWithString: "")
     private let back = NSView()
     private var url: URL?
@@ -1401,4 +1401,20 @@ final class FilesGridHeader: NSView, NSCollectionViewElement {
     }
 
     required init?(coder: NSCoder) { fatalError() }
+}
+
+/// Dosya simgesi: NSImageView kendini sürükle-bırak hedefi olarak kaydeder ve düzenlenemezken bırakmayı
+/// reddeder; bu yüzden klasörün simgesinin üstüne bırakılan dosyalar ızgaraya / tabloya ulaşmıyordu.
+final class FilesIconView: NSImageView {
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        unregisterDraggedTypes()
+    }
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        unregisterDraggedTypes()
+    }
+    override var isEditable: Bool {
+        didSet { unregisterDraggedTypes() }
+    }
 }

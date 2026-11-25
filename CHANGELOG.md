@@ -3,6 +3,10 @@
 Also shown in the app: **Settings › Versions**.
 
 
+## 4.3.21
+
+- In Files, dropping a file on a folder's icon did nothing (only its name worked); now it moves into the folder in icon, list and column views
+
 ## 4.3.20
 
 - Only one Missing runs at a time: the copy in /Applications replaces one opened from elsewhere (Downloads, a project folder), and updates always install to /Applications

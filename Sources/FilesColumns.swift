@@ -440,11 +440,11 @@ final class FilesColumnTable: FilesHoverTable {
 
 /// Simge, ad ve klasörse sağda ok
 final class FilesColumnCell: NSTableCellView {
-    let arrow = NSImageView()
+    let arrow = FilesIconView()
 
     init() {
         super.init(frame: .zero)
-        let i = NSImageView()
+        let i = FilesIconView()
         i.imageScaling = .scaleProportionallyUpOrDown
         i.translatesAutoresizingMaskIntoConstraints = false
         addSubview(i)
