@@ -159,6 +159,8 @@ struct FilesPreviewInfo {
     @Published private(set) var itemCount: Int?
     @Published private(set) var folderBytes: Int64?
     @Published var zoomed = false
+    /// Fotoğraf işaretleniyor (FilesMarkupView.swift); başlığın yerini araç çubuğu alır
+    @Published var markup: FilesMarkupSession?
     /// Yüklenmiş video boyları (yönü uygulanmış piksel; .zero: açılamadı)
     private(set) var videoPixels: [String: NSSize] = [:]
 
@@ -234,6 +236,8 @@ struct FilesPreviewActions {
     var share: (NSRect) -> Void = { _ in }
     /// Makas: ses / videoyu düzenleyicide aç
     var edit: () -> Void = {}
+    /// Fotoğrafı işaretle
+    var markup: () -> Void = {}
 }
 
 // MARK: Ölçüler
@@ -275,12 +279,14 @@ enum FilesPreviewLayout {
 final class FilesPreviewWindow: NSPanel {
     var onDoubleClickContent: (() -> Void)?
     var contentArea: () -> NSRect = { .zero }
+    /// İşaretlerken anahtar olabilir (yazı, ⌘Z, Sil, Esc, Return); çift tık öğeyi açmaz
+    var markupActive = false
 
-    override var canBecomeKey: Bool { false }
+    override var canBecomeKey: Bool { markupActive }
     override var canBecomeMain: Bool { false }
 
     override func sendEvent(_ event: NSEvent) {
-        if event.type == .leftMouseDown, event.clickCount == 2, contentArea().contains(event.locationInWindow),
+        if !markupActive, event.type == .leftMouseDown, event.clickCount == 2, contentArea().contains(event.locationInWindow),
            let onDoubleClickContent {
             onDoubleClickContent()
             return
@@ -328,6 +334,8 @@ final class FilesPreviewRootView: NSView {
     let mediaClip = FilesPreviewClipView()
     let imageView = FilesPreviewImageView()
     let playerView = FilesPreviewPlayerView()
+    /// İşaretleme tuvali: resim görünümüyle aynı çerçevede
+    var markupCanvas: NSView? { didSet { needsLayout = true } }
     /// Gösterilen ortamın oranı; nil: ortam yok (QL / kart)
     var mediaAspect: CGFloat? { didSet { if mediaAspect != oldValue { needsLayout = true } } }
 
@@ -398,6 +406,7 @@ final class FilesPreviewRootView: NSView {
         let inner = NSRect(x: m.minX - c.minX, y: m.minY - c.minY, width: m.width, height: m.height)
         imageView.frame = inner
         playerView.frame = inner
+        markupCanvas?.frame = inner
     }
 
     func restyle() {
@@ -445,6 +454,8 @@ final class FilesPreviewRootView: NSView {
     private var imageToken = 0
     /// Video boyu yüklenene kadar bekleyen açılış (kısa süre; boy gelince pencere doğru oranda açılır)
     private var pendingPresent: (() -> Void)?
+    /// İşaretlerken yok sayılan son seçim (işaretler bırakılınca önizleme ona döner)
+    var markupIgnored: (urls: [URL], index: Int)?
 
     var isVisible: Bool { (panel?.isVisible == true || pendingPresent != nil) && !closing }
 
@@ -452,7 +463,7 @@ final class FilesPreviewRootView: NSView {
 
     /// Space / ⌘Y: açıksa kapatır, değilse seçimi (seçim yoksa bulunulan klasörü) önizler
     func toggle(for c: FilesWindowController) {
-        if isVisible, controller === c { close(); return }
+        if isVisible, controller === c { requestClose(); return }
         guard let w = c.window else { return }
         var urls = c.browser.selectedItems.map(\.url)
         if urls.isEmpty { urls = [c.tab.url] }
@@ -549,6 +560,7 @@ final class FilesPreviewRootView: NSView {
 
     /// Kapat (Esc, Space, kapat düğmesi). Seçili öğe ekrandaysa ona doğru küçülerek kaybolur.
     func close(animated: Bool = true) {
+        endMarkup()
         if pendingPresent != nil {
             // Henüz açılmadı (video boyu bekleniyordu): açılmadan vazgeç
             pendingPresent = nil
@@ -582,6 +594,7 @@ final class FilesPreviewRootView: NSView {
     }
 
     private func finishClose() {
+        endMarkup()
         guard let panel else { closing = false; return }
         panel.parent?.removeChildWindow(panel)
         panel.orderOut(nil)
@@ -596,13 +609,14 @@ final class FilesPreviewRootView: NSView {
     private func makePanelIfNeeded() -> (FilesPreviewWindow, FilesPreviewRootView) {
         if let panel, let root { return (panel, root) }
         let actions = FilesPreviewActions(
-            close: { [weak self] in self?.close() },
+            close: { [weak self] in self?.requestClose() },
             open: { [weak self] in self?.openCurrent() },
             previous: { [weak self] in self?.step(-1) },
             next: { [weak self] in self?.step(1) },
             zoom: { [weak self] in self?.toggleZoom() },
             share: { [weak self] r in self?.share(from: r) },
-            edit: { [weak self] in self?.editCurrent() })
+            edit: { [weak self] in self?.editCurrent() },
+            markup: { [weak self] in self?.beginMarkup() })
         let p = FilesPreviewWindow(contentRect: NSRect(x: 0, y: 0, width: 720, height: 520),
                                    styleMask: [.titled, .resizable, .fullSizeContentView, .nonactivatingPanel],
                                    backing: .buffered, defer: false)
@@ -661,6 +675,7 @@ final class FilesPreviewRootView: NSView {
     /// İçerik alanına öğeyi koy: resim → NSImageView, video → AVPlayerView, Quick Look'un çizdiği diğer türler →
     /// QLPreviewView, kalanlar temalı kart (çerçevenin içinde). Kendi görünümlerimiz içerik alanını kenardan kenara doldurur.
     private func loadContent() {
+        endMarkup()   // başka öğeye geçildi: işaretler sessizce bırakılır
         guard let root else { return }
         let info = model.info
         let media = info?.media ?? .none
@@ -785,6 +800,8 @@ final class FilesPreviewRootView: NSView {
     private func applyPending() {
         guard let p = pending else { return }
         pending = nil
+        // İşaretler varken başka dosyaya geçilmez (seçim hatırlanır)
+        if markupKeepsPreview(for: p.urls) { markupIgnored = p; return }
         lastApply = CACurrentMediaTime()
         let before = model.current?.fileKey
         model.set(urls: p.urls, index: p.index)
@@ -829,6 +846,14 @@ final class FilesPreviewRootView: NSView {
         let c = controller
         close(animated: false)
         FilesMediaEditor.open(u, from: c, sourceFrame: frame)
+    }
+
+    /// İşaretlenen fotoğraf kaydedildi: önizleme onu gösterir (üstüne yazıldıysa aynı adla, yeniden çözülerek)
+    func showSaved(_ url: URL) {
+        guard isVisible else { return }
+        model.set(urls: [url], index: 0)
+        loadContent()
+        refit(force: true)
     }
 
     private func openCurrent() {
@@ -949,10 +974,11 @@ final class FilesPreviewRootView: NSView {
             MainActor.assumeIsolated {
                 // Paylaş menüsü açıksa Esc yalnız menüyü kapatır (menünün kendi izleyicisi)
                 guard let self, self.isVisible, e.keyCode == 53, !FilesContextMenu.shared.isOpen,
+                      !(self.model.markup != nil && e.window === self.panel),   // işaretlerken panelde Esc tuvalin
                       e.modifierFlags.intersection([.command, .option, .control, .shift]).isEmpty,
                       e.window === self.host || e.window === self.panel,
                       !(self.host?.firstResponder is NSText) else { return e }
-                self.close()
+                self.requestClose()
                 return nil
             }
         }
@@ -1053,7 +1079,7 @@ struct FilesPreviewChrome: View {
     private func level(for width: CGFloat) -> HeaderLevel {
         let multi = model.urls.count > 1
         // Düzenle (makas) bir simge düğmesi daha
-        let arrows: CGFloat = (multi ? 64 : 0) + (model.info?.editable == true ? 34 : 0)
+        let arrows: CGFloat = (multi ? 64 : 0) + (model.info?.editable == true ? 34 : 0) + (model.info?.media == .image ? 34 : 0)
         let counter: CGFloat = multi ? 40 : 0
         let open = openTextWidth
         let full: CGFloat, compact: CGFloat
@@ -1172,6 +1198,16 @@ struct FilesPreviewChrome: View {
         }
     }
 
+    /// Fotoğraf (tek kareli bitmap): işaretle
+    @ViewBuilder private var markupButton: some View {
+        if model.info?.media == .image {
+            Button(action: actions.markup) { Image(systemName: "pencil.tip.crop.circle") }
+                .buttonStyle(FilesPreviewIconButtonStyle(p: p))
+                .help(L("İşaretle"))
+                .accessibilityLabel(L("İşaretle"))
+        }
+    }
+
     /// "… ile Aç": dar başlıkta yalnız simge (adı ipucunda)
     @ViewBuilder private func openButton(_ level: HeaderLevel) -> some View {
         let title = model.info?.openTitle ?? L("Aç")
@@ -1200,6 +1236,7 @@ struct FilesPreviewChrome: View {
     // missing / glass: solda simge + ad + ikinci satır, sağda düğmeler
     private func glassyHeader(_ level: HeaderLevel) -> some View {
         HStack(spacing: 8) {
+            if let m = model.markup { FilesMarkupToolbar(session: m) } else {
             if level != .minimal { iconView(26) }
             VStack(alignment: .leading, spacing: 1) {
                 title(size: 13, weight: .semibold)
@@ -1209,12 +1246,14 @@ struct FilesPreviewChrome: View {
             .layoutPriority(1)
             navigation(level)
             editButton
+            markupButton
             if level != .minimal {
                 zoomButton
                 shareButton
             }
             openButton(level)
             closeButton
+            }
         }
         .padding(.leading, 14)
         .padding(.trailing, 12)
@@ -1225,6 +1264,7 @@ struct FilesPreviewChrome: View {
     // finder: Quick Look paneli: solda kapat + büyüt, ortada ad (altında küçük bilgi), sağda gezinme, paylaş, "… ile Aç"
     private func finderHeader(_ level: HeaderLevel) -> some View {
         HStack(spacing: 6) {
+            if let m = model.markup { FilesMarkupToolbar(session: m) } else {
             HStack(spacing: 2) {
                 closeButton
                 if level != .minimal { zoomButton }
@@ -1243,8 +1283,10 @@ struct FilesPreviewChrome: View {
             .layoutPriority(1)
             navigation(level)
             editButton
+            markupButton
             if level != .minimal { shareButton }
             openButton(level)
+            }
         }
         .padding(.horizontal, 8)
         .frame(maxHeight: .infinity)
@@ -1270,6 +1312,7 @@ struct FilesPreviewChrome: View {
             }
             .frame(height: 32)
             HStack(spacing: 6) {
+                if let m = model.markup { FilesMarkupToolbar(session: m) } else {
                 if level == .minimal {
                     Spacer(minLength: 0)
                 } else {
@@ -1277,8 +1320,10 @@ struct FilesPreviewChrome: View {
                 }
                 navigation(level)
                 editButton
+                markupButton
                 if level != .minimal { shareButton }
                 openButton(level)
+                }
             }
             .padding(.horizontal, 12)
             .frame(height: 41)

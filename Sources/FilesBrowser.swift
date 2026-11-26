@@ -773,12 +773,14 @@ import Quartz
         field.drawsBackground = true
         field.backgroundColor = FilesPalette.current(for: effectiveAppearance).renameBack
         window?.makeFirstResponder(field)
-        // Uzantı hariç seç (Finder gibi)
+        // Uzantı hariç seç (Finder gibi). makeFirstResponder hepsini seçti; bir tur sonra yine hepsi seçiliyse düzelt
+        let selection: FilesNameSelection = items[i].isFolder ? .all : .stem
         if let editor = field.currentEditor() {
-            let name = url.lastPathComponent as NSString
-            let ext = name.pathExtension
-            let len = (items[i].isFolder || ext.isEmpty) ? name.length : name.length - ext.count - 1
-            editor.selectedRange = NSRange(location: 0, length: max(0, len))
+            selection.apply(to: editor, force: true)
+            DispatchQueue.main.async { [weak field] in
+                guard let editor = field?.currentEditor() else { return }
+                selection.apply(to: editor, force: false)
+            }
         }
     }
 
@@ -817,7 +819,7 @@ import Quartz
     private func renameWithSheet(_ item: FileItem) {
         guard let window, let owner else { return }
         FilesDialog.show(on: window, title: L("Yeniden adlandır"), icon: .image(NSWorkspace.shared.icon(forFile: item.url.path)),
-                         field: .init(text: item.url.lastPathComponent),
+                         field: .init(text: item.url.lastPathComponent, selection: item.isFolder ? .all : .stem),
                          actions: [.init(L("Vazgeç"), .cancel), .init(L("Yeniden adlandır"), .primary)]) { [weak self] r, text in
             guard r == 1,
                   let dest = FileOps.rename(item.url, to: text, undo: owner.window?.undoManager, window: window) else { return }

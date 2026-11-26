@@ -1542,46 +1542,40 @@ struct FilesMediaSaveCard: View {
     private var options: some View {
         VStack(spacing: 8) {
             option(.overwrite, "arrow.triangle.2.circlepath", L("Üstüne yaz"),
-                   model.canOverwrite ? L("“%@” yeni hâliyle değişir; asıl dosya Çöp Sepeti'ne taşınır.", model.originalName)
-                                      : L("Bu biçime ya da bu klasöre geri yazılamıyor."),
+                   help: model.canOverwrite ? L("“%@” yeni hâliyle değişir; asıl dosya Çöp Sepeti'ne taşınır.", model.originalName)
+                                            : L("Bu biçime ya da bu klasöre geri yazılamıyor."),
                    enabled: model.canOverwrite)
-            option(.newFile, "doc.badge.plus", L("Yeni dosya olarak kaydet"), model.newFileName, enabled: true)
+            option(.newFile, "doc.badge.plus", L("Yeni dosya olarak kaydet"), help: model.newFileName, enabled: true)
             option(.export, "square.and.arrow.up.on.square", L("Farklı biçimde dışa aktar"),
-                   L("Başka bir uzantıyla, istediğiniz klasöre."), enabled: true)
+                   help: L("Başka bir uzantıyla, istediğiniz klasöre."), enabled: true)
             if model.choice == .export { exportFields }
         }
     }
 
-    private func option(_ c: FilesMediaSaveModel.Choice, _ symbol: String, _ title: String, _ detail: String, enabled: Bool) -> some View {
+    /// Tek satırlık seçenek: daire, simge, başlık. Açıklama (yeni ad, neden olmadığı) ipucunda
+    private func option(_ c: FilesMediaSaveModel.Choice, _ symbol: String, _ title: String, help: String, enabled: Bool) -> some View {
         let on = model.choice == c
         let shape = RoundedRectangle(cornerRadius: p.theme == .windows ? 4 : (p.theme == .glass ? 12 : 8), style: .continuous)
         return Button { if enabled { model.choice = c } } label: {
-            HStack(alignment: .top, spacing: 10) {
-                ZStack {
-                    Circle().strokeBorder(on ? p.accent : p.fg.opacity(0.35), lineWidth: on ? 5 : 1.2)
-                        .frame(width: 16, height: 16)
-                }
-                .padding(.top, 1)
-                VStack(alignment: .leading, spacing: 3) {
-                    HStack(spacing: 6) {
-                        Image(systemName: symbol).font(.system(size: 12)).foregroundStyle(on ? p.accent : p.secondary)
-                        Text(title).font(.system(size: 13, weight: .semibold))
-                    }
-                    Text(detail).font(.system(size: 11.5)).foregroundStyle(p.secondary)
-                        .lineLimit(2).truncationMode(.middle)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+            HStack(alignment: .center, spacing: 10) {
+                Circle().strokeBorder(on ? p.accent : p.fg.opacity(0.35), lineWidth: on ? 5 : 1.2)
+                    .frame(width: 16, height: 16)
+                Image(systemName: symbol).font(.system(size: 12)).foregroundStyle(on ? p.accent : p.secondary)
+                    .frame(width: 16)
+                Text(title).font(.system(size: 13, weight: .semibold)).lineLimit(1)
                 Spacer(minLength: 0)
             }
             .padding(.horizontal, 12)
-            .padding(.vertical, 10)
+            .frame(height: p.theme == .windows ? 40 : 38)
             .background(shape.fill(on ? p.accent.opacity(p.dark ? 0.16 : 0.10) : p.fg.opacity(p.dark ? 0.05 : 0.035)))
             .overlay(shape.strokeBorder(on ? p.accent.opacity(0.8) : p.fg.opacity(0.08), lineWidth: 1))
             .contentShape(shape)
         }
         .buttonStyle(.plain)
-        .disabled(!enabled)
+        // .disabled yok: devre dışı düğmede ipucu çıkmaz, neden yazılamadığı görünmezdi. Eylem zaten `enabled`a bakar
         .opacity(enabled ? 1 : 0.5)
+        .help(help)
+        .accessibilityHint(help)
     }
 
     private var exportFields: some View {

@@ -2,6 +2,14 @@
 
 Also shown in the app: **Settings › Versions**.
 
+## 4.3.29
+
+- New: mark up photos right in the preview. Press the pencil button in its header to draw on the photo with a pen, highlighter, arrows, rectangles, ellipses and text, in seven colours and three thicknesses, with undo / redo
+- Save over the original (the old file goes to the Trash) or as a new file next to it, at full resolution in the same format; the toolbar follows the Files theme
+- While you mark up a photo, a click elsewhere in Files no longer throws the drawing away; closing the preview asks first
+- Renaming a file selects only the name before the extension (photo.jpg → photo), in every view and theme
+- The editor's save dialog is simpler: one line per option, the descriptions moved to tooltips
+
 ## 4.3.28
 
 - New: a small audio / video editor in Files. Press the scissors in the preview (or right-click › Edit…) to cut, trim, split and reorder on a timeline with thumbnails and a waveform, and add other clips before or after

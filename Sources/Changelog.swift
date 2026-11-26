@@ -16,6 +16,18 @@ struct ChangelogEntry {
 
 enum Changelog {
     static let entries: [ChangelogEntry] = [
+        ChangelogEntry(version: "4.3.29", items: [
+            ("Yeni: fotoğrafları doğrudan önizlemede işaretle. Üst şeritteki kalem düğmesine bas; kalem, fosforlu kalem, ok, dikdörtgen, elips ve yazıyla fotoğrafın üstüne çiz. Yedi renk, üç kalınlık, geri al / yinele",
+             "New: mark up photos right in the preview. Press the pencil button in its header to draw on the photo with a pen, highlighter, arrows, rectangles, ellipses and text, in seven colours and three thicknesses, with undo / redo"),
+            ("Asıl dosyanın üstüne yaz (eskisi Çöp Sepeti'ne gider) ya da yanına yeni dosya olarak kaydet; tam çözünürlükte ve aynı biçimde. Araç çubuğu Dosyalar'ın temasına uyar",
+             "Save over the original (the old file goes to the Trash) or as a new file next to it, at full resolution in the same format; the toolbar follows the Files theme"),
+            ("Fotoğrafı işaretlerken Dosyalar'da başka yere tıklamak çizimi artık silmez; önizlemeyi kapatmadan önce sorulur",
+             "While you mark up a photo, a click elsewhere in Files no longer throws the drawing away; closing the preview asks first"),
+            ("Dosyayı yeniden adlandırırken yalnız uzantıdan önceki ad seçilir (foto.jpg → foto); her görünümde ve temada",
+             "Renaming a file selects only the name before the extension (photo.jpg → photo), in every view and theme"),
+            ("Editörün kaydetme penceresi sadeleşti: her seçenek tek satır, açıklamalar ipucuna taşındı",
+             "The editor's save dialog is simpler: one line per option, the descriptions moved to tooltips"),
+        ]),
         ChangelogEntry(version: "4.3.28", items: [
             ("Yeni: Dosyalar'da küçük bir ses / video editörü. Önizlemedeki makasa bas (ya da sağ tık › Düzenle…): küçük kareli ve dalga şekilli zaman çizelgesinde kes, kırp, böl, sırasını değiştir; başına ya da sonuna başka klipler ekle",
              "New: a small audio / video editor in Files. Press the scissors in the preview (or right-click › Edit…) to cut, trim, split and reorder on a timeline with thumbnails and a waveform, and add other clips before or after"),

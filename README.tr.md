@@ -69,6 +69,16 @@ Dört tema da sistemin açık/koyu ayarını izler. Sağ tık menüsü, Bilgi al
 - Odağı almaz: ok tuşları seçimi oynatmaya devam eder, başka bir dosyaya tek tıklayınca onu önizler.
 - Fotoğraf ve videolar kendi oranlarında ekranı doldurur; telefon fotoğrafları doğru yönde açılır.
 - Ses ve video dosyalarında editörü açan bir makas düğmesi çıkar.
+- Fotoğraflarda işaretlemek için bir kalem düğmesi çıkar.
+
+### Fotoğraf işaretleme
+
+Önizlemenin üst şeridindeki kaleme tıkla, fotoğrafın üstüne olduğu yerde çiz. Üst şerit, temanın görünümünde küçük bir araç çubuğuna dönüşür.
+
+- **Araçlar:** seç / taşı, kalem, fosforlu kalem, ok, dikdörtgen, elips ve yazı (tıkla, yaz, **Return**). Yedi renk, üç kalınlık; yazıda kalınlık boyutu belirler. Bir işaret seçiliyken renk ve kalınlık onu değiştirir.
+- **Tuşlar:** **⌘Z / ⇧⌘Z** geri alır ve yineler, **⌫** seçili işareti siler, yazıya çift tıklayınca yeniden düzenlenir. **⇧** basılıyken ok 45°'lik adımlarla düz gider, dikdörtgen kare, elips daire olur.
+- **Return** kaydeder, **Esc** vazgeçer. Kaydederken **üstüne yazmak** (asıl dosya Çöp Sepeti'ne gider) ya da yanına **yeni dosya** olarak, "Ad (işaretli)" adıyla kaydetmek sorulur; tam çözünürlükte ve aynı biçimde.
+- İşaretlerken Dosyalar'da başka bir dosyaya tıklamak önizlemeyi değiştirmez, kapatmadan önce sorulur; çizim yanlışlıkla kaybolmaz.
 
 ### Ses ve video editörü
 
@@ -137,7 +147,7 @@ Arama kutusu (**⌘F**) önce o klasörü anında süzer, ardından ⌘Space ara
 
 ### Gündelik tuşlar
 
-**Return** yeniden adlandırır, **⌘D** çoğaltır, **⌘⌫** çöpe atar, **⌘Z** hepsini geri alır. **⌥⌘C** yolu kopyalar, **⇧⌘.** gizli dosyaları gösterir. Sağ tıkta Birlikte Aç, Paylaş, Yolu kopyala ve Terminal'de aç var.
+**Return** yeniden adlandırır (uzantı değil, yalnız ad seçili gelir), **⌘D** çoğaltır, **⌘⌫** çöpe atar, **⌘Z** hepsini geri alır. **⌥⌘C** yolu kopyalar, **⇧⌘.** gizli dosyaları gösterir. Sağ tıkta Birlikte Aç, Paylaş, Yolu kopyala ve Terminal'de aç var.
 
 Simge ve liste görünümünde bir adın ilk harflerini yazınca o öğe seçilir. Başka bir uygulama öndeyken de tek tıklama çalışır.
 

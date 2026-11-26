@@ -251,14 +251,93 @@ extension View {
 
 // MARK: Metin alanı
 
+/// Ad alanında açılışta seçilecek kısım. `.stem`: son noktadan önceki kısım (Finder gibi; `.gitignore`, `README` tümü)
+enum FilesNameSelection {
+    case all, stem
+
+    /// Seçilecek aralık (NSString / UTF-16 uzunluklarıyla: emoji ve Türkçe harfler doğru sayılır)
+    func range(for name: String) -> NSRange {
+        let ns = name as NSString
+        guard self == .stem else { return NSRange(location: 0, length: ns.length) }
+        let ext = ns.pathExtension as NSString
+        let len = ext.length == 0 ? ns.length : ns.length - ext.length - 1
+        return NSRange(location: 0, length: max(0, len))
+    }
+
+    /// Düzenleyiciye uygular. `force` değilse yalnız seçim hâlâ "tümü" iken (odakta yeniden seçilmişse) düzeltir.
+    /// Uygulandıysa (ya da zaten yerindeyse) true
+    @discardableResult
+    func apply(to editor: NSText, force: Bool) -> Bool {
+        let length = (editor.string as NSString).length
+        let want = range(for: editor.string)
+        let current = editor.selectedRange
+        if current == want { return true }
+        guard force || current == NSRange(location: 0, length: length) else { return false }
+        editor.selectedRange = want
+        return true
+    }
+}
+
+/// SwiftUI görünümünün penceresini tutar (alan düzenleyicisini NSApp.keyWindow yerine kendi penceresinde bulmak için)
+final class FilesWindowBox {
+    weak var window: NSWindow?
+    var applied = false
+}
+
+struct FilesWindowReader: NSViewRepresentable {
+    let box: FilesWindowBox
+
+    final class Probe: NSView {
+        var box: FilesWindowBox?
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            if let window { box?.window = window }
+        }
+    }
+
+    func makeNSView(context: Context) -> Probe {
+        let v = Probe()
+        v.box = box
+        return v
+    }
+
+    func updateNSView(_ v: Probe, context: Context) {
+        v.box = box
+        if let w = v.window { box.window = w }
+    }
+}
+
+/// Yerel uyarıdaki (finder teması) ad alanı: ilk yanıtlayıcı olunca istenen kısmı seçer
+final class FilesSelectingTextField: NSTextField {
+    var selection: FilesNameSelection = .all
+    private var applied = false
+
+    override func becomeFirstResponder() -> Bool {
+        let ok = super.becomeFirstResponder()
+        // super, alan düzenleyicisini kurup hepsini seçti; şimdi istenen kısmı seç, bir tur sonra yine kontrol et
+        if ok, let editor = currentEditor() {
+            selection.apply(to: editor, force: !applied)
+            applied = true
+            DispatchQueue.main.async { [weak self] in
+                guard let self, let editor = self.currentEditor() else { return }
+                self.selection.apply(to: editor, force: false)
+            }
+        }
+        return ok
+    }
+}
+
 /// Temalı tek satır metin alanı. Açılınca odaklanır ve metni seçer (Finder gibi).
 struct FilesThemedField: View {
     @Binding var text: String
     var placeholder: String = ""
     var autofocus = true
+    /// Açılışta seçilecek kısım: tümü ya da (yeniden adlandırmada) uzantıdan önceki kısım
+    var selection: FilesNameSelection = .all
     var onSubmit: () -> Void = {}
     @Environment(\.filesPalette) private var p
     @FocusState private var focused: Bool
+    @State private var host = FilesWindowBox()
 
     var body: some View {
         Group {
@@ -289,9 +368,35 @@ struct FilesThemedField: View {
         .onAppear {
             guard autofocus else { return }
             DispatchQueue.main.async {
+                // Kapanmış (ekranda olmayan) bir pencerede yeniden çizilen alan odağı almasın
+                guard host.window?.isVisible != false else { return }
                 focused = true
-                DispatchQueue.main.async { NSApp.keyWindow?.firstResponder.flatMap { $0 as? NSTextView }?.selectAll(nil) }
+                applySelection(step: 0)
             }
+        }
+        .background(FilesWindowReader(box: host))
+    }
+
+    /// Seçimi alanın kendi penceresindeki alan düzenleyicisine uygular. Sayfa açılırken AppKit odakta yeniden
+    /// hepsini seçebilir: birkaç kez daha bakılır, seçim hâlâ "tümü" ise düzeltilir (kullanıcının imlecine dokunulmaz)
+    private func applySelection(step: Int) {
+        let delays: [Double] = [0, 0.05, 0.15, 0.3, 0.6]
+        let box = host, selection = selection, text = text
+        DispatchQueue.main.asyncAfter(deadline: .now() + delays[step]) {
+            guard box.window?.isVisible != false else { return }
+            if let tv = (box.window ?? NSApp.keyWindow)?.firstResponder as? NSTextView, tv.string == text {
+                if selection.apply(to: tv, force: !box.applied) { box.applied = true }
+            } else if !box.applied {
+                // Odak gelmediyse (ilk çizimde bekleyen bir güncelleme odağı düşürdüyse) yeniden iste. FocusState
+                // hâlâ true sanıyorsa true yazmak bir şey değiştirmez: önce bırak. Seçim sonraki adımda uygulanır
+                if focused {
+                    focused = false
+                    DispatchQueue.main.async { focused = true }
+                } else {
+                    focused = true
+                }
+            }
+            if step + 1 < delays.count { applySelection(step: step + 1) }
         }
     }
 
@@ -380,6 +485,8 @@ final class FilesKeyPanel: NSPanel {
     struct Field {
         var text: String
         var placeholder: String = ""
+        /// Açılışta seçilecek kısım (yeniden adlandırmada `.stem`: uzantı seçilmez)
+        var selection: FilesNameSelection = .all
     }
 
     /// Temalı uyarı. Düğmeler soldan sağa sırayla dizilir (varsayılan en sağda olsun); `done(seçilen sıra, alan metni)`.
@@ -423,6 +530,7 @@ final class FilesKeyPanel: NSPanel {
         let view = FilesThemedRoot { _ in
             FilesDialogView(title: title, message: message, icon: icon.image, model: model,
                             hasField: field != nil, placeholder: field?.placeholder ?? "",
+                            selection: field?.selection ?? .all,
                             actions: actions, primary: primary, choose: finish)
         }
         let host = makeHost(view)
@@ -476,7 +584,8 @@ final class FilesKeyPanel: NSPanel {
         }
         var tf: NSTextField?
         if let field {
-            let t = NSTextField(frame: NSRect(x: 0, y: 0, width: 300, height: 24))
+            let t = FilesSelectingTextField(frame: NSRect(x: 0, y: 0, width: 300, height: 24))
+            t.selection = field.selection
             t.stringValue = field.text
             t.placeholderString = field.placeholder
             a.accessoryView = t
@@ -505,6 +614,7 @@ struct FilesDialogView: View {
     @ObservedObject var model: FilesDialogModel
     let hasField: Bool
     let placeholder: String
+    var selection: FilesNameSelection = .all
     let actions: [FilesDialog.Action]
     let primary: Int?
     let choose: (Int) -> Void
@@ -539,7 +649,7 @@ struct FilesDialogView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             if hasField {
-                FilesThemedField(text: $model.text, placeholder: placeholder) { if let primary { choose(primary) } }
+                FilesThemedField(text: $model.text, placeholder: placeholder, selection: selection) { if let primary { choose(primary) } }
             }
             HStack(spacing: 8) {
                 Spacer(minLength: 0)
@@ -566,7 +676,7 @@ struct FilesDialogView: View {
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     if hasField {
-                        FilesThemedField(text: $model.text, placeholder: placeholder) { if let primary { choose(primary) } }
+                        FilesThemedField(text: $model.text, placeholder: placeholder, selection: selection) { if let primary { choose(primary) } }
                             .padding(.top, 2)
                     }
                 }

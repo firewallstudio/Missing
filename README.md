@@ -69,6 +69,16 @@ All four follow the system's light/dark mode. The right-click menu, Get Info, di
 - It doesn't take focus: the arrow keys keep moving the selection, and one click on another file previews that one.
 - Photos and videos fill the screen at their own proportions, and phone photos come out the right way up.
 - Audio and video files get a scissors button that opens the editor.
+- Photos get a pencil button for marking them up.
+
+### Marking up photos
+
+Click the pencil in the preview's header to draw on the photo where it is. The header turns into a small toolbar in the theme's style.
+
+- **Tools:** select / move, pen, highlighter, arrow, rectangle, ellipse and text (click, type, **Return**). Seven colours and three thicknesses; for text the thickness sets the size. With something selected, colour and thickness change it.
+- **Keys:** **⌘Z / ⇧⌘Z** undo and redo, **⌫** deletes the selected mark, double-click a text to edit it. Hold **⇧** for straight 45° arrows, squares and circles.
+- **Return** saves, **Esc** cancels. Saving asks whether to **replace the original** (it goes to the Trash) or save a **new file**, "Name (marked up)", next to it, at full resolution in the same format.
+- While you mark up, clicking another file in Files doesn't switch the preview, and closing it asks first, so a drawing isn't lost by accident.
 
 ### Audio and video editor
 
@@ -137,7 +147,7 @@ The search box (**⌘F**) filters the current folder instantly, then looks throu
 
 ### Everyday keys
 
-**Return** renames, **⌘D** duplicates, **⌘⌫** moves to the Trash and **⌘Z** undoes it all. **⌥⌘C** copies the path and **⇧⌘.** shows hidden files. Right-click for Open With, Share, Copy Path and Open in Terminal.
+**Return** renames (only the name is selected, not the extension), **⌘D** duplicates, **⌘⌫** moves to the Trash and **⌘Z** undoes it all. **⌥⌘C** copies the path and **⇧⌘.** shows hidden files. Right-click for Open With, Share, Copy Path and Open in Terminal.
 
 Type the first letters of a name to select it, in icon and list views. A single click works even while another app is in front.
 
