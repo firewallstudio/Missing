@@ -16,6 +16,12 @@ struct ChangelogEntry {
 
 enum Changelog {
     static let entries: [ChangelogEntry] = [
+        ChangelogEntry(version: "4.3.25", items: [
+            ("Yeni: Ses dengeleyici. Kısık sesi açar, yüksek sesi kısar; bilgisayardan çıkan her ses seçtiğin yükseklikte çalar (Ayarlar › Hızlı Özellikler ya da menü çubuğu paneli)",
+             "New: Volume leveler. Raises quiet sound and lowers loud sound so everything from the computer plays at the level you pick (Settings › Quick Features, or the menu bar panel)"),
+            ("Sessiz anlar ve cümle araları yükseltilmez, ani yüksek sesler taşmadan kısılır; ekolayzırla aynı ses yolunu kullanır, işlemciye yükü yok denecek kadar azdır",
+             "Silence and pauses between sentences aren't boosted, sudden loud sounds are lowered without clipping; it shares the equalizer's audio path and uses next to no CPU"),
+        ]),
         ChangelogEntry(version: "4.3.24", items: [
             ("Chrome'a ya da Chrome'dan geçerken ⌘Tab artık takılmıyor: Chrome'un \"Sayfalar geri yüklensin mi?\" gibi balonları pencere sayılmıyor",
              "⌘Tab no longer stutters when switching to or from Chrome: Chrome's pop-up bubbles (like \"Restore pages?\") are no longer listed as windows"),

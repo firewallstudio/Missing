@@ -2,6 +2,11 @@
 
 Also shown in the app: **Settings › Versions**.
 
+## 4.3.25
+
+- New: Volume leveler. Raises quiet sound and lowers loud sound so everything from the computer plays at the level you pick (Settings › Quick Features, or the menu bar panel)
+- Silence and pauses between sentences aren't boosted, sudden loud sounds are lowered without clipping; it shares the equalizer's audio path and uses next to no CPU
+
 ## 4.3.24
 
 - ⌘Tab no longer stutters when switching to or from Chrome: Chrome's pop-up bubbles (like "Restore pages?") are no longer listed as windows

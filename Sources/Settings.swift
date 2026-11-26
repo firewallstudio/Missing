@@ -555,6 +555,36 @@ struct SettingsView: View {
         }
     }
 
+    // MARK: Ses dengeleyici
+
+    @ViewBuilder private var levelerCard: some View {
+        let eq = Equalizer.shared
+        Card(title: L("Ses dengeleyici"), icon: "waveform.path",
+             isOn: model.bind({ LevelerSettings.enabled }, { v in
+                 LevelerSettings.enabled = v
+                 model.onEQChanged()
+             }),
+             subtitle: L("Kısık sesi açar, yüksek sesi kısar: her ses aynı yükseklikte")) {
+            if let err = eq.lastError, LevelerSettings.enabled {
+                Label(err, systemImage: "exclamationmark.triangle.fill")
+                    .font(.system(size: 11.5)).foregroundStyle(.orange)
+            }
+            Row(L("Hedef seviye"), L("Bilgisayardan çıkan bütün sesler bu yüksekliğe getirilir. Sistemin ses düzeyi bunun üstüne ayrıca uygulanır.")) {
+                HStack(spacing: 8) {
+                    Slider(value: model.bind({ LevelerSettings.level }, { v in
+                        LevelerSettings.level = v.rounded()
+                        eq.settingsChanged()
+                    }), in: 0...100)
+                    .frame(width: 200)
+                    Text("%\(Int(LevelerSettings.level))")
+                        .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                        .frame(width: 44, alignment: .trailing)
+                }
+            }
+            note(L("Ekolayzırla aynı ses yolunu kullanır; işlemciye yükü yok denecek kadar azdır. Sessiz anlarda ve cümle aralarında ses açılmaz, ani yüksek sesler taşmadan kısılır. İlk açılışta macOS ses kaydı izni sorar; hiçbir şey kaydedilmez."))
+        }
+    }
+
     static func db(_ v: Double) -> String {
         let s = String(format: "%.1f dB", v)
         return v > 0.05 ? "+" + s : s
@@ -701,7 +731,7 @@ struct SettingsView: View {
     // MARK: Hızlı özellikler
 
     @ViewBuilder private var quickTab: some View {
-        if Equalizer.available { eqCard }
+        if Equalizer.available { eqCard; levelerCard }
         Card(title: L("Gruplu görünüm"), icon: "square.grid.3x1.below.line.grid.1x2",
              isOn: model.bind({ Profile.allCases.contains { $0.grouped && !$0.list } }, { v in
                  if v {

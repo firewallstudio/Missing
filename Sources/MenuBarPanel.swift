@@ -336,7 +336,42 @@ struct MenuBarView: View {
                     .help(L("Sıfırlamak için çift tıkla"))
             }
             .padding(.trailing, 2)
+            levelerRow
         }
+    }
+
+    /// Ses dengeleyici: aç / kapa ve hedef seviye
+    private var levelerRow: some View {
+        let on = LevelerSettings.enabled
+        let level = Binding<Double>(get: { LevelerSettings.level }, set: { v in
+            LevelerSettings.level = v.rounded()
+            Equalizer.shared.settingsChanged()
+            eqChanged()
+        })
+        return HStack(spacing: 8) {
+            Button {
+                LevelerSettings.enabled = !on
+                Equalizer.shared.apply()
+                eqChanged()
+            } label: {
+                Image(systemName: "waveform.path")
+                    .font(.system(size: 12, weight: .semibold))
+                    .frame(width: 28, height: 28)
+                    .background(Circle().fill(on ? Brand.red : Color.white.opacity(0.10)))
+                    .foregroundStyle(on ? .white : .white.opacity(0.6))
+                    .contentShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .help(on ? L("Ses dengeleyiciyi kapat") : L("Ses dengeleyiciyi aç: her ses aynı yükseklikte"))
+            Slider(value: level, in: 0...100).tint(Brand.red)
+                .disabled(!on)
+                .opacity(on ? 1 : 0.5)
+            Text("%\(Int(LevelerSettings.level))")
+                .font(.system(size: 10.5, weight: .semibold, design: .monospaced))
+                .foregroundStyle(.white.opacity(on ? 0.8 : 0.45))
+                .frame(width: 54, alignment: .trailing)
+        }
+        .padding(.trailing, 2)
     }
 
     private func setEQ(_ v: Bool) {

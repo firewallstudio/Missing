@@ -64,6 +64,7 @@ enum Feature: String, CaseIterable, Identifiable {
             return [("files", { FilesSettings.enabled }, { FilesSettings.enabled = $0 }, true)]
         case .quick:
             return [("eq", { EQSettings.enabled }, { EQSettings.enabled = $0 }, false),
+                    ("leveler", { LevelerSettings.enabled }, { LevelerSettings.enabled = $0 }, false),
                     ("search", { FileSearchSettings.enabled }, { FileSearchSettings.enabled = $0 }, true),
                     ("grouped", { Profile.cmd.grouped }, { Profile.cmd.grouped = $0 }, false),
                     ("deepScan", { DeepScanScope.current != .off }, { DeepScanScope.current = $0 ? .browsers : .off }, true),

@@ -40,8 +40,35 @@ enum EQSettings {
     ]
 }
 
+// MARK: - Ses dengeleyici
+//
+// Bilgisayardan çıkan her sesi aynı yükseklikte duyurur: kısık sesi kullanıcının seçtiği seviyeye çeker,
+// yüksek sesi o seviyeye indirir. Ekolayzırla aynı ses yolunu kullanır (ayrı bir yakalama yoktur);
+// ses yüksekliği her ses bloğunda bir kez hesaplanır, örnek başına iş birkaç çarpmadır.
+
+enum LevelerSettings {
+    private static let d = UserDefaults.standard
+
+    static var enabled: Bool {
+        get { d.bool(forKey: "leveler.enabled") }
+        set { d.set(newValue, forKey: "leveler.enabled") }
+    }
+    /// Hedef seviye (%0…100)
+    static var level: Double {
+        get { d.object(forKey: "leveler.level") as? Double ?? 60 }
+        set { d.set(min(100, max(0, newValue)), forKey: "leveler.level") }
+    }
+    /// %0 → -40 dB, %100 → -10 dB (K ağırlıklı ortalama; yaklaşık LUFS)
+    static func targetDB(_ level: Double) -> Double { -40 + 0.3 * min(100, max(0, level)) }
+
+    /// Sessizlikte kazanç değişmesin (fısıltıyı / cızırtıyı yükseltmesin)
+    static let gateDB = -60.0
+    static let maxBoostDB = 18.0
+    static let maxCutDB = -30.0
+}
+
 /// Tek kanal için 2. derece tepe süzgeci (RBJ "peaking EQ")
-private struct Biquad {
+struct Biquad {
     var b0 = 1.0, b1 = 0.0, b2 = 0.0, a1 = 0.0, a2 = 0.0
     var z1 = 0.0, z2 = 0.0
 
@@ -61,6 +88,35 @@ private struct Biquad {
         return b
     }
 
+    /// RBJ yüksek raf (K ağırlığının 1. aşaması)
+    static func highShelf(freq: Double, gainDB: Double, q: Double, sampleRate: Double) -> Biquad {
+        let A = pow(10, gainDB / 40)
+        let w = 2 * Double.pi * min(freq, sampleRate * 0.45) / sampleRate
+        let alpha = sin(w) / (2 * q), c = cos(w), sa = 2 * sqrt(A) * alpha
+        let a0 = (A + 1) - (A - 1) * c + sa
+        var b = Biquad()
+        b.b0 = A * ((A + 1) + (A - 1) * c + sa) / a0
+        b.b1 = -2 * A * ((A - 1) + (A + 1) * c) / a0
+        b.b2 = A * ((A + 1) + (A - 1) * c - sa) / a0
+        b.a1 = 2 * ((A - 1) - (A + 1) * c) / a0
+        b.a2 = ((A + 1) - (A - 1) * c - sa) / a0
+        return b
+    }
+
+    /// RBJ yüksek geçiren (K ağırlığının 2. aşaması: en alttaki bası ölçüme katma)
+    static func highPass(freq: Double, q: Double, sampleRate: Double) -> Biquad {
+        let w = 2 * Double.pi * min(freq, sampleRate * 0.45) / sampleRate
+        let alpha = sin(w) / (2 * q), c = cos(w)
+        let a0 = 1 + alpha
+        var b = Biquad()
+        b.b0 = (1 + c) / 2 / a0
+        b.b1 = -(1 + c) / a0
+        b.b2 = (1 + c) / 2 / a0
+        b.a1 = -2 * c / a0
+        b.a2 = (1 - alpha) / a0
+        return b
+    }
+
     @inline(__always) mutating func process(_ x: Double) -> Double {
         let y = b0 * x + z1
         z1 = b1 * x - a1 * y + z2
@@ -70,12 +126,26 @@ private struct Biquad {
 }
 
 /// Ses iş parçacığının kullandığı durum (kilitsiz okunur; ayar değişince yeni katsayılar hazırlanır)
-private final class EQState: @unchecked Sendable {
+final class EQState: @unchecked Sendable {
     var filters: [[Biquad]] = []      // [kanal][bant]
     var gain: Double = 1
     var flat = true
+    // Dengeleyici ayarları
+    var levelerOn = false
+    var targetDB = -22.0
+    // Dengeleyici durumu (yalnız ses iş parçacığı)
+    var sampleRate = 48_000.0
+    var kShelf = Biquad(), kHP = Biquad()
+    var loudDB = -22.0                // K ağırlıklı ses yüksekliği (dB, yumuşatılmış)
+    var quietTime = 0.0               // ses, ölçülen seviyenin çok altında ne zamandır (sn)
+    var gainDB = 0.0                  // şu anki dengeleme kazancı
+    var limitEnv = 0.0                // sınırlayıcının tepe zarfı
+    /// Kanal işaretçileri (ses iş parçacığında bellek ayırmamak için önceden ayrılır)
+    let chPtr = UnsafeMutablePointer<UnsafeMutablePointer<Float>>.allocate(capacity: 16)
+    let chStride = UnsafeMutablePointer<Int>.allocate(capacity: 16)
+
     private var lock = os_unfair_lock()
-    private var pending: (filters: [Biquad], gain: Double, flat: Bool)?
+    private var pending: (filters: [Biquad], gain: Double, flat: Bool, leveler: Bool, target: Double)?
 
     func prepare(sampleRate: Double, channels: Int) {
         let p = Self.design(sampleRate: sampleRate)
@@ -83,6 +153,15 @@ private final class EQState: @unchecked Sendable {
         filters = Array(repeating: p.filters, count: max(1, channels))
         gain = p.gain
         flat = p.flat
+        levelerOn = p.leveler
+        targetDB = p.target
+        self.sampleRate = sampleRate
+        kShelf = Biquad.highShelf(freq: 1681, gainDB: 4, q: 0.7071, sampleRate: sampleRate)
+        kHP = Biquad.highPass(freq: 38, q: 0.5, sampleRate: sampleRate)
+        loudDB = p.target   // hedefte başla: açılınca ses sıçramasın
+        quietTime = 0
+        gainDB = 0
+        limitEnv = 0
         pending = nil
         os_unfair_lock_unlock(&lock)
     }
@@ -95,11 +174,12 @@ private final class EQState: @unchecked Sendable {
         os_unfair_lock_unlock(&lock)
     }
 
-    private static func design(sampleRate: Double) -> (filters: [Biquad], gain: Double, flat: Bool) {
+    private static func design(sampleRate: Double) -> (filters: [Biquad], gain: Double, flat: Bool, leveler: Bool, target: Double) {
         let gains = EQSettings.gains
         let f = zip(EQSettings.frequencies, gains).map { Biquad.peaking(freq: $0.0, gainDB: $0.1, q: 1.2, sampleRate: sampleRate) }
-        let flat = gains.allSatisfy { abs($0) < 0.05 } && abs(EQSettings.preamp) < 0.05
-        return (f, pow(10, EQSettings.preamp / 20), flat)
+        // Ekolayzır kapalıyken (yalnız dengeleyici açık) ses süzgeçlerden geçmez
+        let flat = !EQSettings.enabled || (gains.allSatisfy { abs($0) < 0.05 } && abs(EQSettings.preamp) < 0.05)
+        return (f, pow(10, EQSettings.preamp / 20), flat, LevelerSettings.enabled, LevelerSettings.targetDB(LevelerSettings.level))
     }
 
     /// Ses iş parçacığında: bekleyen katsayıları kilit beklemeden al
@@ -116,9 +196,68 @@ private final class EQState: @unchecked Sendable {
             }
             gain = p.gain
             flat = p.flat
+            if p.leveler && !levelerOn { loudDB = p.target; gainDB = 0; quietTime = 0 }
+            levelerOn = p.leveler
+            targetDB = p.target
             pending = nil
         }
         os_unfair_lock_unlock(&lock)
+    }
+
+    /// Dengeleyici: çıkış tamponundaki sesi yerinde işler. Bellek ayırmaz, kilit beklemez.
+    /// `ptrs[c][i * strides[c]]` c'inci kanalın i'inci örneği.
+    func level(channels: Int, frames: Int) {
+        guard levelerOn, channels > 0, frames > 0 else { return }
+        let sr = sampleRate
+        // 1) Bu bloğun K ağırlıklı ses yüksekliği (ilk iki kanalın ortalaması)
+        let c0 = chPtr[0], s0 = chStride[0]
+        let c1 = channels > 1 ? chPtr[1] : chPtr[0], s1 = channels > 1 ? chStride[1] : chStride[0]
+        var acc = 0.0
+        for i in 0..<frames {
+            let m = 0.5 * (Double(c0[i * s0]) + Double(c1[i * s1]))
+            let k = kHP.process(kShelf.process(m))
+            acc += k * k
+        }
+        let blockDB = 10 * log10(acc / Double(frames) + 1e-12)
+        let dt = Double(frames) / sr
+        if blockDB > LevelerSettings.gateDB {
+            // Ölçülenin 15 dB'den fazla altındaki kısa düşüşler (cümle arası, sessiz an) 1 sn boyunca
+            // sayılmaz: kazanç pompalamaz. Daha uzun sürerse içerik gerçekten kısılmıştır, izlenir.
+            let dip = blockDB < loudDB - 15
+            quietTime = dip ? quietTime + dt : 0
+            if !dip || quietTime > 1.0 {
+                // Yükselen ses çabuk (ani yüksek ses hemen yakalanır), alçalan ses biraz daha yavaş izlenir
+                let tau = blockDB > loudDB ? 0.08 : 0.6
+                loudDB += (blockDB - loudDB) * (1 - exp(-dt / tau))
+            }
+        }
+        // 2) İstenen kazanç: kısarken hızlı, açarken daha yumuşak
+        let want = min(LevelerSettings.maxBoostDB, max(LevelerSettings.maxCutDB, targetDB - loudDB))
+        let tauG = want < gainDB ? 0.05 : 0.5
+        let newDB = gainDB + (want - gainDB) * (1 - exp(-dt / tauG))
+        let g0 = pow(10, gainDB / 20), g1 = pow(10, newDB / 20)
+        gainDB = newDB
+        // 3) Kazancı örnek örnek yumuşakça uygula, sonra tepe sınırlayıcı (-1 dBFS, taşma olmasın)
+        let ceiling = 0.891
+        let rel = exp(-1 / (0.08 * sr))
+        let step = (g1 - g0) / Double(frames)
+        var g = g0
+        var env = limitEnv
+        for i in 0..<frames {
+            g += step
+            var peak = 0.0
+            for c in 0..<channels {
+                let v = abs(Double(chPtr[c][i * chStride[c]]) * g)
+                if v > peak { peak = v }
+            }
+            env = peak > env ? peak : env * rel
+            let lg = env > ceiling ? g * ceiling / env : g
+            for c in 0..<channels {
+                let p = chPtr[c] + i * chStride[c]
+                p.pointee = Float(Double(p.pointee) * lg)
+            }
+        }
+        limitEnv = env
     }
 }
 
@@ -143,7 +282,10 @@ private final class EQState: @unchecked Sendable {
 
     /// Ayarlara göre aç / kapat
     func apply() {
-        if EQSettings.enabled { start() } else { stop() }
+        guard EQSettings.enabled || LevelerSettings.enabled else { stop(); return }
+        // Ses yolu zaten kuruluysa yeniden kurma (ses kesilmesin): ekolayzır / dengeleyici açılıp kapanınca
+        // yalnız ayarlar değişir
+        if running { settingsChanged() } else { start() }
     }
 
     /// Kazançlar değişti: çalışırken anında uygula
@@ -152,7 +294,7 @@ private final class EQState: @unchecked Sendable {
     }
 
     func start() {
-        guard Self.available, EQSettings.enabled else { return }
+        guard Self.available, EQSettings.enabled || LevelerSettings.enabled else { return }
         stop()
         guard #available(macOS 14.2, *) else { return }
         do {
@@ -249,14 +391,16 @@ private final class EQState: @unchecked Sendable {
     }
 
     /// Ses iş parçacığı: hiçbir bellek ayırmaz, kilit beklemez
-    private nonisolated static func render(_ state: EQState, _ inData: UnsafePointer<AudioBufferList>,
+    nonisolated static func render(_ state: EQState, _ inData: UnsafePointer<AudioBufferList>,
                                            _ outData: UnsafeMutablePointer<AudioBufferList>) {
         state.applyPending()
         let ins = UnsafeMutableAudioBufferListPointer(UnsafeMutablePointer(mutating: inData))
         let outs = UnsafeMutableAudioBufferListPointer(outData)
         guard !ins.isEmpty, !outs.isEmpty else { return }
         let inCount = inputChannelCount(ins)
+        let clip = !state.levelerOn   // dengeleyici açıksa taşmayı sınırlayıcı yakalar
         var ch = 0
+        var levelFrames = Int.max
         for b in outs {
             guard let p = b.mData?.assumingMemoryBound(to: Float.self) else { continue }
             let n = Int(b.mNumberChannels)
@@ -277,12 +421,20 @@ private final class EQState: @unchecked Sendable {
                     for i in 0..<count {
                         var x = Double(src.0[i * src.1]) * g
                         for k in state.filters[fi].indices { x = state.filters[fi][k].process(x) }
-                        o[i * n] = Float(max(-1, min(1, x)))   // taşmayı kırp
+                        o[i * n] = clip ? Float(max(-1, min(1, x))) : Float(x)   // taşmayı kırp
                     }
                 }
                 for i in count..<frames { o[i * n] = 0 }
+                if ch < 16 {
+                    state.chPtr[ch] = o
+                    state.chStride[ch] = n
+                    levelFrames = min(levelFrames, frames)
+                }
                 ch += 1
             }
+        }
+        if state.levelerOn, ch > 0, levelFrames != Int.max {
+            state.level(channels: min(ch, 16), frames: levelFrames)
         }
     }
 
@@ -316,7 +468,7 @@ private final class EQState: @unchecked Sendable {
                                               mScope: kAudioObjectPropertyScopeGlobal, mElement: kAudioObjectPropertyElementMain)
         AudioObjectAddPropertyListenerBlock(AudioObjectID(kAudioObjectSystemObject), &addr, DispatchQueue.main) { [weak self] _, _ in
             MainActor.assumeIsolated {
-                guard let self, EQSettings.enabled else { return }
+                guard let self, EQSettings.enabled || LevelerSettings.enabled else { return }
                 self.start()
             }
         }

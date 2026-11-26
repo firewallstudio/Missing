@@ -219,7 +219,7 @@ import UserNotifications
         if FileSearchSettings.enabled { FileIndex.shared.start() }
         PowerProfiles.shared.start()   // sadece MacBook Pro 14" M4 Pro'da bir şey yapar
         KeepAwake.shared.start()
-        if EQSettings.enabled { Equalizer.shared.apply() }
+        if EQSettings.enabled || LevelerSettings.enabled { Equalizer.shared.apply() }
         if model.anyPreviews, !CGPreflightScreenCaptureAccess() {
             _ = CGRequestScreenCaptureAccess()
         }
