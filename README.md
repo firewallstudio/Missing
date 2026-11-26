@@ -47,7 +47,7 @@ A file window of its own that doesn't depend on Finder. It takes the parts peopl
 - **Windows:** Explorer-style tabs, address bar and command bar.
 - **Glass:** floating frosted cards on a colorful blur.
 
-Finder and Windows follow the system's light/dark mode. Switch themes in **View › Theme** or in Files Settings.
+All four follow the system's light/dark mode. The right-click menu, Get Info, dialogs and Files Settings take on the theme too. Switch themes in **View › Theme** or in Files Settings.
 
 ### Views
 
@@ -57,9 +57,36 @@ Finder and Windows follow the system's light/dark mode. Switch themes in **View 
 
 <div align="center"><img src="assets/files-icons.png" alt="Icon view with colored folders and the icon size slider" width="760"></div>
 
-**⇧⌘P** opens a preview pane on the right, like Windows Explorer: Quick Look of the selected file with its size, kind and dates. **Space** opens full Quick Look.
+**⇧⌘P** opens a preview pane on the right, like Windows Explorer: Quick Look of the selected file with its size, kind and dates. **Space** opens a larger preview.
 
 <div align="center"><img src="assets/files-columns.png" alt="Column view in the Finder theme with the preview pane open" width="760"></div>
+
+### Preview (Space)
+
+**Space** (or **⌘Y**) opens Missing's own preview window instead of Quick Look, styled like the theme.
+
+- It shows the file's size, kind and date, with buttons to open it, share it and go to the previous or next file.
+- It doesn't take focus: the arrow keys keep moving the selection, and one click on another file previews that one.
+- Photos and videos fill the screen at their own proportions, and phone photos come out the right way up.
+- Audio and video files get a scissors button that opens the editor.
+
+### Audio and video editor
+
+Cut, trim and join audio and video without another app. Click the scissors in the preview, or right-click a file › **Quick Actions › Edit…**. Each file opens in its own window, in the Files theme.
+
+- **Timeline:** clips show thumbnails and a waveform. Zoom with the slider, a trackpad pinch or **⌘+ / ⌘−**.
+- **Select a range:** drag across a clip, or press **I** and **O** at the playhead. **Delete** (**⌫**) cuts the range out; **Trim** keeps only the range.
+- **Split** (**S**) cuts at the playhead. Drag a clip's edge to shorten it; drag its top strip to move it.
+- **Add to start / Add to end** bring in other audio or video files. You can also drop them on the timeline from Files or Finder.
+- **Space** plays and pauses, **← / →** step one frame (one second with **⇧**), **⌘Z / ⇧⌘Z** undo and redo.
+
+**Save** (**⌘S**) gives three choices:
+
+- **Replace the original:** the original goes to the Trash, so you can still get it back.
+- **Save as a new file:** "Name (edited)" next to the original.
+- **Export in another format:** MP4 (H.264 or HEVC), MOV, M4A, WAV, AIFF or CAF, in the folder you pick.
+
+When the clips stay in their own format, the result is written without re-encoding, so the quality doesn't change. Files Missing can't write back, like MP3 or FLAC, can still be edited; they're saved as M4A or WAV, and videos as MP4.
 
 ### Tabs and the address bar
 
@@ -84,8 +111,9 @@ In **Settings › Files › Tab switcher** you can switch to a list like ⌘Tab'
 - **Favorites:** kept in sync with Finder's sidebar both ways. Add a folder here and it appears in Finder, and the other way around.
 - **Locations:** your disks (with an eject button), cloud folders like iCloud Drive, Google Drive, OneDrive and Dropbox, your home folder, AirDrop, Network and Trash.
 - **Tags:** Finder's tags with their colors. Click one to list every file carrying that tag.
+- **Recents, Trash and Network** open inside Files. Empty the Trash from its page; the Network page finds computers sharing files and has **Connect to Server**.
 
-Right-click an item › **Hide from Sidebar**, or pick what shows in **Files Settings (⌘,)**.
+Right-click an item › **Hide from Sidebar**, or pick what shows in **Files Settings (⌘,)**. Drag a heading to reorder the sections, or right-click it › **Move up** / **Move down**. **Settings › Files › Sidebar layout** edits the headings, their order and their folders too.
 
 ### Colors and new folders
 
@@ -96,6 +124,8 @@ Right-click an item › **Hide from Sidebar**, or pick what shows in **Files Set
 ### Copying and moving
 
 Drag between folders, tabs, the sidebar and other apps. Dropping on the same disk moves; dropping on another disk copies (hold **⌥** to always copy). **⌘C / ⌘V** copy, and **⌥⌘V** moves the copied items here.
+
+While you drag, a folder under the pointer opens its lid and takes on the theme's color. Hold over it for a moment and it opens, so you can drop deeper.
 
 A card at the bottom right shows each copy as it runs: how much is done, how much is left and the time remaining. The **×** cancels it and removes the half-copied file. The status bar shows the total.
 
@@ -109,9 +139,21 @@ The search box (**⌘F**) filters the current folder instantly, then looks throu
 
 **Return** renames, **⌘D** duplicates, **⌘⌫** moves to the Trash and **⌘Z** undoes it all. **⌥⌘C** copies the path and **⇧⌘.** shows hidden files. Right-click for Open With, Share, Copy Path and Open in Terminal.
 
+Type the first letters of a name to select it, in icon and list views. A single click works even while another app is in front.
+
+### Right-click menu
+
+Files has its own right-click menu, with icons, shortcuts and submenus that open to the side.
+
+- **Quick Actions** by file type: rotate, convert or resize images, make a PDF from images, combine PDFs, convert or shrink videos, extract or convert audio, and **Edit…** for audio and video.
+- **Get Info (⌘I)**, **Compress** / **Extract Here**, **Make Alias**, **Show Package Contents**, and iCloud **Download Now** / **Remove Download**.
+- **Share** opens AirDrop, Mail, Messages and the other services in a menu styled like the theme.
+
 ### In the Dock
 
-While a Files window is open, Missing shows in the Dock with a blue folder icon, like Finder. Click **Add to Dock** in Settings, or right-click the icon › Options › **Keep in Dock**, and a click on the icon opens the window any time.
+While a Files window is open, Missing shows in the Dock with a blue folder icon, like Finder. Click **Add to Dock** in Settings, or right-click the icon › Options › **Keep in Dock**, and a click on the icon opens the window any time. Right-click it for **Recent Folders**.
+
+Two options in **Settings › Files**, both off at first: **Finder in the Dock** makes a click on Finder's Dock icon open Files (hold ⌥ for the real Finder), and **Files instead of Finder** opens "Show in Finder" from other apps, and folders on the desktop, in Files.
 
 ## Split the screen from the notch
 
@@ -130,6 +172,10 @@ Hold **⌘** and tap **⇧** to move to the next output: speakers → AirPods �
 <div align="center"><img src="assets/settings-eq.png" alt="Equalizer" width="560"></div>
 
 Ten bands from 32 Hz to 16 kHz (±12 dB) and a preamp for all system audio, with presets (Flat, Bass, Treble, Voice, Night). Missing uses macOS's own audio tap (macOS 14.2+): no driver, no extra app. It follows you when you switch output devices, and the first time macOS asks once for audio recording permission. Nothing is recorded.
+
+### Volume leveler
+
+Raises quiet sound and lowers loud sound, so everything from the Mac plays at the **Target level** you pick. Silence and pauses between sentences aren't boosted, and sudden loud sounds are lowered without clipping. Turn it on in **Settings › Quick Features** or in the menu bar panel; it uses the same audio path as the equalizer.
 
 ## Mouse, without LinearMouse or Mos
 
@@ -164,7 +210,7 @@ Stop the display from turning off and the Mac from sleeping: **indefinitely**, o
 Click the leaf in the menu bar for a glass panel: sound output at the top, then quick actions (split screen, screenshot, record, scrolling capture) and brightness sliders for external displays.
 
 - **Screenshots and recording:** ⌘⇧3 captures the display you're on, ⌘⇧4 an area, ⌘⇧6 a whole scrolling page, ⌘⇧5 records MP4. Capture or record **just one window** from the ⌘⇧5 palette, with its own save folder.
-- **Quick features:** equalizer, the Files window, grouped ⌘Tab view, back/forward with mouse buttons in Finder, instant Dock opening while dragging a file.
+- **Quick features:** equalizer, volume leveler, the Files window, grouped ⌘Tab view, back/forward with mouse buttons in Finder, instant Dock opening while dragging a file.
 
 ## Only what you use
 
@@ -190,6 +236,8 @@ Click the leaf in the menu bar for a glass panel: sound output at the top, then 
 | ⌘⇧3 · ⌘⇧4 · ⌘⇧5 · ⌘⇧6 | Display · area · record · scrolling capture |
 | ⌘Space (in Finder) | Find files |
 | ⌘" (in Files; ⌘` on US keyboards) | Switch tabs |
+| Space (in Files) | Preview |
+| Space · S · I / O · ⌫ · ⌘S (in the editor) | Play · split · range start / end · cut · save |
 
 ## Missing something?
 

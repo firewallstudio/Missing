@@ -47,7 +47,7 @@ Finder'a bağlı olmayan kendi dosya penceresi. Windows Gezgini'nden özlenenler
 - **Windows:** Gezgin tarzı sekmeler, adres ve komut çubuğu.
 - **Cam:** renkli bulanık zemin üstünde yüzen buzlu kartlar.
 
-Finder ve Windows temaları sistemin açık/koyu ayarını izler. Tema **Görünüm › Tema**'dan ya da Dosyalar Ayarları'ndan değişir.
+Dört tema da sistemin açık/koyu ayarını izler. Sağ tık menüsü, Bilgi al, iletişim pencereleri ve Dosyalar Ayarları da temaya uyar. Tema **Görünüm › Tema**'dan ya da Dosyalar Ayarları'ndan değişir.
 
 ### Görünümler
 
@@ -57,9 +57,36 @@ Finder ve Windows temaları sistemin açık/koyu ayarını izler. Tema **Görün
 
 <div align="center"><img src="assets/files-icons.png" alt="Renkli klasörler ve simge boyutu kaydırıcısıyla simge görünümü" width="760"></div>
 
-**⇧⌘P** sağda Windows Gezgini'ndeki gibi bir önizleme bölmesi açar: seçili dosyanın Hızlı Bakış'ı, boyutu, türü ve tarihleri. **Space** tam Hızlı Bakış'ı açar.
+**⇧⌘P** sağda Windows Gezgini'ndeki gibi bir önizleme bölmesi açar: seçili dosyanın Hızlı Bakış'ı, boyutu, türü ve tarihleri. **Space** daha büyük bir önizleme açar.
 
 <div align="center"><img src="assets/files-columns.png" alt="Finder temasında sütun görünümü, önizleme bölmesi açık" width="760"></div>
+
+### Önizleme (Space)
+
+**Space** (ya da **⌘Y**) Hızlı Bakış yerine Missing'in kendi önizleme penceresini açar; görünüşü temaya uyar.
+
+- Dosyanın boyutunu, türünü ve tarihini gösterir; açma, paylaşma ve önceki / sonraki dosyaya geçme düğmeleri var.
+- Odağı almaz: ok tuşları seçimi oynatmaya devam eder, başka bir dosyaya tek tıklayınca onu önizler.
+- Fotoğraf ve videolar kendi oranlarında ekranı doldurur; telefon fotoğrafları doğru yönde açılır.
+- Ses ve video dosyalarında editörü açan bir makas düğmesi çıkar.
+
+### Ses ve video editörü
+
+Ses ve videoyu başka uygulama olmadan kes, kırp, birleştir. Önizlemedeki makasa tıkla ya da dosyaya sağ tıklayıp **Hızlı işlemler › Düzenle…**'yi seç. Her dosya, Dosyalar'ın temasında kendi penceresinde açılır.
+
+- **Zaman çizelgesi:** parçalar küçük resim ve dalga biçimiyle görünür. Kaydırıcı, izleme dörtgeninde kıstırma ya da **⌘+ / ⌘−** ile yakınlaşır.
+- **Aralık seç:** bir parçanın üstünde sürükle ya da oynatma başında **I** ve **O**'ya bas. **Sil** (**⌫**) aralığı çıkarır; **Kırp** yalnız aralığı bırakır.
+- **Böl** (**S**) oynatma başından keser. Parçanın kenarını sürükleyince kısalır; üst şeridinden sürükleyince yeri değişir.
+- **Başa ekle / Sona ekle** başka ses ya da video dosyası ekler. Dosyalar'dan ya da Finder'dan zaman çizelgesine bırakabilirsin de.
+- **Space** oynatır ve duraklatır, **← / →** bir kare gider (**⇧** ile bir saniye), **⌘Z / ⇧⌘Z** geri alır ve yineler.
+
+**Kaydet** (**⌘S**) üç seçenek sunar:
+
+- **Üstüne yaz:** asıl dosya Çöp Sepeti'ne gider, yani istersen geri alabilirsin.
+- **Yeni dosya olarak kaydet:** asıl dosyanın yanına "Ad (düzenlendi)" adıyla.
+- **Farklı biçimde dışa aktar:** MP4 (H.264 ya da HEVC), MOV, M4A, WAV, AIFF ya da CAF, seçtiğin klasöre.
+
+Parçalar kendi biçiminde kalınca sonuç yeniden kodlanmadan yazılır, kalite değişmez. MP3 ya da FLAC gibi Missing'in geri yazamadığı dosyalar da düzenlenebilir; bunlar M4A ya da WAV olarak, videolar MP4 olarak kaydedilir.
 
 ### Sekmeler ve adres çubuğu
 
@@ -84,8 +111,9 @@ Finder ve Windows temaları sistemin açık/koyu ayarını izler. Tema **Görün
 - **Sık kullanılanlar:** Finder'ın kenar çubuğuyla iki yönlü eşitlenir. Buraya eklediğin klasör Finder'da da çıkar, tersi de geçerli.
 - **Konumlar:** diskler (çıkarma düğmesiyle), iCloud Drive, Google Drive, OneDrive, Dropbox gibi bulut klasörleri, ana klasör, AirDrop, Ağ ve Çöp Sepeti.
 - **Etiketler:** Finder'ın etiketleri renkleriyle. Birine tıklayınca o etiketi taşıyan bütün dosyalar listelenir.
+- **Son Kullanılanlar, Çöp Sepeti ve Ağ** Dosyalar'ın içinde açılır. Çöp Sepeti kendi sayfasından boşaltılır; Ağ sayfası dosya paylaşan bilgisayarları bulur ve **Sunucuya bağlan** sunar.
 
-Bir öğeye sağ tıklayıp **Kenar çubuğundan gizle**'yi seç ya da nelerin görüneceğini **Dosyalar Ayarları**'ndan (**⌘,**) belirle.
+Bir öğeye sağ tıklayıp **Kenar çubuğundan gizle**'yi seç ya da nelerin görüneceğini **Dosyalar Ayarları**'ndan (**⌘,**) belirle. Bölümleri sıralamak için başlığı sürükle ya da başlığa sağ tıklayıp **Yukarı taşı** / **Aşağı taşı**'yı seç. **Ayarlar › Dosyalar › Kenar çubuğu düzeni**'nden de başlıkları, sıralarını ve klasörlerini düzenleyebilirsin.
 
 ### Renkler ve yeni klasör
 
@@ -96,6 +124,8 @@ Bir öğeye sağ tıklayıp **Kenar çubuğundan gizle**'yi seç ya da nelerin g
 ### Kopyalama ve taşıma
 
 Klasörler, sekmeler, kenar çubuğu ve diğer uygulamalar arasında sürükle-bırak. Aynı diske bırakınca taşınır, başka diske bırakınca kopyalanır (her zaman kopyalamak için **⌥**'ye basılı tut). **⌘C / ⌘V** kopyalar, **⌥⌘V** kopyalananları buraya taşır.
+
+Sürüklerken imlecin altındaki klasörün ağzı açılır ve temanın rengini alır. Üstünde biraz bekleyince klasör açılır, daha içeriye bırakabilirsin.
 
 Süren her kopyalama sağ altta bir kartta görünür: ne kadarı gitti, ne kadarı kaldı, tahmini süre. **×** kopyalamayı iptal eder ve yarım kalan dosyayı siler. Durum çubuğu toplamı gösterir.
 
@@ -109,9 +139,21 @@ Arama kutusu (**⌘F**) önce o klasörü anında süzer, ardından ⌘Space ara
 
 **Return** yeniden adlandırır, **⌘D** çoğaltır, **⌘⌫** çöpe atar, **⌘Z** hepsini geri alır. **⌥⌘C** yolu kopyalar, **⇧⌘.** gizli dosyaları gösterir. Sağ tıkta Birlikte Aç, Paylaş, Yolu kopyala ve Terminal'de aç var.
 
+Simge ve liste görünümünde bir adın ilk harflerini yazınca o öğe seçilir. Başka bir uygulama öndeyken de tek tıklama çalışır.
+
+### Sağ tık menüsü
+
+Dosyalar'ın kendi sağ tık menüsü var: simgeler, kısayollar ve yana açılan alt menüler.
+
+- **Hızlı işlemler** dosya türüne göre: görseli döndür, dönüştür ya da boyutlandır, görsellerden PDF oluştur, PDF'leri birleştir, videoyu dönüştür ya da küçült, sesi çıkar ya da dönüştür; ses ve video için **Düzenle…**.
+- **Bilgi al (⌘I)**, **Sıkıştır** / **Buraya aç**, **Takma ad oluştur**, **Paket içeriğini göster** ve iCloud için **Şimdi indir** / **İndirileni kaldır**.
+- **Paylaş**, AirDrop, Mail, Mesajlar ve diğer servisleri temaya uyan bir menüde açar.
+
 ### Dock'ta
 
-Dosyalar penceresi açıkken Missing, Dock'ta Finder gibi mavi klasör simgesiyle görünür. Ayarlar'da **Dock'a ekle**'ye bas ya da simgeye sağ tıklayıp Seçenekler › **Dock'ta Tut**'u seç; simgeye tıklayınca pencere her zaman açılır.
+Dosyalar penceresi açıkken Missing, Dock'ta Finder gibi mavi klasör simgesiyle görünür. Ayarlar'da **Dock'a ekle**'ye bas ya da simgeye sağ tıklayıp Seçenekler › **Dock'ta Tut**'u seç; simgeye tıklayınca pencere her zaman açılır. Simgeye sağ tıklayınca **Son klasörler** çıkar.
+
+**Ayarlar › Dosyalar**'da başta kapalı iki seçenek var: **Dock'taki Finder** açıkken Dock'ta Finder'a tıklayınca Dosyalar açılır (gerçek Finder için ⌥'ye basılı tut); **Finder yerine Dosyalar** açıkken başka uygulamalardaki "Finder'da göster" ve masaüstündeki klasörler Dosyalar'da açılır.
 
 ## Çentikten ekran bölme
 
@@ -119,11 +161,21 @@ Dosyalar penceresi açıkken Missing, Dock'ta Finder gibi mavi klasör simgesiyl
 
 Bir pencereyi ekranın üstüne sürükle. Çentikli MacBook'larda çentik, iki yanında düzenler olan bir adaya dönüşür. En çok kullandığın iki düzen çentiğin hemen altında durur ve kullandıkça güncellenir. Pencereyi bir bölmeye bırak, oraya yerleşsin. Ya da **⌘<** ile düzen seç: pencere pencere doldur ya da bölmeleri o ekrandaki son kullanılan pencerelerle Missing doldursun (Ayarlar › Ekran).
 
+## Tek tuşla ses çıkışı
+
+<div align="center"><img src="assets/audio.png" alt="Ses çıkışı değiştirme" width="640"></div>
+
+**⌘** basılıyken **⇧**'ye dokun, sıradaki çıkışa geç: hoparlör → AirPods → ekran. Uygulamaya göre cihaz ata; o uygulama öne gelince ses ona geçer.
+
 ## Basit ekolayzır
 
 <div align="center"><img src="assets/settings-eq.png" alt="Ekolayzır" width="560"></div>
 
 Sistemin bütün sesi için 32 Hz – 16 kHz arası 10 bant (±12 dB) ve ön kazanç; hazır ayarlar: Düz, Bas, Tiz, Konuşma, Gece. macOS'un kendi ses yakalama özelliğini kullanır (macOS 14.2+): sürücü yok, ek uygulama yok. Çıkış cihazını değiştirince seninle gelir. İlk seferde macOS bir kez ses kaydı izni sorar; hiçbir şey kaydedilmez.
+
+### Ses dengeleyici
+
+Kısık sesi açar, yüksek sesi kısar; Mac'ten çıkan her ses seçtiğin **Hedef seviye**'de çalar. Sessiz anlarda ve cümle aralarında ses açılmaz, ani yüksek sesler taşmadan kısılır. **Ayarlar › Hızlı Özellikler**'den ya da menü çubuğu panelinden açılır; ekolayzırla aynı ses yolunu kullanır.
 
 ## LinearMouse ve Mos'suz fare
 
@@ -151,12 +203,6 @@ Ekranın kapanmasını ve Mac'in uyumasını engelle: **süresiz** ya da **15 da
 - **Çantada güvenli:** kapağı kapatınca Mac yine uyur ve uyanık tut kendiliğinden kapanır, sonradan devam etmez. Yönetici şifresi gerekmez.
 - **İstersen kapak kapalıyken de:** isteğe bağlı bir ayarla Mac kapak kapalıyken çalışmaya devam eder (bir kez yönetici şifresi ister). Şarjdan çekince, harici ekranı çıkarınca, süre sınırı dolunca ya da pil azalınca yine uyur.
 
-## Tek tuşla ses çıkışı
-
-<div align="center"><img src="assets/audio.png" alt="Ses çıkışı değiştirme" width="640"></div>
-
-**⌘** basılıyken **⇧**'ye dokun, sıradaki çıkışa geç: hoparlör → AirPods → ekran. Uygulamaya göre cihaz ata; o uygulama öne gelince ses ona geçer.
-
 ## Gerisi bir tık uzakta
 
 <div align="center"><img src="assets/menu.png" alt="Menü çubuğu paneli" width="560"></div>
@@ -164,7 +210,7 @@ Ekranın kapanmasını ve Mac'in uyumasını engelle: **süresiz** ya da **15 da
 Menü çubuğundaki yaprağa tıkla: üstte ses çıkışı, altında hızlı eylemler (ekranı böl, ekran görüntüsü, kayıt, kaydırmalı görüntü) ve harici ekranlar için parlaklık kaydırıcıları.
 
 - **Ekran görüntüsü ve kayıt:** ⌘⇧3 bulunduğun ekran, ⌘⇧4 alan, ⌘⇧6 kaydırmalı sayfa, ⌘⇧5 MP4 kayıt. ⌘⇧5 paletinden **sadece bir pencereyi** çekebilir ya da kaydedebilirsin; kendi kayıt klasörüyle.
-- **Hızlı özellikler:** ekolayzır, Dosyalar penceresi, gruplu ⌘Tab görünümü, Finder'da fare tuşlarıyla geri/ileri, dosya sürüklerken Dock'ta anında açılma.
+- **Hızlı özellikler:** ekolayzır, ses dengeleyici, Dosyalar penceresi, gruplu ⌘Tab görünümü, Finder'da fare tuşlarıyla geri/ileri, dosya sürüklerken Dock'ta anında açılma.
 
 ## Sadece kullandıkların
 
@@ -190,6 +236,8 @@ Menü çubuğundaki yaprağa tıkla: üstte ses çıkışı, altında hızlı ey
 | ⌘⇧3 · ⌘⇧4 · ⌘⇧5 · ⌘⇧6 | Ekran · alan · kayıt · kaydırmalı görüntü |
 | ⌘Space (Finder'da) | Dosya ara |
 | ⌘" (Dosyalar'da) | Sekme değiştir |
+| Space (Dosyalar'da) | Önizleme |
+| Space · S · I / O · ⌫ · ⌘S (editörde) | Oynat · böl · aralık başı / sonu · çıkar · kaydet |
 
 ## Sende ne eksik?
 
