@@ -76,7 +76,7 @@ import Quartz
         table.allowsMultipleSelection = true
         table.allowsEmptySelection = true
         table.allowsColumnReordering = true
-        table.allowsTypeSelect = true
+        table.allowsTypeSelect = false   // kendi tuşla seçmemiz (typeSelect) ızgarayla aynı davranır
         table.columnAutoresizingStyle = .firstColumnOnlyAutoresizingStyle
         table.focusRingType = .none
         table.dataSource = self
@@ -402,6 +402,33 @@ import Quartz
         pushSelection()
     }
 
+    // MARK: Tuşlayarak seçme (Finder gibi: "m", "mi", "mis"…)
+
+    private var typeBuffer = ""
+    private var typeTime: TimeInterval = 0
+
+    /// Yazılmakta olan bir arama var mı (boşluk o zaman Quick Look değil, aramanın parçası)
+    var isTypeSelecting: Bool { !typeBuffer.isEmpty && ProcessInfo.processInfo.systemUptime - typeTime < 1 }
+
+    /// Harf / rakam tuşlarıyla adı öyle başlayan ilk öğeyi seçer. Tuşu kullandıysa true döner.
+    func typeSelect(_ e: NSEvent) -> Bool {
+        let mods = e.modifierFlags.intersection([.command, .option, .control])
+        guard mods.isEmpty, let chars = e.characters, !chars.isEmpty,
+              chars.unicodeScalars.allSatisfy({ !CharacterSet.controlCharacters.contains($0) && ($0.value < 0xE000 || $0.value > 0xF8FF) })
+        else { return false }
+        if !isTypeSelecting { typeBuffer = "" }
+        if typeBuffer.isEmpty && chars.trimmingCharacters(in: .whitespaces).isEmpty { return false }
+        typeBuffer += chars
+        typeTime = ProcessInfo.processInfo.systemUptime
+        let key = typeBuffer
+        let tr = Locale(identifier: "tr_TR")
+        let match = items.firstIndex {
+            $0.name.range(of: key, options: [.anchored, .caseInsensitive, .diacriticInsensitive], locale: tr) != nil
+        }
+        if let m = match { select([items[m].url], scroll: true) }
+        return true
+    }
+
     private func pushSelection() {
         guard let tab else { return }
         let s = selectedURLs
@@ -518,7 +545,7 @@ import Quartz
     }
 
     func tableView(_ tv: NSTableView, typeSelectStringFor column: NSTableColumn?, row: Int) -> String? {
-        column?.identifier == Self.colName ? item(atRow: row)?.name : nil
+        item(atRow: row)?.name
     }
 
     // MARK: Liste: sürükle-bırak
@@ -1047,10 +1074,14 @@ final class FilesTableView: FilesHoverTable {
         switch e.keyCode {
         case 36 where mods.isEmpty, 76 where mods.isEmpty:   // Return: yeniden adlandır
             if selectedRowIndexes.count == 1 { owner?.owner?.renameSelection(nil) } else { NSSound.beep() }
+        case 49 where mods.isEmpty && owner?.isTypeSelecting == true:
+            _ = owner?.typeSelect(e)
         case 49 where mods.isEmpty:   // Boşluk: Quick Look
             owner?.owner?.toggleQuickLook(nil)
-        default:
+        case 123, 124, 125, 126, 115, 119, 116, 121, 48, 53:   // oklar, Home/End, Page, Tab, Esc
             super.keyDown(with: e)
+        default:
+            if owner?.typeSelect(e) != true { super.keyDown(with: e) }
         }
     }
 
@@ -1251,12 +1282,16 @@ final class FilesCollectionView: NSCollectionView {
         switch e.keyCode {
         case 36 where mods.isEmpty, 76 where mods.isEmpty:
             if selectionIndexPaths.count == 1 { owner?.owner?.renameSelection(nil) } else { NSSound.beep() }
+        case 49 where mods.isEmpty && owner?.isTypeSelecting == true:
+            _ = owner?.typeSelect(e)
         case 49 where mods.isEmpty:
             owner?.owner?.toggleQuickLook(nil)
         case 123 where mods.isEmpty || mods == .shift, 124 where mods.isEmpty || mods == .shift:
             stepLinear(by: e.keyCode == 123 ? -1 : 1, extend: mods == .shift)
-        default:
+        case 125, 126, 115, 119, 116, 121, 48, 53:   // oklar, Home/End, Page, Tab, Esc
             super.keyDown(with: e)
+        default:
+            if owner?.typeSelect(e) != true { super.keyDown(with: e) }
         }
     }
 

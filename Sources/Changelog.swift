@@ -16,6 +16,14 @@ struct ChangelogEntry {
 
 enum Changelog {
     static let entries: [ChangelogEntry] = [
+        ChangelogEntry(version: "4.3.24", items: [
+            ("Chrome'a ya da Chrome'dan geçerken ⌘Tab artık takılmıyor: Chrome'un \"Sayfalar geri yüklensin mi?\" gibi balonları pencere sayılmıyor",
+             "⌘Tab no longer stutters when switching to or from Chrome: Chrome's pop-up bubbles (like \"Restore pages?\") are no longer listed as windows"),
+            ("Dosyalar'da tuşlayarak seçme: \"m\", \"mi\", \"mis\" yazınca adı öyle başlayan ilk öğe seçilir (simge ve liste görünümü)",
+             "Type to select in Files: typing \"m\", \"mi\", \"mis\" selects the first item whose name starts with it, in icon and list views"),
+            ("Dosyalar'ın sağ tık menüsü ilk tıklamada çalışıyor (iki tıklama gerekiyordu)",
+             "Files' right-click menu now responds to the first click (it needed two)"),
+        ]),
         ChangelogEntry(version: "4.3.23", items: [
             ("Missing artık kendi sertifikasıyla imzalanıyor (Missing Code Signing). 4.3.22 ve öncesinden geçerken bir kere elle indirmek gerekir; macOS Missing'in izinlerini (Erişilebilirlik, Ekran Kaydı…) bir kez yeniden ister",
              "Missing is now signed with its own certificate (Missing Code Signing). Coming from 4.3.22 or earlier needs one manual download, and macOS asks for Missing's permissions (Accessibility, Screen Recording…) once more"),

@@ -50,7 +50,7 @@ struct TagColorMenuRow: View {
     /// Menüye eklenecek öğe
     @MainActor static func menuItem(for urls: [URL], changed: @escaping () -> Void) -> NSMenuItem {
         let item = NSMenuItem()
-        let host = NSHostingView(rootView: AnyView(EmptyView()))
+        let host = FilesMenuHostingView(rootView: AnyView(EmptyView()))   // ilk tıklama da renge ulaşsın
         host.rootView = AnyView(TagColorMenuRow(urls: urls) { [weak item] in
             item?.menu?.cancelTracking()
             changed()

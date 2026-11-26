@@ -400,7 +400,9 @@ enum AX {
         // Takılan uygulama switcher'ı yavaşlatmasın. Kayıtlı uygulamalara biraz daha süre tanınır;
         // yine de cevap gelmezse pencereler kayıttan gelir.
         AXUIElementSetMessagingTimeout(axApp, info.deep ? 0.15 : 0.08)
-        let wins: [AXUIElement] = attr(axApp, kAXWindowsAttribute) ?? []
+        var winsRef: CFTypeRef?
+        let winsErr = AXUIElementCopyAttributeValue(axApp, kAXWindowsAttribute as CFString, &winsRef)
+        let wins: [AXUIElement] = (winsRef as? [AXUIElement]) ?? []
         var result: [(Int, Item)] = []
 
         // Canlı liste + (kayıtlı uygulamalarda) kayıttaki, hâlâ var olan diğer pencereler
@@ -441,24 +443,20 @@ enum AX {
                                        system: !info.isRegular)))
         }
         if info.deep { WindowRegistry.shared.remember(info.pid, good) }
-        // Tarayıcının şu an ekranda duran normal bir penceresi AX ile bulunamadıysa (Chrome yoğunken geç
-        // cevap verir ya da hiç vermez) pencere sunucusundaki bilgiyle yine de listeye al. Kayıt onu önceden
-        // "pencere değil" diye ayıklamış olsa bile: ekranda görünen, makul boyutta bir pencere gerçektir.
-        if info.deep && info.isRegular {
-            let listed = Set(result.map { $0.1.wid })
-            let ignored = WindowRegistry.shared.ignoredWindows(info.pid)
-            var added = 0, wasIgnored = 0
-            for (wid, w) in info.expected where z[wid] != nil && !listed.contains(wid) {
+        // Tarayıcı AX'e hiç cevap vermiyorsa (takılmış Chrome "erişim kapalı" der) ekrandaki pencerelerini
+        // pencere sunucusundaki bilgiyle yine de listeye al. AX çalışıyorsa buna gerek yok: o zaman listede
+        // olmayan ekrandaki pencereler "Sayfalar geri yüklensin mi?" gibi balonlardır ve kayıt onları
+        // haklı olarak ayıklamıştır (listeye girince ⌘Tab o balona geçmeye çalışıp takılıyordu).
+        if info.deep && info.isRegular && (winsErr != .success || wins.isEmpty) && result.isEmpty {
+            var added = 0
+            for (wid, w) in info.expected where z[wid] != nil {
                 result.append((z[wid]!, Item(app: app, window: nil, wid: wid, title: w.title.isEmpty ? info.name : w.title,
                                              minimized: false, aspect: w.aspect)))
                 added += 1
-                if ignored.contains(wid) { wasIgnored += 1 }
             }
             if added > 0 {
                 let name = info.name
-                var probe: CFTypeRef?
-                let axErr = AXUIElementCopyAttributeValue(axApp, kAXWindowsAttribute as CFString, &probe).rawValue
-                perfLog.notice("scan: \(name, privacy: .public) AX gave \(wins.count) windows (err \(axErr)), \(cands.count) candidates, \(added) added from window server (\(wasIgnored) were marked not-a-window)")
+                perfLog.notice("scan: \(name, privacy: .public) AX gave no windows (err \(winsErr.rawValue)), \(added) added from window server")
             }
         }
         // Pencere sunucusunda olup AX ile henüz bulunamayan pencereler (ör. az önce başka masaüstünde

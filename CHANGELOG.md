@@ -2,6 +2,12 @@
 
 Also shown in the app: **Settings › Versions**.
 
+## 4.3.24
+
+- ⌘Tab no longer stutters when switching to or from Chrome: Chrome's pop-up bubbles (like "Restore pages?") are no longer listed as windows
+- Type to select in Files: typing "m", "mi", "mis" selects the first item whose name starts with it, in icon and list views
+- Files' right-click menu now responds to the first click (it needed two)
+
 ## 4.3.23
 
 - Missing is now signed with its own certificate (Missing Code Signing). Coming from 4.3.22 or earlier needs one manual download, and macOS asks for Missing's permissions (Accessibility, Screen Recording…) once more

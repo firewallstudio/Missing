@@ -59,7 +59,7 @@ import SwiftUI
         while openItems.count > level { openItems.removeLast() }
 
         let view = FilesMenuList(items: menu.items, level: level, controller: self)
-        let host = NSHostingView(rootView: view)
+        let host = FilesMenuHostingView(rootView: view)
         host.frame.size = host.fittingSize
         let size = host.fittingSize
         let panel = FilesMenuPanel(contentRect: NSRect(origin: .zero, size: size),
@@ -175,6 +175,12 @@ import SwiftUI
 
 private final class FilesMenuPanel: NSPanel {
     override var canBecomeKey: Bool { true }
+}
+
+/// Panel anahtar pencere değilken gelen ilk tıklama da satıra ulaşsın: NSHostingView varsayılan olarak
+/// ilk tıklamayı pencereyi öne almak için harcıyordu, menüde bir şeyi seçmek için iki kez tıklamak gerekiyordu.
+final class FilesMenuHostingView<Content: View>: NSHostingView<Content> {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 }
 
 // MARK: Görünüm
