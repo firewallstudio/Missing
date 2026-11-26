@@ -50,7 +50,7 @@ compile() {   # $1 = mimari
     -framework AppKit -framework SwiftUI -framework Combine \
     -framework ApplicationServices -framework ServiceManagement \
     -framework CoreAudio -framework IOKit \
-    -framework AVFoundation -framework CoreMedia -framework CoreVideo \
+    -framework AVFoundation -framework AVKit -framework CoreMedia -framework CoreVideo \
     -framework ImageIO -framework UniformTypeIdentifiers -framework QuickLookThumbnailing -framework Security -framework Carbon -framework Quartz \
     -Xlinker -weak_framework -Xlinker ScreenCaptureKit \
     Sources/*.swift -o "$BUILD/$EXE-$1" 2> "$BUILD/errors-$1.txt"

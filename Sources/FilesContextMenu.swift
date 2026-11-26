@@ -50,6 +50,9 @@ import SwiftUI
     }
 
     var isOpen: Bool { !panels.isEmpty }
+    /// Menünün dışına tıklanıp kapandığı son an (systemUptime): menüyü açan düğmeye basış onu kapattıysa
+    /// bırakışta yeniden açılmasın (Esc ya da seçimle kapanış sayılmaz)
+    private(set) var closedByClickAt: TimeInterval = 0
 
     /// Menüyü ekrandaki bir noktada aç (sol üst köşe orada olur; sığmazsa yukarı / sola kayar)
     private var lastShow: (time: TimeInterval, point: NSPoint)?
@@ -180,13 +183,20 @@ import SwiftUI
 
     // MARK: Kapanma
 
+    /// Uygulama içinde menünün dışına fare inişi
+    func closeForOutsideClick() {
+        guard isOpen else { return }
+        closedByClickAt = ProcessInfo.processInfo.systemUptime
+        close()
+    }
+
     private func installMonitors() {
         let ours: (NSEvent) -> Bool = { [weak self] e in
             guard let self, let w = e.window else { return false }
             return self.panels.contains { $0 === w }
         }
         monitors.append(NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]) { [weak self] e in
-            MainActor.assumeIsolated { if !ours(e) { self?.close() } }
+            MainActor.assumeIsolated { if !ours(e) { self?.closeForOutsideClick() } }
             return e
         } as Any)
         monitors.append(NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in

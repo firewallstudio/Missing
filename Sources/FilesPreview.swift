@@ -1,4 +1,6 @@
 import AppKit
+import AVFoundation
+import AVKit
 import Combine
 import Quartz
 import SwiftUI
@@ -15,6 +17,11 @@ import UniformTypeIdentifiers
 // finder:  Quick Look paneli gibi; koyuda koyu yarı saydam araç şeridi, açıkta açık malzeme, sistem düğmeleri
 // windows: Windows 11 penceresi; düz #202020 / #F3F3F3 yüzey, başlık şeridi, köşe 8, vurgu düğmesi köşe 4
 // glass:   ince bulanık cam, köşe 14, açık kenar, mor vurgu
+//
+// Fotoğraf ve videolar kendi oranlarında: içerik alanı tam olarak ortamın oranında, pencere ekranın görünür
+// alanına (20 pt pay) sığacak kadar büyük; küçük resimler en çok 3 katına büyür. Resimleri (EXIF yönü, GIF
+// canlandırması) NSImageView, videoları AVPlayerView çizer; geri kalanı (PDF, metin, ses, belgeler) QLPreviewView.
+// Dar pencerede başlık sıkışır: önce "… ile Aç" simgeye iner, sonra ikincil düğmeler ve bilgi satırı gizlenir.
 
 // MARK: Öğe bilgisi
 
@@ -33,8 +40,15 @@ struct FilesPreviewInfo {
     let natural: NSSize?
     /// Varsayılan uygulama
     let app: URL?
+    /// Kendi çizdiğimiz ortam: içerik alanı bunun oranında olur
+    let media: Media
+    /// Ortamın (yönü uygulanmış) piksel boyu; video için yüklenene kadar nil
+    let mediaPixels: NSSize?
 
-    init(url: URL) {
+    enum Media { case none, image, animated, video }
+
+    /// `videoPixels`: daha önce yüklenmiş video boyu (.zero: AVFoundation açamadı, Quick Look'a kalır)
+    init(url: URL, videoPixels: NSSize? = nil) {
         self.url = url
         let v = try? url.resourceValues(forKeys: [.localizedNameKey, .localizedTypeDescriptionKey, .isDirectoryKey, .isPackageKey,
                                                   .fileSizeKey, .contentModificationDateKey, .contentTypeKey])
@@ -51,11 +65,26 @@ struct FilesPreviewInfo {
 
         var dims: String?
         var natural: NSSize?
+        var media = Media.none
+        var mediaPixels: NSSize?
         if renderable, let t = type {
-            if t.conforms(to: .image), let px = Self.imagePixels(url) {
+            if t.conforms(to: .image), let probe = Self.imageProbe(url) {
+                let px = probe.pixels
                 dims = "\(Int(px.width)) × \(Int(px.height))"
                 let scale = NSScreen.main?.backingScaleFactor ?? 2
                 natural = NSSize(width: px.width / scale, height: px.height / scale)
+                media = t.conforms(to: .gif) && probe.frames > 1 ? .animated : .image
+                mediaPixels = px
+            } else if t.conforms(to: .movie), videoPixels != .zero {
+                media = .video
+                mediaPixels = videoPixels
+                if let px = videoPixels {
+                    dims = "\(Int(px.width)) × \(Int(px.height))"
+                    let scale = NSScreen.main?.backingScaleFactor ?? 2
+                    natural = NSSize(width: px.width / scale, height: px.height / scale)
+                } else {
+                    natural = NSSize(width: 960, height: 540)   // geçici: boy yüklenince yeniden sığdırılır
+                }
             } else if t.conforms(to: .pdf), let doc = CGPDFDocument(url as CFURL), let page = doc.page(at: 1) {
                 let box = page.getBoxRect(.mediaBox)
                 let turned = page.rotationAngle % 180 != 0
@@ -72,6 +101,14 @@ struct FilesPreviewInfo {
         }
         self.dims = dims
         self.natural = natural
+        self.media = media
+        self.mediaPixels = mediaPixels
+    }
+
+    /// Ortamın oranı (genişlik / yükseklik); ortam değilse ya da boyu bilinmiyorsa nil
+    var mediaAspect: CGFloat? {
+        guard media != .none, let m = mediaPixels, m.width > 0, m.height > 0 else { return nil }
+        return m.width / m.height
     }
 
     /// QLPreviewView'in anlamlı bir önizleme çizdiği türler; geri kalanı (klasör, uygulama, arşiv…) temalı kartta gösterilir
@@ -88,13 +125,16 @@ struct FilesPreviewInfo {
     }
 
     /// Resmin piksel boyu (dosyanın yalnız başlığı okunur); EXIF dönüşü hesaba katılır
-    static func imagePixels(_ url: URL) -> NSSize? {
+    static func imagePixels(_ url: URL) -> NSSize? { imageProbe(url)?.pixels }
+
+    /// Piksel boyu (EXIF yönü uygulanmış: 5-8 yan yatık) ve kare sayısı (GIF canlandırması)
+    static func imageProbe(_ url: URL) -> (pixels: NSSize, frames: Int)? {
         guard let src = CGImageSourceCreateWithURL(url as CFURL, nil),
               let p = CGImageSourceCopyPropertiesAtIndex(src, 0, nil) as? [CFString: Any],
               let w = p[kCGImagePropertyPixelWidth] as? Int, let h = p[kCGImagePropertyPixelHeight] as? Int,
               w > 0, h > 0 else { return nil }
         let o = p[kCGImagePropertyOrientation] as? Int ?? 1
-        return o >= 5 ? NSSize(width: h, height: w) : NSSize(width: w, height: h)
+        return (o >= 5 ? NSSize(width: h, height: w) : NSSize(width: w, height: h), CGImageSourceGetCount(src))
     }
 
     var sizeText: String? { size.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) } }
@@ -116,8 +156,16 @@ struct FilesPreviewInfo {
     @Published private(set) var itemCount: Int?
     @Published private(set) var folderBytes: Int64?
     @Published var zoomed = false
+    /// Yüklenmiş video boyları (yönü uygulanmış piksel; .zero: açılamadı)
+    private(set) var videoPixels: [String: NSSize] = [:]
 
     var current: URL? { urls.indices.contains(index) ? urls[index] : nil }
+
+    /// Video boyu yüklendi: önbelleğe al, gösterilen öğeyse bilgisini yenile
+    func setVideoPixels(_ px: NSSize, for url: URL) {
+        videoPixels[url.fileKey] = px
+        if current?.fileKey == url.fileKey { info = FilesPreviewInfo(url: url, videoPixels: px) }
+    }
 
     func set(urls: [URL], index: Int) {
         self.urls = urls
@@ -137,7 +185,7 @@ struct FilesPreviewInfo {
             itemCount = nil
             folderBytes = nil
         }
-        let i = FilesPreviewInfo(url: u)
+        let i = FilesPreviewInfo(url: u, videoPixels: videoPixels[u.fileKey])
         info = i
         guard i.isFolder else { return }
         let key = u.fileKey
@@ -179,6 +227,8 @@ struct FilesPreviewActions {
     var previous: () -> Void = {}
     var next: () -> Void = {}
     var zoom: () -> Void = {}
+    /// Paylaş düğmesi; düğmenin pencere içindeki (üstten) çerçevesiyle
+    var share: (NSRect) -> Void = { _ in }
 }
 
 // MARK: Ölçüler
@@ -201,8 +251,14 @@ enum FilesPreviewLayout {
         }
     }
 
-    /// Başlıktaki düğmeler sığsın diye
+    /// Ortam olmayan öğelerde en dar pencere (tam başlık sığsın)
     static let minWidth: CGFloat = 540
+    /// Fotoğraf / videoda en dar pencere: başlık en sıkışık hâliyle sığar; daha dar ortam yanlardan boşluklu gösterilir
+    static let mediaMinWidth: CGFloat = 280
+    /// Ortamın ekran kenarına uzaklığı
+    static let mediaMargin: CGFloat = 20
+    /// Küçük resimler en çok bu kadar büyütülür
+    static let maxUpscale: CGFloat = 3
     static let minContentHeight: CGFloat = 240
     /// Önizlenemeyen öğe / klasör kartının içerik boyu
     static let cardSize = NSSize(width: 560, height: 400)
@@ -238,10 +294,37 @@ final class FilesPreviewQLView: QLPreviewView {
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 }
 
-/// Pencerenin içeriği: altta temalı çerçeve (SwiftUI), içerik alanında QLPreviewView
+/// Resim: anahtar olmayan pencerede ilk tık da gelsin; tıklar pencereye (çift tık: aç) geçer
+final class FilesPreviewImageView: NSImageView {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+    override var mouseDownCanMoveWindow: Bool { true }
+    override func mouseDown(with event: NSEvent) { nextResponder?.mouseDown(with: event) }
+}
+
+/// Ortamın kırpma kabı: tıklamaları kendisi tutmaz (başlığın altına taşan payı düğmeleri örtmesin)
+final class FilesPreviewClipView: NSView {
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        let v = super.hitTest(point)
+        return v === self ? nil : v
+    }
+}
+
+/// Video: AVPlayerView, ilk tık denetimlere gitsin
+final class FilesPreviewPlayerView: AVPlayerView {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+}
+
+/// Pencerenin içeriği: altta temalı çerçeve (SwiftUI), içerik alanında QLPreviewView ya da kendi resim / video görünümümüz
 final class FilesPreviewRootView: NSView {
     let chrome: NSView
     let ql: QLPreviewView
+    /// Resim ve videonun kırpma kabı: alt köşeler pencereninkiyle aynı yuvarlak. Üstte köşe yarıçapı kadar başlığın
+    /// altına taşar ki üst köşelerin yuvarlağı ortamı kesmesin (maskedCorners'a güvenmeden)
+    let mediaClip = FilesPreviewClipView()
+    let imageView = FilesPreviewImageView()
+    let playerView = FilesPreviewPlayerView()
+    /// Gösterilen ortamın oranı; nil: ortam yok (QL / kart)
+    var mediaAspect: CGFloat? { didSet { if mediaAspect != oldValue { needsLayout = true } } }
 
     init(model: FilesPreviewModel, actions: FilesPreviewActions) {
         chrome = FilesPreviewHostingView(rootView: FilesThemedRoot { _ in FilesPreviewChrome(model: model, actions: actions) })
@@ -250,12 +333,28 @@ final class FilesPreviewRootView: NSView {
         wantsLayer = true
         layer?.masksToBounds = true
         ql.shouldCloseWithWindow = false
-        ql.autostarts = true          // Hızlı Bakış gibi: video / ses açılınca oynar
+        ql.autostarts = true          // Hızlı Bakış gibi: ses / belge içindeki ortam açılınca oynar
         ql.wantsLayer = true
         ql.layer?.masksToBounds = true
         ql.layer?.maskedCorners = [.layerMinXMinYCorner, .layerMaxXMinYCorner]
+        mediaClip.wantsLayer = true
+        mediaClip.layer?.masksToBounds = true
+        mediaClip.isHidden = true
+        // Oran pencereyle zaten aynı: eksenleri bağımsız ölçekle ki kıl payı yuvarlamada bile boşluk kalmasın
+        imageView.imageScaling = .scaleAxesIndependently
+        imageView.imageFrameStyle = .none
+        imageView.animates = true
+        imageView.isEditable = false
+        imageView.wantsLayer = true
+        playerView.controlsStyle = .floating
+        playerView.showsFullScreenToggleButton = false
+        playerView.videoGravity = .resizeAspect
+        playerView.wantsLayer = true
+        mediaClip.addSubview(imageView)
+        mediaClip.addSubview(playerView)
         addSubview(chrome)
         addSubview(ql)
+        addSubview(mediaClip)
         restyle()
     }
 
@@ -269,18 +368,41 @@ final class FilesPreviewRootView: NSView {
         return NSRect(x: 1, y: 1, width: max(0, bounds.width - 2), height: max(0, bounds.height - h - 1))
     }
 
+    /// Ortamın içerik alanındaki yeri: oran tutuyorsa alanın tamamı, pencere en dar sınırdaysa ortada sığdırılmış
+    var mediaRect: NSRect {
+        let c = contentArea
+        guard let a = mediaAspect, c.width > 0, c.height > 0 else { return c }
+        let ca = c.width / c.height
+        if abs(ca - a) / a < 0.01 { return c }
+        if ca > a {
+            let w = c.height * a
+            return NSRect(x: c.minX + (c.width - w) / 2, y: c.minY, width: w, height: c.height)
+        }
+        let h = c.width / a
+        return NSRect(x: c.minX, y: c.minY + (c.height - h) / 2, width: c.width, height: h)
+    }
+
     override func layout() {
         super.layout()
         chrome.frame = bounds
         ql.frame = contentArea
+        let c = contentArea
+        let r = FilesPreviewLayout.radius(theme)
+        mediaClip.frame = NSRect(x: c.minX, y: c.minY, width: c.width, height: c.height + r)
+        let m = mediaRect
+        let inner = NSRect(x: m.minX - c.minX, y: m.minY - c.minY, width: m.width, height: m.height)
+        imageView.frame = inner
+        playerView.frame = inner
     }
 
     func restyle() {
         let r = FilesPreviewLayout.radius(theme)
         layer?.cornerRadius = r
         layer?.cornerCurve = .continuous
-        ql.layer?.cornerRadius = max(0, r - 1)
-        ql.layer?.cornerCurve = .continuous
+        for l in [ql.layer, mediaClip.layer] {
+            l?.cornerRadius = max(0, r - 1)
+            l?.cornerCurve = .continuous
+        }
         needsLayout = true
     }
 }
@@ -310,8 +432,16 @@ final class FilesPreviewRootView: NSView {
     /// Kapanış canlandırması sürüyor (sayaç: eski canlandırmanın bitişi yenisini bozmasın)
     private var closeToken = 0
     private var closing = false
+    /// Video oynatıcısı (öğe değişince / kapanınca durur)
+    private var player: AVPlayer?
+    /// Deneme düzeneği sessiz oynatır
+    var muted = false
+    /// Arkada çözülen resmin hâlâ istenen öğe olduğunu doğrulamak için
+    private var imageToken = 0
+    /// Video boyu yüklenene kadar bekleyen açılış (kısa süre; boy gelince pencere doğru oranda açılır)
+    private var pendingPresent: (() -> Void)?
 
-    var isVisible: Bool { panel?.isVisible == true && !closing }
+    var isVisible: Bool { (panel?.isVisible == true || pendingPresent != nil) && !closing }
 
     // MARK: Dosyalar penceresi için kısa yol
 
@@ -378,29 +508,50 @@ final class FilesPreviewRootView: NSView {
         applyStyle()
         root.layoutSubtreeIfNeeded()
 
-        let target = fittedFrame()
-        let reduce = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
-        let src = model.current.flatMap(sourceFrame).flatMap { visible($0) }
-        panel.alphaValue = 0
-        if !reduce, let src {
-            panel.setFrame(Self.seed(around: src, target: target), display: false)
-        } else {
-            panel.setFrame(target, display: false)
+        let present = { [weak self, weak window] in
+            guard let self, let window, let panel = self.panel else { return }
+            self.pendingPresent = nil
+            let target = self.fittedFrame()
+            let reduce = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+            let src = self.model.current.flatMap(sourceFrame).flatMap { self.visible($0) }
+            panel.alphaValue = 0
+            if !reduce, let src {
+                panel.setFrame(Self.seed(around: src, target: target), display: false)
+            } else {
+                panel.setFrame(target, display: false)
+            }
+            window.addChildWindow(panel, ordered: .above)
+            panel.orderFront(nil)
+            NSAnimationContext.runAnimationGroup { ctx in
+                ctx.duration = reduce ? 0.12 : 0.18
+                ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
+                panel.animator().setFrame(target, display: true)
+                panel.animator().alphaValue = 1
+            }
         }
-        window.addChildWindow(panel, ordered: .above)
-        panel.orderFront(nil)
         watchHost(window)
         installKeyMonitor()
-        NSAnimationContext.runAnimationGroup { ctx in
-            ctx.duration = reduce ? 0.12 : 0.18
-            ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
-            panel.animator().setFrame(target, display: true)
-            panel.animator().alphaValue = 1
+        if model.info?.media == .video, model.info?.mediaPixels == nil {
+            // Videonun boyu birkaç ms içinde gelir: geçici boyla açıp sonra zıplamak yerine kısa bekle (en çok 0,3 sn)
+            pendingPresent = present
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+                MainActor.assumeIsolated { self?.pendingPresent?() }
+            }
+        } else {
+            present()
         }
     }
 
     /// Kapat (Esc, Space, kapat düğmesi). Seçili öğe ekrandaysa ona doğru küçülerek kaybolur.
     func close(animated: Bool = true) {
+        if pendingPresent != nil {
+            // Henüz açılmadı (video boyu bekleniyordu): açılmadan vazgeç
+            pendingPresent = nil
+            unwatchHost()
+            removeKeyMonitor()
+            stopMedia()
+            return
+        }
         guard let panel, panel.isVisible, !closing else { return }
         closing = true
         closeToken += 1
@@ -430,7 +581,7 @@ final class FilesPreviewRootView: NSView {
         panel.parent?.removeChildWindow(panel)
         panel.orderOut(nil)
         panel.alphaValue = 1
-        root?.ql.previewItem = nil   // video / ses dursun
+        stopMedia()   // video / ses dursun
         closing = false
         model.zoomed = false
     }
@@ -444,7 +595,8 @@ final class FilesPreviewRootView: NSView {
             open: { [weak self] in self?.openCurrent() },
             previous: { [weak self] in self?.step(-1) },
             next: { [weak self] in self?.step(1) },
-            zoom: { [weak self] in self?.toggleZoom() })
+            zoom: { [weak self] in self?.toggleZoom() },
+            share: { [weak self] r in self?.share(from: r) })
         let p = FilesPreviewWindow(contentRect: NSRect(x: 0, y: 0, width: 720, height: 520),
                                    styleMask: [.titled, .resizable, .fullSizeContentView, .nonactivatingPanel],
                                    backing: .buffered, defer: false)
@@ -480,10 +632,17 @@ final class FilesPreviewRootView: NSView {
         guard let panel else { return }
         let t = FilesThemeStore.shared.theme
         panel.appearance = t == .missing ? NSAppearance(named: .darkAqua) : nil
-        panel.minSize = NSSize(width: FilesPreviewLayout.minWidth,
-                               height: FilesPreviewLayout.headerHeight(t) + FilesPreviewLayout.minContentHeight)
+        updateMinSize()
         root?.restyle()
         panel.invalidateShadow()
+    }
+
+    /// Ortamda pencere dar olabilir (başlık sıkışır); diğer öğelerde tam başlık sığacak kadar geniş kalır
+    private func updateMinSize() {
+        let h = FilesPreviewLayout.headerHeight(FilesThemeStore.shared.theme)
+        panel?.minSize = model.info?.mediaAspect != nil
+            ? NSSize(width: FilesPreviewLayout.mediaMinWidth, height: h + 60)
+            : NSSize(width: FilesPreviewLayout.minWidth, height: h + FilesPreviewLayout.minContentHeight)
     }
 
     private func themeChanged() {
@@ -493,17 +652,128 @@ final class FilesPreviewRootView: NSView {
         panel.invalidateShadow()
     }
 
-    /// İçerik alanına öğeyi koy: Quick Look çizebiliyorsa QLPreviewView, yoksa temalı kart (çerçevenin içinde)
+    /// İçerik alanına öğeyi koy: resim → NSImageView, video → AVPlayerView, Quick Look'un çizdiği diğer türler →
+    /// QLPreviewView, kalanlar temalı kart (çerçevenin içinde). Kendi görünümlerimiz içerik alanını kenardan kenara doldurur.
     private func loadContent() {
         guard let root else { return }
         let info = model.info
-        if let info, info.renderable {
-            if root.ql.previewItem?.previewItemURL?.fileKey != info.url.fileKey { root.ql.previewItem = info.url as NSURL }
-            root.ql.isHidden = false
-        } else {
+        let media = info?.media ?? .none
+        root.mediaAspect = info?.mediaAspect ?? (media == .video ? 16.0 / 9.0 : nil)
+        root.mediaClip.isHidden = media == .none
+        root.imageView.isHidden = !(media == .image || media == .animated)
+        root.playerView.isHidden = media != .video
+        if media != .video { stopPlayer() }
+        if media != .image && media != .animated { root.imageView.image = nil }
+
+        switch media {
+        case .image, .animated:
             root.ql.previewItem = nil
             root.ql.isHidden = true
+            if let info { loadImage(info) }
+        case .video:
+            root.ql.previewItem = nil
+            root.ql.isHidden = true
+            if let info { loadVideo(info) }
+        case .none:
+            if let info, info.renderable {
+                if root.ql.previewItem?.previewItemURL?.fileKey != info.url.fileKey { root.ql.previewItem = info.url as NSURL }
+                root.ql.isHidden = false
+            } else {
+                root.ql.previewItem = nil
+                root.ql.isHidden = true
+            }
         }
+        updateMinSize()
+    }
+
+    /// Resim: GIF NSImage olarak (canlanır); diğerleri EXIF yönü uygulanmış, ekran boyuna küçültülmüş CGImage.
+    /// Küçük resimler hemen, büyükler arkada çözülür.
+    private func loadImage(_ info: FilesPreviewInfo) {
+        guard let root else { return }
+        imageToken += 1
+        let token = imageToken
+        let url = info.url
+        if info.media == .animated {
+            root.imageView.image = NSImage(contentsOf: url)
+            return
+        }
+        let screen = host?.screen ?? NSScreen.main
+        let longest = max(screen?.frame.width ?? 1920, screen?.frame.height ?? 1080) * (screen?.backingScaleFactor ?? 2)
+        let px = info.mediaPixels ?? .zero
+        let maxPixel = min(max(px.width, px.height), longest)
+        if px.width * px.height <= 2_500_000 {
+            root.imageView.image = Self.decode(url, maxPixel: maxPixel).map { NSImage(cgImage: $0, size: .zero) }
+            return
+        }
+        root.imageView.image = nil
+        Task.detached(priority: .userInitiated) {
+            let img = Self.decode(url, maxPixel: maxPixel)
+            await MainActor.run { [weak self] in
+                guard let self, self.imageToken == token, let img else { return }
+                self.root?.imageView.image = NSImage(cgImage: img, size: .zero)
+            }
+        }
+    }
+
+    /// EXIF yönünü uygulayarak çöz (iPhone'un yan yatık fotoğrafı dik gelir)
+    nonisolated static func decode(_ url: URL, maxPixel: CGFloat) -> CGImage? {
+        guard let src = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }
+        let opts: [CFString: Any] = [kCGImageSourceCreateThumbnailFromImageAlways: true,
+                                     kCGImageSourceCreateThumbnailWithTransform: true,
+                                     kCGImageSourceShouldCacheImmediately: true,
+                                     kCGImageSourceThumbnailMaxPixelSize: max(1, Int(maxPixel.rounded(.up)))]
+        return CGImageSourceCreateThumbnailAtIndex(src, 0, opts as CFDictionary)
+    }
+
+    /// Video: hemen oynamaya başlar (Hızlı Bakış gibi); boyu (döndürme dahil) bilinmiyorsa yüklenince pencere yeniden sığar
+    private func loadVideo(_ info: FilesPreviewInfo) {
+        guard let root else { return }
+        let url = info.url
+        if (player?.currentItem?.asset as? AVURLAsset)?.url.fileKey != url.fileKey {
+            stopPlayer()
+            let asset = AVURLAsset(url: url)
+            let p = AVPlayer(playerItem: AVPlayerItem(asset: asset))
+            p.isMuted = muted
+            root.playerView.player = p
+            player = p
+            p.play()
+            if info.mediaPixels == nil { loadVideoSize(asset, url: url) }
+        }
+    }
+
+    private func loadVideoSize(_ asset: AVURLAsset, url: URL) {
+        Task { @MainActor [weak self] in
+            var px = NSSize.zero
+            if let track = try? await asset.loadTracks(withMediaType: .video).first,
+               let (size, transform) = try? await track.load(.naturalSize, .preferredTransform) {
+                let r = CGRect(origin: .zero, size: size).applying(transform)
+                px = NSSize(width: abs(r.width), height: abs(r.height))
+            }
+            guard let self else { return }
+            self.model.setVideoPixels(px, for: url)
+            guard self.model.current?.fileKey == url.fileKey else { return }
+            if px == .zero {
+                // AVFoundation açamadı: Quick Look denesin
+                self.loadContent()
+            } else {
+                self.root?.mediaAspect = self.model.info?.mediaAspect
+                self.updateMinSize()
+            }
+            if let present = self.pendingPresent { present() } else { self.refit(force: true) }
+        }
+    }
+
+    private func stopPlayer() {
+        player?.pause()
+        player = nil
+        root?.playerView.player = nil
+    }
+
+    private func stopMedia() {
+        stopPlayer()
+        imageToken += 1
+        root?.imageView.image = nil
+        root?.ql.previewItem = nil
     }
 
     private func applyPending() {
@@ -514,13 +784,13 @@ final class FilesPreviewRootView: NSView {
         model.set(urls: p.urls, index: p.index)
         guard model.current?.fileKey != before else { return }
         loadContent()
-        refit()
+        refit(force: true)
     }
 
     private func step(_ d: Int) {
         model.step(d)
         loadContent()
-        refit()
+        refit(force: true)
     }
 
     private func toggleZoom() {
@@ -537,6 +807,15 @@ final class FilesPreviewRootView: NSView {
         }
     }
 
+    /// Paylaş düğmesi: Dosyalar'ın temalı Paylaş menüsü, düğmenin hemen altında. Panel anahtar olmaz;
+    /// menü kendi panelinde (açılır menü seviyesinde) önizlemenin üstünde açılır, servis Dosyalar penceresinden çalışır.
+    private func share(from r: NSRect) {
+        guard let panel, let u = model.current else { return }
+        let f = panel.frame
+        let point = NSPoint(x: f.minX + r.minX, y: f.maxY - r.maxY - 4)
+        FilesShare.show(for: [u], at: point, window: host ?? panel) { [weak self] u in self?.sourceFrame(u) }
+    }
+
     private func openCurrent() {
         guard let u = model.current else { return }
         let open = opener
@@ -544,9 +823,11 @@ final class FilesPreviewRootView: NSView {
         open(u)
     }
 
-    /// Öğe değişince pencereyi yeni içeriğe sığdır (kullanıcı boyutlandırmadıysa); merkez yerinde kalır
-    private func refit() {
-        guard let panel, isVisible, !userSized, !model.zoomed else { return }
+    /// Pencereyi içeriğe yeniden sığdır; merkez yerinde kalır, ekrandan taşmaz.
+    /// `force`: öğe değişti (elle verilen boy unutulur); değilse elle boyutlandırılmış pencereye dokunulmaz.
+    private func refit(force: Bool = false) {
+        if force { userSized = false }
+        guard let panel, panel.isVisible, !closing, !userSized else { return }
         let f = fittedFrame(keepCenter: true)
         guard f != panel.frame else { return }
         if NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
@@ -560,28 +841,51 @@ final class FilesPreviewRootView: NSView {
         }
     }
 
-    /// İçeriğin doğal oranını ekranın görünür alanının ~%70'ine sığdır; Dosyalar penceresinin ekranında ortala
+    /// Pencere çerçevesi. Fotoğraf / video: içerik alanı tam ortamın oranında, görünür alanın (20 pt pay, başlık dahil)
+    /// izin verdiği en büyük boy; küçük resimler en çok 3 kat. Diğerleri: doğal oranla görünür alanın ~%70'i.
+    /// Dosyalar penceresinin ekranında ortalanır (keepCenter: şimdiki merkezde kalır), ekrandan taşmaz.
     func fittedFrame(keepCenter: Bool = false) -> NSRect {
         let screen = host?.screen ?? panel?.screen ?? NSScreen.main
         let vf = screen?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
-        if model.zoomed { return vf.insetBy(dx: 16, dy: 16) }
         let t = FilesThemeStore.shared.theme
         let header = FilesPreviewLayout.headerHeight(t)
-        var c = model.info?.renderable == true ? (model.info?.natural ?? NSSize(width: 900, height: 640))
-                                               : FilesPreviewLayout.cardSize
-        let maxW = vf.width * 0.7 - 2, maxH = vf.height * 0.7 - header - 1
-        let s = min(1, maxW / max(c.width, 1), maxH / max(c.height, 1))
-        c = NSSize(width: (c.width * s).rounded(), height: (c.height * s).rounded())
-        c.width = max(c.width, FilesPreviewLayout.minWidth - 2)
-        c.height = max(c.height, FilesPreviewLayout.minContentHeight)
-        let size = NSSize(width: c.width + 2, height: c.height + header + 1)
+        let size: NSSize
+        var area = vf
+        if let info = model.info, info.media != .none {
+            let scale = screen?.backingScaleFactor ?? 2
+            let px = info.mediaPixels ?? NSSize(width: 1920, height: 1080)   // video boyu gelene kadar 16:9
+            let pts = NSSize(width: max(1, px.width / scale), height: max(1, px.height / scale))
+            let margin = model.zoomed ? 8 : FilesPreviewLayout.mediaMargin
+            area = vf.insetBy(dx: margin, dy: margin)
+            let maxCW = area.width - 2, maxCH = area.height - header - 1
+            var s = min(maxCW / pts.width, maxCH / pts.height)
+            // Küçük resim en çok 3 kat büyür (simge ekranı kaplamasın); video her zaman doldurur
+            if !model.zoomed, info.media != .video { s = min(s, FilesPreviewLayout.maxUpscale) }
+            // Yarım noktaya (Retina pikseli) yuvarla; oran yüksekliği genişlikten türeterek korunur
+            let cw = (pts.width * s * 2).rounded(.down) / 2
+            let ch = min(maxCH, (cw * pts.height / pts.width * 2).rounded() / 2)
+            size = NSSize(width: max(cw + 2, FilesPreviewLayout.mediaMinWidth), height: ch + header + 1)
+        } else if model.zoomed {
+            return vf.insetBy(dx: 16, dy: 16)
+        } else {
+            var c = model.info?.renderable == true ? (model.info?.natural ?? NSSize(width: 900, height: 640))
+                                                   : FilesPreviewLayout.cardSize
+            let maxW = vf.width * 0.7 - 2, maxH = vf.height * 0.7 - header - 1
+            let s = min(1, maxW / max(c.width, 1), maxH / max(c.height, 1))
+            c = NSSize(width: (c.width * s).rounded(), height: (c.height * s).rounded())
+            c.width = max(c.width, FilesPreviewLayout.minWidth - 2)
+            c.height = max(c.height, FilesPreviewLayout.minContentHeight)
+            size = NSSize(width: c.width + 2, height: c.height + header + 1)
+        }
         var center = NSPoint(x: vf.midX, y: vf.midY)
         if keepCenter, let f = panel?.frame, panel?.isVisible == true { center = NSPoint(x: f.midX, y: f.midY) }
         var r = NSRect(x: center.x - size.width / 2, y: center.y - size.height / 2, width: size.width, height: size.height)
         // Ekrandan taşmasın
-        r.origin.x = min(max(r.minX, vf.minX), vf.maxX - r.width)
-        r.origin.y = min(max(r.minY, vf.minY), vf.maxY - r.height)
-        return r.integral
+        r.origin.x = min(max(r.minX, area.minX), area.maxX - r.width)
+        r.origin.y = min(max(r.minY, area.minY), area.maxY - r.height)
+        r.origin.x = (r.minX * 2).rounded() / 2
+        r.origin.y = (r.minY * 2).rounded() / 2
+        return r
     }
 
     /// Açılış / kapanış canlandırmasının küçük çerçevesi: öğenin ekrandaki yerinde, hedefin oranında
@@ -628,7 +932,8 @@ final class FilesPreviewRootView: NSView {
         removeKeyMonitor()
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] e in
             MainActor.assumeIsolated {
-                guard let self, self.isVisible, e.keyCode == 53,
+                // Paylaş menüsü açıksa Esc yalnız menüyü kapatır (menünün kendi izleyicisi)
+                guard let self, self.isVisible, e.keyCode == 53, !FilesContextMenu.shared.isOpen,
                       e.modifierFlags.intersection([.command, .option, .control, .shift]).isEmpty,
                       e.window === self.host || e.window === self.panel,
                       !(self.host?.firstResponder is NSText) else { return e }
@@ -646,6 +951,19 @@ final class FilesPreviewRootView: NSView {
     // MARK: NSWindowDelegate
 
     func windowWillStartLiveResize(_ notification: Notification) { userSized = true }
+
+    /// Elle boyutlandırma: fotoğraf / videoda içerik alanının oranı kilitli (başlık yüksekliği sabit)
+    func windowWillResize(_ sender: NSWindow, to frameSize: NSSize) -> NSSize {
+        guard let a = model.info?.mediaAspect else { return frameSize }
+        let header = FilesPreviewLayout.headerHeight(FilesThemeStore.shared.theme)
+        let cur = sender.frame.size
+        var cw = frameSize.width - 2, ch = frameSize.height - header - 1
+        if abs(frameSize.width - cur.width) >= abs(frameSize.height - cur.height) { ch = cw / a } else { cw = ch * a }
+        ch = max(ch, 60)
+        // En dar sınırın altında ortam yanlardan boşluklu gösterilir; yükseklik serbest
+        if cw + 2 < FilesPreviewLayout.mediaMinWidth { return NSSize(width: FilesPreviewLayout.mediaMinWidth, height: ch + header + 1) }
+        return NSSize(width: cw + 2, height: ch + header + 1)
+    }
     func windowDidResize(_ notification: Notification) { panel?.invalidateShadow() }
 }
 
@@ -655,11 +973,13 @@ struct FilesPreviewChrome: View {
     @ObservedObject var model: FilesPreviewModel
     let actions: FilesPreviewActions
     @Environment(\.filesPalette) private var p
+    /// Paylaş düğmesinin pencere içindeki çerçevesi (menü altına açılsın)
+    @State private var shareFrame: NSRect = .zero
 
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: FilesPreviewLayout.radius(p.theme), style: .continuous)
         VStack(spacing: 0) {
-            header
+            GeometryReader { g in header(level(for: g.size.width)) }
                 .frame(height: FilesPreviewLayout.headerHeight(p.theme))
             ZStack {
                 contentBackdrop
@@ -702,11 +1022,57 @@ struct FilesPreviewChrome: View {
 
     // MARK: Başlık
 
-    @ViewBuilder private var header: some View {
+    /// Başlığın sıkışma kademesi: full → her şey; compact → "… ile Aç" simgeye iner, sayaç gizlenir;
+    /// minimal → yalnız ad, gezinme okları, Aç simgesi ve kapat (büyüt / paylaş / bilgi satırı gizli)
+    enum HeaderLevel: Int { case full, compact, minimal }
+
+    @ViewBuilder private func header(_ level: HeaderLevel) -> some View {
         switch p.theme {
-        case .missing, .glass: glassyHeader
-        case .finder: finderHeader
-        case .windows: windowsHeader
+        case .missing, .glass: glassyHeader(level)
+        case .finder: finderHeader(level)
+        case .windows: windowsHeader(level)
+        }
+    }
+
+    /// Genişliğe göre kademe: düğmelerin ölçüsü bilinir, "… ile Aç" yazısı ölçülür, ada en az yer bırakılır
+    private func level(for width: CGFloat) -> HeaderLevel {
+        let multi = model.urls.count > 1
+        let arrows: CGFloat = multi ? 64 : 0
+        let counter: CGFloat = multi ? 40 : 0
+        let open = openTextWidth
+        let full: CGFloat, compact: CGFloat
+        switch p.theme {
+        case .missing, .glass:
+            // kenar payı 26, simge 26, aralıklar 8; büyüt / paylaş / kapat 28
+            let base: CGFloat = 26 + 26 + 8 + (multi ? 8 : 0) + 3 * 36
+            full = base + 170 + arrows + counter + open + 8
+            compact = base + 110 + arrows + 36
+        case .finder:
+            // kenar payı 16, kapat + büyüt 58, paylaş 28, aralıklar 6
+            let base: CGFloat = 16 + 58 + 6 + 34 + (multi ? 6 : 0)
+            full = base + 170 + arrows + counter + open + 6
+            compact = base + 110 + arrows + 40
+        case .windows:
+            // komut satırı: kenar payı 24, bilgi satırı, paylaş 28, aralıklar 6
+            let base: CGFloat = 24 + 34 + (multi ? 6 : 0)
+            full = base + 150 + arrows + counter + open + 6
+            compact = base + 90 + arrows + 40
+        }
+        if width >= full { return .full }
+        if width >= compact { return .compact }
+        return .minimal
+    }
+
+    /// "… ile Aç" düğmesinin genişliği (tema düğmesinin yazı tipi ve iç payıyla)
+    private var openTextWidth: CGFloat {
+        let t = model.info?.openTitle ?? L("Aç")
+        func w(_ size: CGFloat, _ weight: NSFont.Weight) -> CGFloat {
+            (t as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: size, weight: weight)]).width.rounded(.up)
+        }
+        switch p.theme {
+        case .windows: return max(96, w(13, .semibold) + 32)
+        case .finder: return w(11, .regular) + 24
+        case .missing, .glass: return w(11.5, .semibold) + 22
         }
     }
 
@@ -736,18 +1102,20 @@ struct FilesPreviewChrome: View {
             .truncationMode(.tail)
     }
 
-    /// Birden çok öğe seçiliyse önceki / sonraki ve "2 / 5"
-    @ViewBuilder private var navigation: some View {
+    /// Birden çok öğe seçiliyse önceki / sonraki ve (yer varsa) "2 / 5"
+    @ViewBuilder private func navigation(_ level: HeaderLevel) -> some View {
         if model.urls.count > 1 {
             HStack(spacing: p.theme == .finder ? 0 : 4) {
                 Button(action: actions.previous) { Image(systemName: "chevron.left") }
                     .buttonStyle(FilesPreviewIconButtonStyle(p: p))
                     .help(L("Önceki"))
-                Text("\(model.index + 1) / \(model.urls.count)")
-                    .font(.system(size: 11, weight: .medium).monospacedDigit())
-                    .foregroundStyle(p.secondary)
-                    .fixedSize()
-                    .padding(.horizontal, 2)
+                if level == .full {
+                    Text("\(model.index + 1) / \(model.urls.count)")
+                        .font(.system(size: 11, weight: .medium).monospacedDigit())
+                        .foregroundStyle(p.secondary)
+                        .fixedSize()
+                        .padding(.horizontal, 2)
+                }
                 Button(action: actions.next) { Image(systemName: "chevron.right") }
                     .buttonStyle(FilesPreviewIconButtonStyle(p: p))
                     .help(L("Sonraki"))
@@ -764,18 +1132,37 @@ struct FilesPreviewChrome: View {
         .help(model.zoomed ? L("Eski boyutuna getir") : L("Büyüt"))
     }
 
+    /// Sistemin paylaşım seçicisi yerine Dosyalar'ın temalı Paylaş menüsü (FilesShare)
     @ViewBuilder private var shareButton: some View {
-        if let u = model.info?.url {
-            ShareLink(item: u) { Image(systemName: "square.and.arrow.up") }
+        if model.info?.url != nil {
+            Button { actions.share(shareFrame) } label: { Image(systemName: "square.and.arrow.up") }
                 .buttonStyle(FilesPreviewIconButtonStyle(p: p))
+                .background(GeometryReader { g in
+                    Color.clear
+                        .onAppear { shareFrame = g.frame(in: .global) }
+                        .onChange(of: g.frame(in: .global)) { shareFrame = $0 }
+                })
                 .help(L("Paylaş"))
         }
     }
 
-    private var openButton: some View {
-        Button(action: actions.open) { Text(model.info?.openTitle ?? L("Aç")) }
-            .filesButton(.primary, p, small: p.theme != .windows)
+    /// "… ile Aç": dar başlıkta yalnız simge (adı ipucunda)
+    @ViewBuilder private func openButton(_ level: HeaderLevel) -> some View {
+        let title = model.info?.openTitle ?? L("Aç")
+        if level == .full {
+            Button(action: actions.open) { Text(title) }
+                .filesButton(.primary, p, small: p.theme != .windows)
+                .fixedSize()
+        } else {
+            Button(action: actions.open) {
+                Image(systemName: "arrow.up.forward.app")
+                    .font(.system(size: 12, weight: .semibold))
+                    .frame(height: p.theme == .windows ? 18 : nil)
+            }
+            .filesButton(.primary, p, small: true)
             .fixedSize()
+            .help(title)
+        }
     }
 
     private var closeButton: some View {
@@ -785,19 +1172,21 @@ struct FilesPreviewChrome: View {
     }
 
     // missing / glass: solda simge + ad + ikinci satır, sağda düğmeler
-    private var glassyHeader: some View {
+    private func glassyHeader(_ level: HeaderLevel) -> some View {
         HStack(spacing: 8) {
-            iconView(26)
+            if level != .minimal { iconView(26) }
             VStack(alignment: .leading, spacing: 1) {
                 title(size: 13, weight: .semibold)
-                subtitle
+                if level != .minimal { subtitle }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .layoutPriority(1)
-            navigation
-            zoomButton
-            shareButton
-            openButton
+            navigation(level)
+            if level != .minimal {
+                zoomButton
+                shareButton
+            }
+            openButton(level)
             closeButton
         }
         .padding(.leading, 14)
@@ -807,25 +1196,27 @@ struct FilesPreviewChrome: View {
     }
 
     // finder: Quick Look paneli: solda kapat + büyüt, ortada ad (altında küçük bilgi), sağda gezinme, paylaş, "… ile Aç"
-    private var finderHeader: some View {
+    private func finderHeader(_ level: HeaderLevel) -> some View {
         HStack(spacing: 6) {
             HStack(spacing: 2) {
                 closeButton
-                zoomButton
+                if level != .minimal { zoomButton }
             }
             .fixedSize()
             VStack(spacing: 0) {
                 title(size: 12.5, weight: .semibold)
-                Text(model.secondary)
-                    .font(.system(size: 10.5))
-                    .foregroundStyle(p.secondary)
-                    .lineLimit(1)
+                if level != .minimal {
+                    Text(model.secondary)
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(p.secondary)
+                        .lineLimit(1)
+                }
             }
             .frame(maxWidth: .infinity)
             .layoutPriority(1)
-            navigation
-            shareButton
-            openButton
+            navigation(level)
+            if level != .minimal { shareButton }
+            openButton(level)
         }
         .padding(.horizontal, 8)
         .frame(maxHeight: .infinity)
@@ -834,7 +1225,7 @@ struct FilesPreviewChrome: View {
     }
 
     // windows: üstte başlık şeridi (simge, ad, büyüt / kapat başlık düğmeleri), altında komut satırı
-    private var windowsHeader: some View {
+    private func windowsHeader(_ level: HeaderLevel) -> some View {
         VStack(spacing: 0) {
             HStack(spacing: 0) {
                 iconView(16).padding(.leading, 12).padding(.trailing, 10)
@@ -851,10 +1242,14 @@ struct FilesPreviewChrome: View {
             }
             .frame(height: 32)
             HStack(spacing: 6) {
-                subtitle.frame(maxWidth: .infinity, alignment: .leading).layoutPriority(1)
-                navigation
-                shareButton
-                openButton
+                if level == .minimal {
+                    Spacer(minLength: 0)
+                } else {
+                    subtitle.frame(maxWidth: .infinity, alignment: .leading).layoutPriority(1)
+                }
+                navigation(level)
+                if level != .minimal { shareButton }
+                openButton(level)
             }
             .padding(.horizontal, 12)
             .frame(height: 41)

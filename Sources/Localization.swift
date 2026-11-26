@@ -853,6 +853,7 @@ private let englishStrings: [String: String] = [
     "Boyutu küçült": "Reduce Size",
     "Sayfaları görsele dönüştür (PNG)": "Convert Pages to Images (PNG)",
     "Bilgi al": "Get Info",
+    "Paylaşma servisi yok": "No sharing services",
     "Buraya aç": "Extract Here",
     "“%@” öğesini sıkıştır": "Compress “%@”",
     "%d öğeyi sıkıştır": "Compress %d Items",

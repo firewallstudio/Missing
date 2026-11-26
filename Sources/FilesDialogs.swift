@@ -131,6 +131,32 @@ struct FilesDialogSurface: ViewModifier {
     }
 }
 
+// MARK: Barındırma ve sürükleme
+
+/// İkincil pencerelerin SwiftUI kökü: pencere anahtar değilken de ilk tık denetime ulaşır;
+/// zemin pencereyi taşımaz (taşıma yalnız `FilesWindowDragArea` ve başlık çubuğundan)
+final class FilesDialogHostingView<Content: View>: NSHostingView<Content> {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+    override var mouseDownCanMoveWindow: Bool { false }
+    /// Başlık çubuğu saydam, içerik tam boy pencerelerde güvenli alan payı olmasın: yoksa SwiftUI içeriği
+    /// başlık çubuğu kadar aşağı itiyor (ya da `ignoresSafeArea` ile yukarı alınca altta boşluk kalıyor)
+    override var safeAreaInsets: NSEdgeInsets { NSEdgeInsets() }
+}
+
+/// Bu alana basıp sürükleyince pencere taşınır (başlıksız temaların başlık şeridi)
+struct FilesWindowDragArea: NSViewRepresentable {
+    final class DragView: NSView {
+        override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+        override var mouseDownCanMoveWindow: Bool { true }
+        override func mouseDown(with event: NSEvent) {
+            // Çift tık: başlık çubuğu gibi (sistem ayarına göre küçült / büyüt) yok; yalnız taşı
+            window?.performDrag(with: event)
+        }
+    }
+    func makeNSView(context: Context) -> DragView { DragView() }
+    func updateNSView(_ nsView: DragView, context: Context) {}
+}
+
 // MARK: Düğmeler
 
 /// Düğme rolü. `.primary` ve `.destructiveDefault` Return'e bağlanır; `.cancel` Esc'ye
@@ -399,7 +425,7 @@ final class FilesKeyPanel: NSPanel {
                             hasField: field != nil, placeholder: field?.placeholder ?? "",
                             actions: actions, primary: primary, choose: finish)
         }
-        let host = NSHostingView(rootView: view)
+        let host = makeHost(view)
         host.frame = NSRect(origin: .zero, size: host.fittingSize)
         panel.setContentSize(host.fittingSize)
         panel.contentView = host
@@ -411,6 +437,12 @@ final class FilesKeyPanel: NSPanel {
             NSApp.activate(ignoringOtherApps: true)
             NSApp.runModal(for: panel)
         }
+    }
+
+    /// Uyarının kökü. Başlık çubuğu saydam ve içerik tam boy: güvenli alan payı içeriği aşağı itmesin;
+    /// pencere anahtar değilken de ilk tık düğmeye ulaşsın
+    static func makeHost<V: View>(_ view: V) -> NSView {
+        FilesDialogHostingView(rootView: view.ignoresSafeArea())
     }
 
     /// Hata: NSAlert(error:) gibi başlık + açıklama

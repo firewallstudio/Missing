@@ -16,6 +16,14 @@ struct ChangelogEntry {
 
 enum Changelog {
     static let entries: [ChangelogEntry] = [
+        ChangelogEntry(version: "4.3.27", items: [
+            ("Bilgi al düzeltildi: içerik artık 32 nokta aşağı kaymıyor ve üstte boş şerit kalmıyor; düğmeler ilk tıklamada çalışır ve pencereyi sürükleme sanılmaz, ⌘W kapatır, bölümler açılıp kapanınca boyut doğru kalır. Aynı kayma yeni klasör, yeniden adlandırma ve onay pencerelerinde de düzeltildi",
+             "Get Info fixed: the content no longer sits 32 pt too low with an empty strip above it, controls respond to the first click and are no longer mistaken for dragging the window, ⌘W closes it, and it resizes correctly when sections open and close; the same offset is fixed in the new folder, rename and confirmation dialogs"),
+            ("Paylaş artık Dosyalar'ın kendi tasarımında: sağ tıktaki Paylaş, AirDrop, Mail, Mesajlar ve diğer servislerle temalı bir alt menü açar; önizlemedeki paylaş düğmesi de aynı menüyü açar (eski satır hiçbir şey yapmıyordu)",
+             "Share is in Files' own design: the right-click Share item opens a themed submenu with AirDrop, Mail, Messages and the other services, and the preview's share button opens the same menu (the old item did nothing)"),
+            ("Önizleme foto ve videoları kendi oranında gösterir ve ekranı doldurur: dikey medyanın yanlarında boşluk kalmaz, yan çevrilmiş telefon fotoğrafları ve videoları doğru yönde açılır, dar pencerede üst şerit küçülür",
+             "The preview fits photos and videos to their own shape and fills the screen: no bars beside portrait media, rotated phone photos and videos come out the right way, and the header shrinks for narrow windows"),
+        ]),
         ChangelogEntry(version: "4.3.26", items: [
             ("Dosyalar her yerde temasına uyuyor: sağ tık menüsü, Bilgi al, yeni klasör, yeniden adlandırma ve onay pencereleri ile Dosyalar Ayarları; Missing, Finder, Windows ve Cam temalarının her birinde kendi görünümünde",
              "Files follows its theme everywhere: the right-click menu, Get Info, the new folder, rename and confirmation dialogs and Files Settings each have their own look in Missing, Finder, Windows and Glass"),

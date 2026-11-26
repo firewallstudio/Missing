@@ -432,20 +432,31 @@ import UniformTypeIdentifiers
     static func show(_ url: URL) {
         let key = url.fileKey
         if let w = open[key] { w.makeKeyAndOrderFront(nil); return }
-        let w = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 300, height: 480),
-                        styleMask: [.titled, .closable], backing: .buffered, defer: false)
+        let w = FilesInfoPanel(contentRect: NSRect(x: 0, y: 0, width: 300, height: 480),
+                               styleMask: [.titled, .closable], backing: .buffered, defer: false)
         w.title = L("%@ Bilgileri", FileManager.default.displayName(atPath: url.path))
         w.isReleasedWhenClosed = false
         w.hidesOnDeactivate = false
-        let host = NSHostingView(rootView: content(for: url) { [weak w] in w?.close() })
-        // Pencere içeriğin boyunu izlesin (bölüm açılıp kapanınca, tema değişince)
-        host.sizingOptions = [.minSize, .maxSize, .intrinsicContentSize]
+        // Pencere arka plandan sürüklenmez: SwiftUI düğmelerine basarken fare biraz kayınca pencere kayıyor,
+        // tık düğmeye ulaşmıyordu. Taşımak için başlık şeridi (FilesWindowDragArea) ve başlık çubuğu var.
+        w.isMovableByWindowBackground = false
+        let host = FilesDialogHostingView(rootView: content(for: url, close: { [weak w] in w?.close() },
+                                                            relayout: { [weak w] in
+            // İçerik değişti (bilgiler yüklendi, bölüm açıldı / kapandı): bir tur sonra yeniden ölç
+            DispatchQueue.main.async { MainActor.assumeIsolated { if let w { fit(w) } } }
+        }))
+        // Boyu SwiftUI'nin ideal boyu değil, çizildiği genişlikteki gerçek boy belirlesin (bkz. `fit`):
+        // ideal boy çok satırlı yazılarda kısa kalıyor, alttaki düğmeler kesiliyordu
+        host.sizingOptions = [.intrinsicContentSize]
         w.contentView = host
-        style(w)
+        style(w, resize: false)
         w.setContentSize(host.fittingSize)
-        if let key = NSApp.keyWindow {
-            let f = key.frame
-            w.setFrameTopLeftPoint(NSPoint(x: f.maxX - 340 - CGFloat(open.count * 20), y: f.maxY - 40 - CGFloat(open.count * 20)))
+        let cascade = CGFloat(open.count * 20)
+        if let main = NSApp.keyWindow ?? NSApp.mainWindow, main.isVisible, !(main is FilesInfoPanel) {
+            let f = main.frame
+            w.setFrameTopLeftPoint(NSPoint(x: f.maxX - w.frame.width - 20 - cascade, y: f.maxY - 40 - cascade))
+        } else if let last = open.values.first(where: { $0.isVisible }) {
+            w.setFrameTopLeftPoint(NSPoint(x: last.frame.minX + 20 + cascade, y: last.frame.maxY - 20 - cascade))
         } else { w.center() }
         open[key] = w
         NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: w, queue: .main) { _ in
@@ -454,22 +465,35 @@ import UniformTypeIdentifiers
         if themeWatch == nil {
             themeWatch = FilesThemeStore.shared.$theme.dropFirst().sink { _ in
                 // @Published değeri yazılmadan önce yayınlar: bir tur sonra uygula
-                DispatchQueue.main.async { MainActor.assumeIsolated { open.values.forEach(style) } }
+                DispatchQueue.main.async { MainActor.assumeIsolated { open.values.forEach { style($0) } } }
             }
         }
         NSApp.activate(ignoringOtherApps: true)
         w.makeKeyAndOrderFront(nil)
     }
 
+    /// "Birlikte aç" seçimi: bu dosya bu uygulamayla açılsın (deneme düzeneği kaydedici koyar)
+    static var setDefaultApp: (URL, URL) -> Void = { app, file in
+        NSWorkspace.shared.setDefaultApplication(at: app, toOpenFileAt: file) { _ in }
+    }
+    /// "Hepsini değiştir…": bu türdeki bütün dosyalar
+    static var setDefaultAppForType: (URL, UTType) -> Void = { app, type in
+        NSWorkspace.shared.setDefaultApplication(at: app, toOpen: type) { _ in }
+    }
+
     /// Pencerenin içeriği (deneme düzeneği de bunu çizer)
-    static func content(for url: URL, close: @escaping () -> Void = {}) -> some View {
-        FilesThemedRoot { _ in FilesInfoView(url: url, close: close) }
+    static func content(for url: URL, close: @escaping () -> Void = {}, relayout: @escaping () -> Void = {}) -> some View {
+        FilesThemedRoot { _ in
+            FilesInfoView(url: url, close: close, relayout: relayout)
+                // Başlık çubuğu saydamken (finder dışı) içerik en üstten başlar: güvenli alan payı
+                // içeriği 32 pt aşağı itiyor, trafik ışıkları kartın dışında boşlukta kalıyordu
+                .ignoresSafeArea()
+        }
     }
 
     /// Pencere çerçevesi temaya göre: finder normal başlık çubuğu; diğerleri başlıksız, içerik en üstten başlar
-    static func style(_ w: NSWindow) {
+    static func style(_ w: NSWindow, resize: Bool = true) {
         let t = FilesThemeStore.shared.theme
-        let top = w.frame.maxY
         if t == .finder { w.styleMask.remove(.fullSizeContentView) } else { w.styleMask.insert(.fullSizeContentView) }
         w.titlebarAppearsTransparent = t != .finder
         w.titleVisibility = t == .finder ? .visible : .hidden
@@ -477,20 +501,43 @@ import UniformTypeIdentifiers
         w.isOpaque = !clear
         w.backgroundColor = clear ? .clear : .windowBackgroundColor
         w.appearance = t == .missing ? NSAppearance(named: .darkAqua) : nil
-        w.isMovableByWindowBackground = t != .finder
-        DispatchQueue.main.async {
-            if let c = w.contentView {
-                let size = w.frameRect(forContentRect: NSRect(origin: .zero, size: c.fittingSize)).size
-                w.setFrame(NSRect(x: w.frame.minX, y: top - size.height, width: size.width, height: size.height), display: true)
-            }
-            w.invalidateShadow()
+        guard resize else { return }
+        // Yeni temanın içeriği bir tur sonra ölçülür; üst kenar yerinde kalır
+        DispatchQueue.main.async { MainActor.assumeIsolated { fit(w) } }
+    }
+
+    /// Pencereyi içeriğin tam boyuna getirir (üst kenar sabit)
+    static func fit(_ w: NSWindow) {
+        guard let c = w.contentView else { return }
+        c.layoutSubtreeIfNeeded()
+        let top = w.frame.maxY
+        let size = w.frameRect(forContentRect: NSRect(origin: .zero, size: c.fittingSize)).size
+        if size != w.frame.size {
+            w.setFrame(NSRect(x: w.frame.minX, y: top - size.height, width: size.width, height: size.height), display: true)
         }
+        w.invalidateShadow()
+    }
+}
+
+/// Bilgi penceresi: ⌘W bu pencereyi kapatır (yoksa menüdeki ⌘W ana pencereye gidip Dosyalar sekmesini kapatıyordu)
+final class FilesInfoPanel: NSPanel {
+    override var canBecomeKey: Bool { true }
+
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        let mods = event.modifierFlags.intersection([.command, .option, .control, .shift])
+        if mods == .command, event.charactersIgnoringModifiers?.lowercased() == "w" {
+            performClose(nil)
+            return true
+        }
+        return super.performKeyEquivalent(with: event)
     }
 }
 
 struct FilesInfoView: View {
     let url: URL
     var close: () -> Void = {}
+    /// Pencere boyu içeriğe yeniden uysun
+    var relayout: () -> Void = {}
     @Environment(\.filesPalette) private var p
     @State private var size: String = "…"
     @State private var bytes: String = "…"
@@ -500,9 +547,12 @@ struct FilesInfoView: View {
     @State private var app: URL?
     /// finder: açık bölümler
     @State private var expanded: Set<String> = ["general", "more", "name", "openWith"]
+    /// Kilit / uzantı değişince gösterilen bilgiler yeniden okunsun
+    @State private var refresh = 0
 
     private var values: URLResourceValues? {
-        try? url.resourceValues(forKeys: [.localizedTypeDescriptionKey, .creationDateKey, .contentModificationDateKey,
+        // Yeni URL: önbellekteki eski değerler gösterilmesin (kilit / uzantı değişince yeniden okunur)
+        try? URL(fileURLWithPath: url.path).resourceValues(forKeys: [.localizedTypeDescriptionKey, .creationDateKey, .contentModificationDateKey,
                                           .contentAccessDateKey, .isDirectoryKey, .isPackageKey, .contentTypeKey])
     }
 
@@ -534,6 +584,7 @@ struct FilesInfoView: View {
     }
 
     var body: some View {
+        let _ = refresh
         let i = info
         Group {
             switch p.theme {
@@ -544,6 +595,7 @@ struct FilesInfoView: View {
         }
         .foregroundStyle(p.fg)
         .task { await load() }
+        .onChange(of: expanded) { _ in relayout() }
     }
 
     // MARK: Ortak denetimler (davranış her temada aynı)
@@ -569,39 +621,48 @@ struct FilesInfoView: View {
         }
     }
 
+    // Değişiklik yalnız kullanıcı dokununca dosyaya yazılır (yükleme sırasında değil); sonra dosyadan geri okunur
     private var lockedToggle: some View {
-        toggle(L("Kilitli"), $locked)
-            .onChange(of: locked) { on in
-                var rv = URLResourceValues(); rv.isUserImmutable = on
-                var u = url; try? u.setResourceValues(rv)
-            }
+        toggle(L("Kilitli"), Binding(get: { locked }, set: { on in
+            var rv = URLResourceValues(); rv.isUserImmutable = on
+            var u = URL(fileURLWithPath: url.path); try? u.setResourceValues(rv)
+            readFlags()
+        }))
     }
 
     private var hideExtToggle: some View {
-        toggle(L("Uzantıyı gizle"), $hideExt)
-            .onChange(of: hideExt) { on in
-                var rv = URLResourceValues(); rv.hasHiddenExtension = on
-                var u = url; try? u.setResourceValues(rv)
-            }
+        toggle(L("Uzantıyı gizle"), Binding(get: { hideExt }, set: { on in
+            var rv = URLResourceValues(); rv.hasHiddenExtension = on
+            var u = URL(fileURLWithPath: url.path); try? u.setResourceValues(rv)
+            readFlags()
+        }))
+    }
+
+    private func readFlags() {
+        let rv = try? URL(fileURLWithPath: url.path).resourceValues(forKeys: [.isUserImmutableKey, .hasHiddenExtensionKey])
+        locked = rv?.isUserImmutable ?? false
+        hideExt = rv?.hasHiddenExtension ?? false
+        refresh &+= 1
+        relayout()
     }
 
     private var appPicker: some View {
-        Picker("", selection: $app) {
+        Picker("", selection: Binding(get: { app }, set: { a in
+            guard let a, a != app else { return }
+            app = a
+            FilesInfoWindow.setDefaultApp(a, url)
+        })) {
             ForEach(apps, id: \.self) { a in
                 Text(FileManager.default.displayName(atPath: a.path)).tag(Optional(a))
             }
         }
         .labelsHidden()
-        .onChange(of: app) { a in
-            guard let a else { return }
-            NSWorkspace.shared.setDefaultApplication(at: a, toOpenFileAt: url) { _ in }
-        }
     }
 
     private func changeAllButton(_ type: UTType?, small: Bool = true) -> some View {
         Button(L("Hepsini değiştir…")) {
             guard let a = app, let t = type else { return }
-            NSWorkspace.shared.setDefaultApplication(at: a, toOpen: t) { _ in }
+            FilesInfoWindow.setDefaultAppForType(a, t)
         }
         .filesButton(.normal, p, small: small)
         .help(L("Bu türdeki bütün dosyalar bu uygulamayla açılsın"))
@@ -728,6 +789,8 @@ struct FilesInfoView: View {
             .padding(.leading, 80)
             .padding(.trailing, 12)
             .frame(height: 32)
+            .allowsHitTesting(false)   // başlık yazısı da pencereyi taşısın (alttaki sürükleme alanı)
+            .background(FilesWindowDragArea())
             // Sekme: Windows 11 seçim çubuğu
             HStack {
                 VStack(spacing: 4) {
@@ -738,6 +801,7 @@ struct FilesInfoView: View {
             }
             .padding(.horizontal, 18)
             .padding(.bottom, 6)
+            .background(FilesWindowDragArea())
             VStack(alignment: .leading, spacing: 0) {
                 HStack(spacing: 14) {
                     icon.resizable().interpolation(.high).frame(width: 36, height: 36)
@@ -752,10 +816,13 @@ struct FilesInfoView: View {
                 winLine
                 winRow(L("Tür"), i.kind)
                 if !i.isFolder, !apps.isEmpty {
-                    HStack(alignment: .center, spacing: 8) {
+                    // Düğme açılır menünün altında: yan yana sığmıyor, Türkçe etiket kesiliyordu
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
                         Text(L("Birlikte aç") + ":").frame(width: 108, alignment: .leading).foregroundStyle(p.fg.opacity(0.8))
-                        appPicker.controlSize(.small).frame(maxWidth: .infinity)
-                        changeAllButton(i.contentType)
+                        VStack(alignment: .leading, spacing: 6) {
+                            appPicker.controlSize(.small).frame(maxWidth: .infinity)
+                            changeAllButton(i.contentType).fixedSize()
+                        }
                     }
                     .padding(.vertical, 4)
                 }
@@ -820,7 +887,10 @@ struct FilesInfoView: View {
                     Text(size).font(.system(size: 11.5)).foregroundStyle(p.secondary).monospacedDigit()
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.top, 22)   // trafik ışıklarına yer
+            // Kartın üst şeridi pencereyi taşır (başlık çubuğu yok)
+            .background(FilesWindowDragArea().padding(.horizontal, -16).padding(.top, -16))
             card(L("Genel")) {
                 cardRow(L("Boyut"), size)
                 cardRow(L("Konum"), i.location)
@@ -900,5 +970,6 @@ struct FilesInfoView: View {
         let isDir = (try? u.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? false
         bytes = b
         size = isDir ? L("%@ · %d öğe", b, measured.files) : b
+        relayout()
     }
 }

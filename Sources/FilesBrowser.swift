@@ -895,9 +895,8 @@ import Quartz
         add(L("Çoğalt"), #selector(FilesWindowController.duplicateSelection(_:)))
         add(L("Kopyala"), #selector(FilesWindowController.copy(_:)))
         add(L("Yolu kopyala"), #selector(FilesWindowController.copyPath(_:)))
-        let share = NSSharingServicePicker(items: sel.map { $0.url as NSURL }).standardShareMenuItem
-        share.title = L("Paylaş")
-        menu.addItem(share)
+        // Kendi Paylaş alt menümüz (sistemin seçicisi bizim menüde açılmıyordu); ilk açılışta dolar
+        menu.addItem(FilesShare.menuItem(for: sel.map(\.url), window: window) { [weak self] u in self?.screenFrame(of: u) })
         menu.addItem(.separator())
         FilesQuickActions.menuItems(for: sel, controller: owner).forEach(menu.addItem)
         menu.addItem(.separator())

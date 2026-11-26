@@ -2,6 +2,12 @@
 
 Also shown in the app: **Settings › Versions**.
 
+## 4.3.27
+
+- Get Info fixed: the content no longer sits 32 pt too low with an empty strip above it, controls respond to the first click and are no longer mistaken for dragging the window, ⌘W closes it, and it resizes correctly when sections open and close; the same offset is fixed in the new folder, rename and confirmation dialogs
+- Share is in Files' own design: the right-click Share item opens a themed submenu with AirDrop, Mail, Messages and the other services, and the preview's share button opens the same menu (the old item did nothing)
+- The preview fits photos and videos to their own shape and fills the screen: no bars beside portrait media, rotated phone photos and videos come out the right way, and the header shrinks for narrow windows
+
 ## 4.3.26
 
 - Files follows its theme everywhere: the right-click menu, Get Info, the new folder, rename and confirmation dialogs and Files Settings each have their own look in Missing, Finder, Windows and Glass
