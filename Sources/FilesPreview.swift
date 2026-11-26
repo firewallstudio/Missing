@@ -44,6 +44,8 @@ struct FilesPreviewInfo {
     let media: Media
     /// Ortamın (yönü uygulanmış) piksel boyu; video için yüklenene kadar nil
     let mediaPixels: NSSize?
+    /// Ses / video: başlıkta düzenle (makas) düğmesi
+    let editable: Bool
 
     enum Media { case none, image, animated, video }
 
@@ -61,6 +63,7 @@ struct FilesPreviewInfo {
         modified = v?.contentModificationDate
         let type = v?.contentType
         renderable = Self.canRender(type, isDirectory: dir, isPackage: pkg)
+        editable = !dir && (type?.conforms(to: .audiovisualContent) ?? false) && !(type?.conforms(to: .m3uPlaylist) ?? false)
         app = isFolder ? nil : NSWorkspace.shared.urlForApplication(toOpen: url)
 
         var dims: String?
@@ -229,6 +232,8 @@ struct FilesPreviewActions {
     var zoom: () -> Void = {}
     /// Paylaş düğmesi; düğmenin pencere içindeki (üstten) çerçevesiyle
     var share: (NSRect) -> Void = { _ in }
+    /// Makas: ses / videoyu düzenleyicide aç
+    var edit: () -> Void = {}
 }
 
 // MARK: Ölçüler
@@ -596,7 +601,8 @@ final class FilesPreviewRootView: NSView {
             previous: { [weak self] in self?.step(-1) },
             next: { [weak self] in self?.step(1) },
             zoom: { [weak self] in self?.toggleZoom() },
-            share: { [weak self] r in self?.share(from: r) })
+            share: { [weak self] r in self?.share(from: r) },
+            edit: { [weak self] in self?.editCurrent() })
         let p = FilesPreviewWindow(contentRect: NSRect(x: 0, y: 0, width: 720, height: 520),
                                    styleMask: [.titled, .resizable, .fullSizeContentView, .nonactivatingPanel],
                                    backing: .buffered, defer: false)
@@ -814,6 +820,15 @@ final class FilesPreviewRootView: NSView {
         let f = panel.frame
         let point = NSPoint(x: f.minX + r.minX, y: f.maxY - r.maxY - 4)
         FilesShare.show(for: [u], at: point, window: host ?? panel) { [weak self] u in self?.sourceFrame(u) }
+    }
+
+    /// Makas: önizleme kapanır, ses / video düzenleyicide açılır (önizlemenin yerinden büyüyerek)
+    func editCurrent() {
+        guard let u = model.current, model.info?.editable == true else { return }
+        let frame = panel?.isVisible == true ? panel?.frame : nil
+        let c = controller
+        close(animated: false)
+        FilesMediaEditor.open(u, from: c, sourceFrame: frame)
     }
 
     private func openCurrent() {
@@ -1037,7 +1052,8 @@ struct FilesPreviewChrome: View {
     /// Genişliğe göre kademe: düğmelerin ölçüsü bilinir, "… ile Aç" yazısı ölçülür, ada en az yer bırakılır
     private func level(for width: CGFloat) -> HeaderLevel {
         let multi = model.urls.count > 1
-        let arrows: CGFloat = multi ? 64 : 0
+        // Düzenle (makas) bir simge düğmesi daha
+        let arrows: CGFloat = (multi ? 64 : 0) + (model.info?.editable == true ? 34 : 0)
         let counter: CGFloat = multi ? 40 : 0
         let open = openTextWidth
         let full: CGFloat, compact: CGFloat
@@ -1146,6 +1162,16 @@ struct FilesPreviewChrome: View {
         }
     }
 
+    /// Ses / video: makas, düzenleyicide açar (her kademede; ortam penceresi dar olabildiği için en az yer kaplar)
+    @ViewBuilder private var editButton: some View {
+        if model.info?.editable == true {
+            Button(action: actions.edit) { Image(systemName: "scissors") }
+                .buttonStyle(FilesPreviewIconButtonStyle(p: p))
+                .help(L("Düzenle"))
+                .accessibilityLabel(L("Düzenle"))
+        }
+    }
+
     /// "… ile Aç": dar başlıkta yalnız simge (adı ipucunda)
     @ViewBuilder private func openButton(_ level: HeaderLevel) -> some View {
         let title = model.info?.openTitle ?? L("Aç")
@@ -1182,6 +1208,7 @@ struct FilesPreviewChrome: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .layoutPriority(1)
             navigation(level)
+            editButton
             if level != .minimal {
                 zoomButton
                 shareButton
@@ -1215,6 +1242,7 @@ struct FilesPreviewChrome: View {
             .frame(maxWidth: .infinity)
             .layoutPriority(1)
             navigation(level)
+            editButton
             if level != .minimal { shareButton }
             openButton(level)
         }
@@ -1248,6 +1276,7 @@ struct FilesPreviewChrome: View {
                     subtitle.frame(maxWidth: .infinity, alignment: .leading).layoutPriority(1)
                 }
                 navigation(level)
+                editButton
                 if level != .minimal { shareButton }
                 openButton(level)
             }

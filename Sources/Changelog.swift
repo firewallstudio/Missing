@@ -16,6 +16,14 @@ struct ChangelogEntry {
 
 enum Changelog {
     static let entries: [ChangelogEntry] = [
+        ChangelogEntry(version: "4.3.28", items: [
+            ("Yeni: Dosyalar'da küçük bir ses / video editörü. Önizlemedeki makasa bas (ya da sağ tık › Düzenle…): küçük kareli ve dalga şekilli zaman çizelgesinde kes, kırp, böl, sırasını değiştir; başına ya da sonuna başka klipler ekle",
+             "New: a small audio / video editor in Files. Press the scissors in the preview (or right-click › Edit…) to cut, trim, split and reorder on a timeline with thumbnails and a waveform, and add other clips before or after"),
+            ("Asıl dosyanın üstüne yaz (eskisi Çöp Sepeti'ne gider), yanına yeni dosya olarak kaydet ya da başka biçimde dışa aktar: MP4 (H.264 / HEVC), MOV, M4A, WAV, AIFF, CAF. Aynı biçimdeki kesimler yeniden kodlanmadan yazılır",
+             "Save over the original (the old file goes to the Trash), as a new file next to it, or export in another format: MP4 (H.264 / HEVC), MOV, M4A, WAV, AIFF, CAF; cuts in the same format are written without re-encoding"),
+            ("Editör Dosyalar'ın temasına uyar; geri al / yinele ve klavye kısayolları var (Boşluk, S, ⌫, I / O, oklar, ⌘S); kapalıyken hiçbir şey çalışmaz",
+             "The editor follows the Files theme, has undo / redo and keyboard shortcuts (Space, S, ⌫, I / O, arrows, ⌘S), and does nothing while closed"),
+        ]),
         ChangelogEntry(version: "4.3.27", items: [
             ("Bilgi al düzeltildi: içerik artık 32 nokta aşağı kaymıyor ve üstte boş şerit kalmıyor; düğmeler ilk tıklamada çalışır ve pencereyi sürükleme sanılmaz, ⌘W kapatır, bölümler açılıp kapanınca boyut doğru kalır. Aynı kayma yeni klasör, yeniden adlandırma ve onay pencerelerinde de düzeltildi",
              "Get Info fixed: the content no longer sits 32 pt too low with an empty strip above it, controls respond to the first click and are no longer mistaken for dragging the window, ⌘W closes it, and it resizes correctly when sections open and close; the same offset is fixed in the new folder, rename and confirmation dialogs"),

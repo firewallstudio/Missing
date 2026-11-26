@@ -2,6 +2,12 @@
 
 Also shown in the app: **Settings › Versions**.
 
+## 4.3.28
+
+- New: a small audio / video editor in Files. Press the scissors in the preview (or right-click › Edit…) to cut, trim, split and reorder on a timeline with thumbnails and a waveform, and add other clips before or after
+- Save over the original (the old file goes to the Trash), as a new file next to it, or export in another format: MP4 (H.264 / HEVC), MOV, M4A, WAV, AIFF, CAF; cuts in the same format are written without re-encoding
+- The editor follows the Files theme, has undo / redo and keyboard shortcuts (Space, S, ⌫, I / O, arrows, ⌘S), and does nothing while closed
+
 ## 4.3.27
 
 - Get Info fixed: the content no longer sits 32 pt too low with an empty strip above it, controls respond to the first click and are no longer mistaken for dragging the window, ⌘W closes it, and it resizes correctly when sections open and close; the same offset is fixed in the new folder, rename and confirmation dialogs

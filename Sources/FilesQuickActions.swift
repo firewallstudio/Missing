@@ -98,6 +98,8 @@ import UniformTypeIdentifiers
         }
         if !videos.isEmpty, videos.count == sel.count {
             let u = videos.map(\.url)
+            // Tek video: kes, kırp, başına / sonuna ekle (FilesMediaEditor)
+            if videos.count == 1 { menu.addItem(item(L("Düzenle…"), .edit, u, "scissors")) }
             let conv = [(L("MP4 (H.264)"), AVAssetExportPresetHighestQuality, "mp4"),
                         (L("MOV (HEVC)"), AVAssetExportPresetHEVCHighestQuality, "mov")]
                 .filter { f in !u.allSatisfy { sameFormat($0, f.2) } }
@@ -112,6 +114,7 @@ import UniformTypeIdentifiers
         }
         if !audio.isEmpty, audio.count == sel.count {
             let u = audio.map(\.url)
+            if audio.count == 1 { menu.addItem(item(L("Düzenle…"), .edit, u, "scissors")) }
             let conv = [("M4A (AAC)", "m4af", "aac", "m4a"), ("WAV", "WAVE", "LEI16", "wav"), ("AIFF", "AIFF", "BEI16", "aiff")]
                 .filter { f in !u.allSatisfy { sameFormat($0, f.3) } }
                 .map { f in item(f.0, .audio(f.1, f.2, f.3), u.filter { !sameFormat($0, f.3) }, nil) }
@@ -143,6 +146,7 @@ import UniformTypeIdentifiers
         case rotate(Int), convertImage(String), resize(Int), imagesToPDF, mergePDF, pdfToImages
         case video(String, String)
         case audio(String, String, String)   // afconvert dosya biçimi, veri biçimi, uzantı
+        case edit                             // ses / video düzenleyici
     }
 
     final class Request: NSObject {
@@ -169,6 +173,8 @@ import UniformTypeIdentifiers
         switch kind {
         case .info:
             for u in urls.prefix(5) { FilesInfoWindow.show(u) }
+        case .edit:
+            FilesMediaEditor.open(first, from: c, sourceFrame: c?.browser.screenFrame(of: first))
         case .showOriginal:
             if let orig = try? URL(resolvingAliasFileAt: first, options: [.withoutUI]) {
                 FilesManager.shared.reveal(orig)
