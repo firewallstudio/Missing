@@ -1,11 +1,13 @@
 import AppKit
+import Combine
 import SwiftUI
 
-// MARK: - Dosyalar'ın kendi sağ tık menüsü (macOS cam menü)
+// MARK: - Dosyalar'ın kendi sağ tık menüsü
 //
 // İçerik bugünkü NSMenu'dan gelir (eylemler, hedefler, alt menüler aynen çalışır); sadece çizim bizim:
-// cam zemin, simgeli satırlar, sağda kısayol, alt menüler yana açılır. Dışarı tıklayınca, Esc ile ya da
-// bir satır seçilince kapanır.
+// temaya göre zemin, simgeli satırlar, sağda kısayol, alt menüler yana açılır. Dışarı tıklayınca, Esc ile ya da
+// bir satır seçilince kapanır. Görünüm Dosyalar temasını izler (FilesMenuLook): Missing koyu cam,
+// Finder gerçek macOS menüsü, Windows 11 Gezgini menüsü, Cam yarı saydam; Finder/Windows/Cam sistemin açık/koyu ayarıyla.
 
 @MainActor final class FilesContextMenu: ObservableObject {
     static let shared = FilesContextMenu()
@@ -15,6 +17,37 @@ import SwiftUI
     private var monitors: [Any] = []
     private var root: NSMenu?
     private var pendingOpen: DispatchWorkItem?
+    private var bag: Set<AnyCancellable> = []
+    private var appearanceObserver: NSKeyValueObservation?
+
+    /// Menünün paleti: panel ana pencerenin dışında, o yüzden tema ayarı + uygulamanın görünümünden kurulur
+    @Published private(set) var palette: FilesPalette = FilesContextMenu.makePalette()
+
+    private init() {
+        // $theme değer yazılmadan önce yayınlar: yeni temayı parametreden al
+        FilesThemeStore.shared.$theme.dropFirst().sink { [weak self] t in
+            MainActor.assumeIsolated { self?.refreshPalette(theme: t) }
+        }.store(in: &bag)
+        // Sistem açık/koyu değişince
+        appearanceObserver = NSApp.observe(\.effectiveAppearance) { [weak self] _, _ in
+            DispatchQueue.main.async { MainActor.assumeIsolated { self?.refreshPalette() } }
+        }
+    }
+
+    /// Missing menüsü her zaman koyu cam; diğer temalar sistemin açık/koyu ayarını izler
+    static func makePalette(theme: FilesTheme? = nil) -> FilesPalette {
+        let theme = theme ?? FilesThemeStore.shared.theme
+        if theme == .missing { return FilesPalette(theme: .missing, dark: true) }
+        let dark = theme.forcesDark || NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        return FilesPalette(theme: theme, dark: dark)
+    }
+
+    private func refreshPalette(theme: FilesTheme? = nil) {
+        let p = Self.makePalette(theme: theme)
+        guard p.theme != palette.theme || p.dark != palette.dark else { return }
+        palette = p
+        panels.forEach { $0.appearance = NSAppearance(named: p.dark ? .darkAqua : .aqua) }
+    }
 
     var isOpen: Bool { !panels.isEmpty }
 
@@ -26,6 +59,7 @@ import SwiftUI
         if let l = lastShow, abs(l.time - eventTime) < 0.25, hypot(l.point.x - point.x, l.point.y - point.y) < 4, isOpen { return }
         lastShow = (eventTime, point)
         close()
+        refreshPalette()
         menu.delegate?.menuNeedsUpdate?(menu)
         menu.update()
         // İçeriği kendi menümüze taşı: tarayıcı menüsünü yeniden kurarsa açık menü bozulmasın
@@ -68,6 +102,8 @@ import SwiftUI
         panel.backgroundColor = .clear
         panel.hasShadow = true
         panel.level = .popUpMenu
+        // Barındırılan görünümler (renk etiketleri) ve sistem renkleri menünün açık/koyu hâlini izlesin
+        panel.appearance = NSAppearance(named: palette.dark ? .darkAqua : .aqua)
         panel.contentView = host
         panel.isReleasedWhenClosed = false
 
@@ -94,7 +130,7 @@ import SwiftUI
     }
 
     /// Satırın üstüne gelindi: alt menüyse biraz bekleyip yana aç, değilse daha derin menüleri kapat
-    fileprivate func hover(_ item: NSMenuItem, level: Int, rowFrame: NSRect) {
+    func hover(_ item: NSMenuItem, level: Int, rowFrame: NSRect) {
         pendingOpen?.cancel()
         guard let sub = item.submenu, item.isEnabled else {
             closeDeeper(than: level)
@@ -183,6 +219,187 @@ final class FilesMenuHostingView<Content: View>: NSHostingView<Content> {
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 }
 
+// MARK: Tema görünümü
+
+/// Menüye gömülen kendi görünümlü satırlar (ör. renk etiketleri) için: satır metninin menü içeriğinin solundan uzaklığı
+/// (vurgu boşluğu + simge sütunu + aradaki boşluk); böylece gömülü satır diğer satırların yazısıyla aynı hizada başlar
+extension FilesContextMenu {
+    static func textInset(for p: FilesPalette) -> CGFloat {
+        let look = FilesMenuLook(p: p)
+        return look.rowPadding + look.iconColumn + look.gap
+    }
+}
+
+/// Menünün temaya göre ölçü ve renkleri. Panel ana pencerenin dışında olduğu için palet
+/// tema ayarı + sistem görünümünden kurulur (FilesContextMenu.palette).
+/// missing: koyu cam, kırmızı vurgu · finder: gerçek macOS menüsü · windows: Windows 11 Gezgini menüsü · glass: yarı saydam cam
+private struct FilesMenuLook {
+    let p: FilesPalette
+    private var t: FilesTheme { p.theme }
+
+    // MARK: Ölçüler
+
+    var radius: CGFloat {
+        switch t {
+        case .missing: return 12
+        case .finder: return 8
+        case .windows: return 8
+        case .glass: return 14
+        }
+    }
+    /// Kenar ile satır vurgusu arasındaki boşluk
+    var pad: CGFloat {
+        switch t {
+        case .windows: return 4
+        case .glass: return 6
+        default: return 5
+        }
+    }
+    var rowHeight: CGFloat {
+        switch t {
+        case .missing: return 24
+        case .finder: return 22
+        case .windows: return 32
+        case .glass: return 26
+        }
+    }
+    var rowRadius: CGFloat {
+        switch t {
+        case .missing: return 7
+        case .finder: return 5
+        case .windows: return 4
+        case .glass: return 9
+        }
+    }
+    /// Satır içi yatay boşluk (vurgunun kenarından metne/simgeye)
+    var rowPadding: CGFloat {
+        switch t {
+        case .finder: return 6
+        case .windows: return 10
+        default: return 8
+        }
+    }
+    var minWidth: CGFloat {
+        switch t {
+        case .windows: return 264
+        case .finder: return 220
+        default: return 230
+        }
+    }
+    var iconColumn: CGFloat { t == .windows ? 20 : 18 }
+    var iconSize: CGFloat { t == .finder ? 14 : (t == .windows ? 16 : 15) }
+    var gap: CGFloat { t == .windows ? 12 : (t == .finder ? 6 : 8) }
+    var fontSize: CGFloat { 13 }
+    var shortcutSize: CGFloat { 12 }
+
+    var separatorInset: CGFloat {
+        switch t {
+        case .windows: return 0
+        case .glass: return 12
+        default: return 10
+        }
+    }
+    var separatorSpacing: CGFloat { t == .windows ? 4 : 5 }
+
+    // MARK: Renkler
+
+    var text: Color {
+        switch t {
+        case .missing: return .white.opacity(0.92)
+        case .finder: return Color(nsColor: .labelColor)
+        case .windows: return p.fg.opacity(p.dark ? 1 : 0.9)
+        case .glass: return p.fg.opacity(0.9)
+        }
+    }
+    var secondary: Color {
+        switch t {
+        case .missing: return .white.opacity(0.45)
+        case .finder: return Color(nsColor: .secondaryLabelColor)
+        case .windows: return p.fg.opacity(p.dark ? 0.62 : 0.55)
+        case .glass: return p.fg.opacity(0.5)
+        }
+    }
+    var icon: Color {
+        switch t {
+        case .missing: return .white.opacity(0.78)
+        case .finder: return Color(nsColor: .labelColor)
+        case .windows: return p.fg.opacity(p.dark ? 0.92 : 0.82)
+        case .glass: return p.fg.opacity(0.75)
+        }
+    }
+
+    var hoverFill: Color {
+        switch t {
+        case .missing: return .white.opacity(0.10)
+        case .finder: return p.accent                       // controlAccentColor
+        case .windows: return p.fg.opacity(0.06)
+        case .glass: return p.glassFill(0.14)
+        }
+    }
+    var hoverStroke: Color? { t == .glass ? p.glassStroke(0.22) : nil }
+    var hoverText: Color { t == .finder ? .white : text }
+    var hoverSecondary: Color { t == .finder ? .white.opacity(0.8) : secondary }
+    var hoverIcon: Color {
+        switch t {
+        case .missing: return Brand.red
+        case .finder: return .white
+        case .windows: return icon
+        case .glass: return glassAccent
+        }
+    }
+    /// İşaretli satırın tiki
+    var check: Color { t == .glass ? glassAccent : (t == .missing ? .white : text) }
+    /// Cam vurgusu (mor); açık zeminde açık mor okunmaz, koyulaştır
+    private var glassAccent: Color { p.dark ? p.accent : Color(red: 0.42, green: 0.30, blue: 0.88) }
+
+    /// Çöp sepeti gibi yıkıcı satırlar; yalnız Missing renklendirir (macOS ve Windows normal metin kullanır)
+    var destructiveText: Color? { t == .missing ? Color(red: 1, green: 0.36, blue: 0.34) : nil }
+    var destructiveIcon: Color? { t == .missing ? Brand.red : nil }
+
+    var separator: Color {
+        switch t {
+        case .missing: return .white.opacity(0.10)
+        case .finder: return Color(nsColor: .separatorColor)
+        case .windows: return p.divider
+        case .glass: return p.fg.opacity(p.dark ? 0.14 : 0.10)
+        }
+    }
+
+    var border: Color {
+        switch t {
+        case .missing: return .white.opacity(0.10)
+        case .finder: return p.dark ? .white.opacity(0.14) : .black.opacity(0.08)
+        case .windows: return p.dark ? .white.opacity(0.08) : .black.opacity(0.10)
+        case .glass: return p.dark ? .white.opacity(0.25) : .black.opacity(0.10)
+        }
+    }
+
+    @ViewBuilder var background: some View {
+        switch t {
+        case .missing:
+            ZStack {
+                GlassBlur(material: .hudWindow, appearance: .darkAqua)
+                Color.black.opacity(0.38)
+                LinearGradient(colors: [.white.opacity(0.08), .white.opacity(0.01)], startPoint: .top, endPoint: .bottom)
+            }
+        case .finder:
+            GlassBlur(material: .menu, appearance: p.dark ? .darkAqua : .aqua)
+        case .windows:
+            p.dark ? Color(red: 0x2C / 255.0, green: 0x2C / 255.0, blue: 0x2C / 255.0)
+                   : Color(red: 0xF9 / 255.0, green: 0xF9 / 255.0, blue: 0xF9 / 255.0)
+        case .glass:
+            ZStack {
+                GlassBlur(material: .hudWindow, appearance: p.dark ? .darkAqua : .aqua)
+                Color.white.opacity(p.dark ? 0.06 : 0.30)
+                LinearGradient(colors: [.white.opacity(p.dark ? 0.10 : 0.25), .clear], startPoint: .top, endPoint: .center)
+            }
+        }
+    }
+
+    /// Windows 11: en sık işlemler menünün üstünde yalnız simgeli düğmeler olarak durur
+    var usesQuickBar: Bool { t == .windows }
+}
+
 // MARK: Görünüm
 
 private struct FilesMenuList: View {
@@ -191,36 +408,45 @@ private struct FilesMenuList: View {
     @ObservedObject var controller: FilesContextMenu
 
     var body: some View {
+        let look = FilesMenuLook(p: controller.palette)
+        let quick = look.usesQuickBar ? FilesMenuShortcuts.quickBarItems(in: items) : []
+        let rows = visible(excluding: quick)
+        let shape = RoundedRectangle(cornerRadius: look.radius, style: .continuous)
         VStack(alignment: .leading, spacing: 0) {
-            ForEach(Array(visible.enumerated()), id: \.offset) { _, item in
+            if !quick.isEmpty {
+                FilesMenuQuickBar(items: quick, level: level, controller: controller, look: look)
+                if !rows.isEmpty { separator(look) }
+            }
+            ForEach(Array(rows.enumerated()), id: \.offset) { _, item in
                 if item.isSeparatorItem {
-                    Rectangle().fill(Color.primary.opacity(0.10)).frame(height: 1)
-                        .padding(.horizontal, 10).padding(.vertical, 5)
+                    separator(look)
                 } else if let v = item.view {
                     HostedMenuView(view: v)
                         .frame(width: max(v.fittingSize.width, 200), height: max(v.fittingSize.height, 24), alignment: .leading)
                 } else {
-                    FilesMenuRow(item: item, level: level, controller: controller)
+                    FilesMenuRow(item: item, level: level, controller: controller, look: look)
                 }
             }
         }
-        .padding(5)
-        .frame(minWidth: 230, alignment: .leading)
+        .padding(look.pad)
+        .frame(minWidth: look.minWidth, alignment: .leading)
         .fixedSize()
-        .background(
-            ZStack {
-                GlassBlur(material: .menu)
-                Color.primary.opacity(0.02)
-            }
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 11, style: .continuous).strokeBorder(Color.primary.opacity(0.12), lineWidth: 1))
+        .background(look.background)
+        .clipShape(shape)
+        .overlay(shape.strokeBorder(look.border, lineWidth: 1))
+        .environment(\.filesPalette, controller.palette)
+        .environment(\.colorScheme, controller.palette.dark ? .dark : .light)
     }
 
-    /// Gizli satırları ve art arda / baştaki / sondaki ayıraçları at
-    private var visible: [NSMenuItem] {
+    private func separator(_ look: FilesMenuLook) -> some View {
+        Rectangle().fill(look.separator).frame(height: 1)
+            .padding(.horizontal, look.separatorInset).padding(.vertical, look.separatorSpacing)
+    }
+
+    /// Gizli satırları (ve üst düğme çubuğuna taşınanları) ve art arda / baştaki / sondaki ayıraçları at
+    private func visible(excluding skip: [NSMenuItem]) -> [NSMenuItem] {
         var out: [NSMenuItem] = []
-        for i in items where !i.isHidden {
+        for i in items where !i.isHidden && !skip.contains(where: { $0 === i }) {
             if i.isSeparatorItem, out.last?.isSeparatorItem ?? true { continue }
             out.append(i)
         }
@@ -233,37 +459,48 @@ private struct FilesMenuRow: View {
     let item: NSMenuItem
     let level: Int
     @ObservedObject var controller: FilesContextMenu
+    let look: FilesMenuLook
     @State private var hover = false
     @State private var frame: NSRect = .zero
 
     var body: some View {
         let enabled = item.isEnabled
         let lit = (hover || isOpenParent) && enabled
-        HStack(spacing: 8) {
+        let danger = FilesMenuShortcuts.isDestructive(item)
+        let textColor = danger ? (look.destructiveText ?? (lit ? look.hoverText : look.text)) : (lit ? look.hoverText : look.text)
+        let iconColor = lit ? look.hoverIcon : (danger ? (look.destructiveIcon ?? look.icon) : look.icon)
+        HStack(spacing: look.gap) {
             ZStack {
                 if item.state == .on {
                     Image(systemName: "checkmark").font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(lit ? look.hoverText : look.check)
+                } else if item.state == .mixed {
+                    Image(systemName: "minus").font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(lit ? look.hoverText : look.check)
                 } else if let img = icon {
                     Image(nsImage: img).renderingMode(img.isTemplate ? .template : .original)
-                        .resizable().scaledToFit().frame(width: 15, height: 15)
+                        .resizable().scaledToFit().frame(width: look.iconSize, height: look.iconSize)
+                        .foregroundStyle(iconColor)
                 }
             }
-            .frame(width: 18)
-            Text(item.title).font(.system(size: 13)).lineLimit(1)
-            Spacer(minLength: 16)
+            .frame(width: look.iconColumn)
+            Text(item.title).font(.system(size: look.fontSize)).lineLimit(1)
+                .foregroundStyle(textColor)
+            Spacer(minLength: 20)
             if let k = FilesMenuShortcuts.text(for: item) {
-                Text(k).font(.system(size: 12)).foregroundStyle(lit ? Color.white.opacity(0.85) : Color.secondary)
+                Text(k).font(.system(size: look.shortcutSize))
+                    .foregroundStyle(lit ? look.hoverSecondary : look.secondary)
             }
             if item.submenu != nil {
-                Image(systemName: "chevron.right").font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(lit ? Color.white.opacity(0.9) : Color.secondary)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: look.p.theme == .windows ? 11 : 10, weight: look.p.theme == .windows ? .regular : .semibold))
+                    .foregroundStyle(lit ? look.hoverSecondary : look.secondary)
             }
         }
-        .foregroundStyle(lit ? Color.white : Color.primary)
         .opacity(enabled ? 1 : 0.4)
-        .padding(.horizontal, 8)
-        .frame(height: 24)
-        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(lit ? Color.accentColor : .clear))
+        .padding(.horizontal, look.rowPadding)
+        .frame(height: look.rowHeight)
+        .background(highlight(lit))
         .contentShape(Rectangle())
         .background(GeometryReader { g in
             Color.clear
@@ -278,6 +515,12 @@ private struct FilesMenuRow: View {
         .help(item.toolTip ?? "")
     }
 
+    private func highlight(_ lit: Bool) -> some View {
+        let shape = RoundedRectangle(cornerRadius: look.rowRadius, style: .continuous)
+        return shape.fill(lit ? look.hoverFill : .clear)
+            .overlay(shape.strokeBorder(lit ? (look.hoverStroke ?? .clear) : .clear, lineWidth: 1))
+    }
+
     private var isOpenParent: Bool {
         let o = controller.openSubmenuOwners
         return o.indices.contains(level) && o[level] === item
@@ -289,6 +532,50 @@ private struct FilesMenuRow: View {
               let img = NSImage(systemSymbolName: s, accessibilityDescription: nil) else { return nil }
         img.isTemplate = true
         return img
+    }
+}
+
+/// Windows 11 sağ tık menüsünün üstündeki simge düğmeleri (Kes, Kopyala, Yapıştır, Yeniden adlandır, Sil)
+private struct FilesMenuQuickBar: View {
+    let items: [NSMenuItem]
+    let level: Int
+    @ObservedObject var controller: FilesContextMenu
+    let look: FilesMenuLook
+
+    var body: some View {
+        HStack(spacing: 2) {
+            ForEach(Array(items.enumerated()), id: \.offset) { _, item in
+                FilesMenuQuickButton(item: item, level: level, controller: controller, look: look)
+            }
+            Spacer(minLength: 0)
+        }
+    }
+}
+
+private struct FilesMenuQuickButton: View {
+    let item: NSMenuItem
+    let level: Int
+    @ObservedObject var controller: FilesContextMenu
+    let look: FilesMenuLook
+    @State private var hover = false
+
+    var body: some View {
+        let enabled = item.isEnabled
+        Image(systemName: FilesMenuShortcuts.symbol(for: item) ?? "questionmark")
+            .font(.system(size: 15))
+            .foregroundStyle(look.icon)
+            .frame(width: 40, height: 36)
+            .background(RoundedRectangle(cornerRadius: look.rowRadius, style: .continuous)
+                .fill(hover && enabled ? look.hoverFill : .clear))
+            .opacity(enabled ? 1 : 0.4)
+            .contentShape(Rectangle())
+            .onHover { h in
+                hover = h
+                if h { controller.hover(item, level: level, rowFrame: .zero) }
+            }
+            .onTapGesture { controller.click(item, level: level, rowFrame: .zero) }
+            .help(item.title)
+            .accessibilityLabel(item.title)
     }
 }
 
@@ -317,6 +604,7 @@ private struct HostedMenuView: NSViewRepresentable {
         case "toggleQuickLook:": return "eye"
         case "renameSelection:": return "pencil"
         case "duplicateSelection:": return "plus.square.on.square"
+        case "cut:": return "scissors"
         case "copy:": return "doc.on.doc"
         case "copyPath:": return "link"
         case "paste:": return "doc.on.clipboard"
@@ -338,6 +626,19 @@ private struct HostedMenuView: NSViewRepresentable {
         case L("Sırala"): return "arrow.up.arrow.down"
         default: return nil
         }
+    }
+
+    /// Yıkıcı satır (Missing temasında kırmızı çizilir)
+    static func isDestructive(_ item: NSMenuItem) -> Bool { name(item) == "trashSelection:" }
+
+    /// Windows 11'deki gibi menünün üstünde simge düğmesi olacak satırlar, Windows'un sırasıyla.
+    /// En az iki tane yoksa çubuk kurulmaz (tek düğme tuhaf durur), satırlar yerinde kalır.
+    static func quickBarItems(in items: [NSMenuItem]) -> [NSMenuItem] {
+        let order = ["cut:", "copy:", "paste:", "renameSelection:", "trashSelection:"]
+        let found = order.compactMap { sel in
+            items.first { !$0.isHidden && $0.view == nil && $0.submenu == nil && name($0) == sel }
+        }
+        return found.count >= 2 ? found : []
     }
 
     static func text(for item: NSMenuItem) -> String? {

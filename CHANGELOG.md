@@ -2,6 +2,13 @@
 
 Also shown in the app: **Settings › Versions**.
 
+## 4.3.26
+
+- Files follows its theme everywhere: the right-click menu, Get Info, the new folder, rename and confirmation dialogs and Files Settings each have their own look in Missing, Finder, Windows and Glass
+- New preview window in Files (Space): Missing's own design per theme instead of Quick Look, with the file's details, Open with, share and previous / next; it doesn't take focus, so one click on another file selects it and the preview follows
+- Dragging files over a folder opens the folder and tints it in the theme's colour, in icon, list and column views and in the sidebar
+- A single click works in Files while another app is in front (no extra click just to bring the window forward)
+
 ## 4.3.25
 
 - New: Volume leveler. Raises quiet sound and lowers loud sound so everything from the computer plays at the level you pick (Settings › Quick Features, or the menu bar panel)

@@ -1,5 +1,6 @@
 import AppKit
 import AVFoundation
+import Combine
 import Quartz
 import SwiftUI
 import UniformTypeIdentifiers
@@ -420,120 +421,463 @@ import UniformTypeIdentifiers
 }
 
 // MARK: - Bilgi Al (⌘I)
+//
+// Seçili temaya uyar: finder → Finder'ın Bilgi penceresi (açılır kapanır bölümler),
+// windows → Gezgin'in "Özellikler" penceresi, missing / glass → cam kartlar. Tema değişince pencere de değişir.
 
 @MainActor enum FilesInfoWindow {
     private static var open: [String: NSWindow] = [:]
+    private static var themeWatch: AnyCancellable?
 
     static func show(_ url: URL) {
         let key = url.fileKey
         if let w = open[key] { w.makeKeyAndOrderFront(nil); return }
         let w = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 300, height: 480),
-                        styleMask: [.titled, .closable, .utilityWindow], backing: .buffered, defer: false)
+                        styleMask: [.titled, .closable], backing: .buffered, defer: false)
         w.title = L("%@ Bilgileri", FileManager.default.displayName(atPath: url.path))
         w.isReleasedWhenClosed = false
         w.hidesOnDeactivate = false
-        w.contentView = NSHostingView(rootView: FilesInfoView(url: url))
-        w.setContentSize(w.contentView!.fittingSize)
+        let host = NSHostingView(rootView: content(for: url) { [weak w] in w?.close() })
+        // Pencere içeriğin boyunu izlesin (bölüm açılıp kapanınca, tema değişince)
+        host.sizingOptions = [.minSize, .maxSize, .intrinsicContentSize]
+        w.contentView = host
+        style(w)
+        w.setContentSize(host.fittingSize)
         if let key = NSApp.keyWindow {
             let f = key.frame
-            w.setFrameTopLeftPoint(NSPoint(x: f.maxX - 320 - CGFloat(open.count * 20), y: f.maxY - 40 - CGFloat(open.count * 20)))
+            w.setFrameTopLeftPoint(NSPoint(x: f.maxX - 340 - CGFloat(open.count * 20), y: f.maxY - 40 - CGFloat(open.count * 20)))
         } else { w.center() }
         open[key] = w
         NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: w, queue: .main) { _ in
             MainActor.assumeIsolated { open[key] = nil }
         }
+        if themeWatch == nil {
+            themeWatch = FilesThemeStore.shared.$theme.dropFirst().sink { _ in
+                // @Published değeri yazılmadan önce yayınlar: bir tur sonra uygula
+                DispatchQueue.main.async { MainActor.assumeIsolated { open.values.forEach(style) } }
+            }
+        }
         NSApp.activate(ignoringOtherApps: true)
         w.makeKeyAndOrderFront(nil)
     }
+
+    /// Pencerenin içeriği (deneme düzeneği de bunu çizer)
+    static func content(for url: URL, close: @escaping () -> Void = {}) -> some View {
+        FilesThemedRoot { _ in FilesInfoView(url: url, close: close) }
+    }
+
+    /// Pencere çerçevesi temaya göre: finder normal başlık çubuğu; diğerleri başlıksız, içerik en üstten başlar
+    static func style(_ w: NSWindow) {
+        let t = FilesThemeStore.shared.theme
+        let top = w.frame.maxY
+        if t == .finder { w.styleMask.remove(.fullSizeContentView) } else { w.styleMask.insert(.fullSizeContentView) }
+        w.titlebarAppearsTransparent = t != .finder
+        w.titleVisibility = t == .finder ? .visible : .hidden
+        let clear = t == .missing || t == .glass
+        w.isOpaque = !clear
+        w.backgroundColor = clear ? .clear : .windowBackgroundColor
+        w.appearance = t == .missing ? NSAppearance(named: .darkAqua) : nil
+        w.isMovableByWindowBackground = t != .finder
+        DispatchQueue.main.async {
+            if let c = w.contentView {
+                let size = w.frameRect(forContentRect: NSRect(origin: .zero, size: c.fittingSize)).size
+                w.setFrame(NSRect(x: w.frame.minX, y: top - size.height, width: size.width, height: size.height), display: true)
+            }
+            w.invalidateShadow()
+        }
+    }
 }
 
-private struct FilesInfoView: View {
+struct FilesInfoView: View {
     let url: URL
+    var close: () -> Void = {}
+    @Environment(\.filesPalette) private var p
     @State private var size: String = "…"
+    @State private var bytes: String = "…"
     @State private var locked = false
     @State private var hideExt = false
     @State private var apps: [URL] = []
     @State private var app: URL?
+    /// finder: açık bölümler
+    @State private var expanded: Set<String> = ["general", "more", "name", "openWith"]
 
     private var values: URLResourceValues? {
         try? url.resourceValues(forKeys: [.localizedTypeDescriptionKey, .creationDateKey, .contentModificationDateKey,
                                           .contentAccessDateKey, .isDirectoryKey, .isPackageKey, .contentTypeKey])
     }
 
-    var body: some View {
+    /// Gösterilen bilgiler (her temada aynı alanlar)
+    private struct Info {
+        var name: String
+        var kind: String
+        var location: String
+        var created: String
+        var modified: String
+        var lastOpened: String?
+        var dims: String?
+        var isFolder: Bool
+        var contentType: UTType?
+    }
+
+    private var info: Info {
         let v = values
         let isFolder = (v?.isDirectory ?? false) && !(v?.isPackage ?? false)
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 12) {
-                Image(nsImage: NSWorkspace.shared.icon(forFile: url.path)).resizable().frame(width: 56, height: 56)
+        return Info(name: FileManager.default.displayName(atPath: url.path),
+                    kind: v?.localizedTypeDescription ?? "—",
+                    location: (url.deletingLastPathComponent().path as NSString).abbreviatingWithTildeInPath,
+                    created: date(v?.creationDate),
+                    modified: date(v?.contentModificationDate),
+                    lastOpened: isFolder ? nil : date(v?.contentAccessDate),
+                    dims: imageSize,
+                    isFolder: isFolder,
+                    contentType: v?.contentType)
+    }
+
+    var body: some View {
+        let i = info
+        Group {
+            switch p.theme {
+            case .finder: finderLayout(i)
+            case .windows: windowsLayout(i)
+            case .missing, .glass: cardLayout(i)
+            }
+        }
+        .foregroundStyle(p.fg)
+        .task { await load() }
+    }
+
+    // MARK: Ortak denetimler (davranış her temada aynı)
+
+    private var icon: Image { Image(nsImage: NSWorkspace.shared.icon(forFile: url.path)) }
+
+    @ViewBuilder private func toggle(_ title: String, _ isOn: Binding<Bool>) -> some View {
+        switch p.theme {
+        case .missing:
+            HStack {
+                Text(title)
+                Spacer(minLength: 8)
+                Toggle("", isOn: isOn).toggleStyle(BrandSwitchStyle()).labelsHidden()
+            }
+        case .glass:
+            HStack {
+                Text(title)
+                Spacer(minLength: 8)
+                Toggle("", isOn: isOn).toggleStyle(.switch).controlSize(.mini).labelsHidden()
+            }
+        case .finder, .windows:
+            Toggle(title, isOn: isOn).toggleStyle(.checkbox)
+        }
+    }
+
+    private var lockedToggle: some View {
+        toggle(L("Kilitli"), $locked)
+            .onChange(of: locked) { on in
+                var rv = URLResourceValues(); rv.isUserImmutable = on
+                var u = url; try? u.setResourceValues(rv)
+            }
+    }
+
+    private var hideExtToggle: some View {
+        toggle(L("Uzantıyı gizle"), $hideExt)
+            .onChange(of: hideExt) { on in
+                var rv = URLResourceValues(); rv.hasHiddenExtension = on
+                var u = url; try? u.setResourceValues(rv)
+            }
+    }
+
+    private var appPicker: some View {
+        Picker("", selection: $app) {
+            ForEach(apps, id: \.self) { a in
+                Text(FileManager.default.displayName(atPath: a.path)).tag(Optional(a))
+            }
+        }
+        .labelsHidden()
+        .onChange(of: app) { a in
+            guard let a else { return }
+            NSWorkspace.shared.setDefaultApplication(at: a, toOpenFileAt: url) { _ in }
+        }
+    }
+
+    private func changeAllButton(_ type: UTType?, small: Bool = true) -> some View {
+        Button(L("Hepsini değiştir…")) {
+            guard let a = app, let t = type else { return }
+            NSWorkspace.shared.setDefaultApplication(at: a, toOpen: t) { _ in }
+        }
+        .filesButton(.normal, p, small: small)
+        .help(L("Bu türdeki bütün dosyalar bu uygulamayla açılsın"))
+    }
+
+    // MARK: finder: Finder'ın Bilgi penceresi
+
+    private func finderLayout(_ i: Info) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .top, spacing: 10) {
+                icon.resizable().interpolation(.high).frame(width: 40, height: 40)
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(FileManager.default.displayName(atPath: url.path)).font(.system(size: 14, weight: .semibold))
-                        .lineLimit(2).textSelection(.enabled)
-                    Text(size).font(.system(size: 11.5)).foregroundStyle(.secondary)
-                }
-            }
-            Divider()
-            Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 6) {
-                row(L("Tür"), v?.localizedTypeDescription ?? "—")
-                row(L("Boyut"), size)
-                row(L("Konum"), (url.deletingLastPathComponent().path as NSString).abbreviatingWithTildeInPath)
-                row(L("Oluşturulma"), date(v?.creationDate))
-                row(L("Değiştirilme"), date(v?.contentModificationDate))
-                if !isFolder { row(L("Son açılma"), date(v?.contentAccessDate)) }
-                if let dims = imageSize { row(L("Ölçüler"), dims) }
-            }
-            .font(.system(size: 11.5))
-            Divider()
-            Toggle(L("Kilitli"), isOn: $locked)
-                .onChange(of: locked) { on in
-                    var rv = URLResourceValues(); rv.isUserImmutable = on
-                    var u = url; try? u.setResourceValues(rv)
-                }
-            if !isFolder {
-                Toggle(L("Uzantıyı gizle"), isOn: $hideExt)
-                    .onChange(of: hideExt) { on in
-                        var rv = URLResourceValues(); rv.hasHiddenExtension = on
-                        var u = url; try? u.setResourceValues(rv)
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Text(i.name).font(.system(size: 13, weight: .semibold)).lineLimit(2).textSelection(.enabled)
+                        Spacer(minLength: 6)
+                        Text(bytes).font(.system(size: 13)).monospacedDigit().lineLimit(1).layoutPriority(1)
                     }
+                    Text(L("Değiştirilme") + ": " + i.modified).font(.system(size: 11)).foregroundStyle(p.secondary)
+                        .lineLimit(2)
+                }
+                .padding(.top, 2)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            Divider()
+            finderSection("general", L("Genel")) {
+                Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 6, verticalSpacing: 4) {
+                    finderRow(L("Tür"), i.kind)
+                    finderRow(L("Boyut"), size)
+                    finderRow(L("Konum"), i.location)
+                    finderRow(L("Oluşturulma"), i.created)
+                    finderRow(L("Değiştirilme"), i.modified)
+                    GridRow {
+                        Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
+                        lockedToggle.padding(.top, 4)
+                    }
+                }
+            }
+            if i.lastOpened != nil || i.dims != nil {
+                Divider()
+                finderSection("more", L("Daha fazla bilgi")) {
+                    Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 6, verticalSpacing: 4) {
+                        if let o = i.lastOpened { finderRow(L("Son açılma"), o) }
+                        if let d = i.dims { finderRow(L("Ölçüler"), d) }
+                    }
+                }
+            }
+            if !i.isFolder {
+                Divider()
+                finderSection("name", L("Ad ve uzantı")) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(url.lastPathComponent)
+                            .font(.system(size: 12)).lineLimit(2).textSelection(.enabled)
+                            .padding(.horizontal, 6).padding(.vertical, 3)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(RoundedRectangle(cornerRadius: 5).fill(Color(nsColor: .textBackgroundColor)))
+                            .overlay(RoundedRectangle(cornerRadius: 5).strokeBorder(p.fg.opacity(0.15), lineWidth: 1))
+                        hideExtToggle
+                    }
+                }
                 if !apps.isEmpty {
                     Divider()
-                    Text(L("Birlikte aç")).font(.system(size: 11.5, weight: .semibold))
-                    Picker("", selection: $app) {
-                        ForEach(apps, id: \.self) { a in
-                            Text(FileManager.default.displayName(atPath: a.path)).tag(Optional(a))
+                    finderSection("openWith", L("Birlikte aç")) {
+                        VStack(alignment: .leading, spacing: 6) {
+                            appPicker.controlSize(.small)
+                            Text(L("Bu türdeki bütün dosyalar bu uygulamayla açılsın"))
+                                .font(.system(size: 11)).foregroundStyle(p.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                            changeAllButton(i.contentType)
                         }
                     }
-                    .labelsHidden()
-                    .onChange(of: app) { a in
-                        guard let a else { return }
-                        NSWorkspace.shared.setDefaultApplication(at: a, toOpenFileAt: url) { _ in }
-                    }
-                    Button(L("Hepsini değiştir…")) {
-                        guard let a = app, let t = v?.contentType else { return }
-                        NSWorkspace.shared.setDefaultApplication(at: a, toOpen: t) { _ in }
-                    }
-                    .help(L("Bu türdeki bütün dosyalar bu uygulamayla açılsın"))
                 }
             }
         }
-        .padding(16)
+        .font(.system(size: 11))
         .frame(width: 300)
-        .toggleStyle(.checkbox)
-        .task { await load() }
+        .background(Color(nsColor: .windowBackgroundColor))
     }
+
+    private func finderSection<C: View>(_ id: String, _ title: String, @ViewBuilder _ content: () -> C) -> some View {
+        let on = expanded.contains(id)
+        return VStack(alignment: .leading, spacing: 6) {
+            Button {
+                withAnimation(.easeOut(duration: 0.15)) { if on { expanded.remove(id) } else { expanded.insert(id) } }
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(p.secondary)
+                        .rotationEffect(.degrees(on ? 90 : 0))
+                        .frame(width: 12)
+                    Text(title + ":").font(.system(size: 11, weight: .bold))
+                    Spacer(minLength: 0)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            if on { content().padding(.leading, 16) }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 7)
+    }
+
+    private func finderRow(_ k: String, _ v: String) -> some View {
+        GridRow {
+            Text(k + ":").font(.system(size: 11, weight: .medium)).foregroundStyle(p.secondary)
+                .gridColumnAlignment(.trailing)
+            Text(v).lineLimit(4).textSelection(.enabled)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    // MARK: windows: Gezgin'in Özellikler penceresi
+
+    private func windowsLayout(_ i: Info) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Başlık çubuğu (trafik ışıklarının yanında)
+            HStack(spacing: 7) {
+                icon.resizable().interpolation(.high).frame(width: 16, height: 16)
+                Text(L("%@ Bilgileri", i.name)).font(.system(size: 12)).lineLimit(1).truncationMode(.middle)
+                Spacer(minLength: 0)
+            }
+            .padding(.leading, 80)
+            .padding(.trailing, 12)
+            .frame(height: 32)
+            // Sekme: Windows 11 seçim çubuğu
+            HStack {
+                VStack(spacing: 4) {
+                    Text(L("Genel")).font(.system(size: 13, weight: .semibold))
+                    Capsule().fill(p.accent).frame(width: 18, height: 3)
+                }
+                Spacer()
+            }
+            .padding(.horizontal, 18)
+            .padding(.bottom, 6)
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(spacing: 14) {
+                    icon.resizable().interpolation(.high).frame(width: 36, height: 36)
+                    Text(i.name).font(.system(size: 12.5)).lineLimit(2).textSelection(.enabled)
+                        .padding(.horizontal, 8)
+                        .frame(maxWidth: .infinity, minHeight: 30, alignment: .leading)
+                        .background(RoundedRectangle(cornerRadius: 4, style: .continuous)
+                            .fill(p.dark ? Color(white: 0.2) : .white))
+                        .overlay(RoundedRectangle(cornerRadius: 4, style: .continuous).strokeBorder(p.dialogBorder, lineWidth: 1))
+                }
+                .padding(.bottom, 12)
+                winLine
+                winRow(L("Tür"), i.kind)
+                if !i.isFolder, !apps.isEmpty {
+                    HStack(alignment: .center, spacing: 8) {
+                        Text(L("Birlikte aç") + ":").frame(width: 108, alignment: .leading).foregroundStyle(p.fg.opacity(0.8))
+                        appPicker.controlSize(.small).frame(maxWidth: .infinity)
+                        changeAllButton(i.contentType)
+                    }
+                    .padding(.vertical, 4)
+                }
+                winLine
+                winRow(L("Konum"), i.location)
+                winRow(L("Boyut"), size)
+                winLine
+                winRow(L("Oluşturulma"), i.created)
+                winRow(L("Değiştirilme"), i.modified)
+                if let o = i.lastOpened { winRow(L("Son açılma"), o) }
+                if let d = i.dims { winRow(L("Ölçüler"), d) }
+                winLine
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(L("Öznitelikler") + ":").frame(width: 108, alignment: .leading).foregroundStyle(p.fg.opacity(0.8))
+                    VStack(alignment: .leading, spacing: 6) {
+                        lockedToggle
+                        if !i.isFolder { hideExtToggle }
+                    }
+                    Spacer(minLength: 0)
+                }
+                .padding(.vertical, 6)
+            }
+            .font(.system(size: 12))
+            .padding(16)
+            .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(p.winSurface))
+            .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(p.dialogBorder, lineWidth: 1))
+            .padding(.horizontal, 12)
+            HStack {
+                Spacer()
+                Button(L("Tamam"), action: close)
+                    .filesButton(.primary, p)
+                    .keyboardShortcut(.defaultAction)
+            }
+            .padding(12)
+        }
+        .frame(width: 390)
+        .background(p.winBand)
+    }
+
+    private var winLine: some View {
+        Rectangle().fill(p.divider).frame(height: 1).padding(.vertical, 6)
+    }
+
+    private func winRow(_ k: String, _ v: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text(k + ":").frame(width: 108, alignment: .leading).foregroundStyle(p.fg.opacity(0.8))
+            Text(v).lineLimit(3).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.vertical, 3)
+    }
+
+    // MARK: missing / glass: cam kartlar
+
+    private func cardLayout(_ i: Info) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 14) {
+                icon.resizable().interpolation(.high).frame(width: 56, height: 56)
+                    .shadow(color: .black.opacity(0.25), radius: 5, y: 2)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(i.name).font(.system(size: 14, weight: .semibold)).lineLimit(2).textSelection(.enabled)
+                    Text(i.kind).font(.system(size: 11.5)).foregroundStyle(p.secondary).lineLimit(1)
+                    Text(size).font(.system(size: 11.5)).foregroundStyle(p.secondary).monospacedDigit()
+                }
+            }
+            .padding(.top, 22)   // trafik ışıklarına yer
+            card(L("Genel")) {
+                cardRow(L("Boyut"), size)
+                cardRow(L("Konum"), i.location)
+                cardRow(L("Oluşturulma"), i.created)
+                cardRow(L("Değiştirilme"), i.modified)
+                if let o = i.lastOpened { cardRow(L("Son açılma"), o) }
+                if let d = i.dims { cardRow(L("Ölçüler"), d) }
+            }
+            card(L("Öznitelikler")) {
+                lockedToggle
+                if !i.isFolder { hideExtToggle }
+            }
+            if !i.isFolder, !apps.isEmpty {
+                card(L("Birlikte aç")) {
+                    appPicker.frame(maxWidth: .infinity)
+                    HStack {
+                        Spacer()
+                        changeAllButton(i.contentType)
+                    }
+                }
+            }
+        }
+        .font(.system(size: 12))
+        .padding(16)
+        .frame(width: 320)
+        .modifier(FilesDialogSurface())
+    }
+
+    private func card<C: View>(_ title: String, @ViewBuilder _ content: () -> C) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            // Büyük harf uygulamanın diline göre (İngilizce "with" → "WİTH" olmasın)
+            Text(title.uppercased(with: Locale(identifier: AppLanguage.active.rawValue)))
+                .font(.system(size: 10, weight: .bold)).tracking(0.5).foregroundStyle(p.secondary)
+            content()
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(p.cardFill))
+        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(p.cardStroke, lineWidth: 1))
+    }
+
+    private func cardRow(_ k: String, _ v: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            Text(k).foregroundStyle(p.secondary)
+            Spacer(minLength: 8)
+            Text(v).multilineTextAlignment(.trailing).lineLimit(3).textSelection(.enabled)
+        }
+    }
+
+    // MARK: Veri
 
     private var imageSize: String? {
         guard let src = CGImageSourceCreateWithURL(url as CFURL, nil),
               let p = CGImageSourceCopyPropertiesAtIndex(src, 0, nil) as? [CFString: Any],
               let w = p[kCGImagePropertyPixelWidth] as? Int, let h = p[kCGImagePropertyPixelHeight] as? Int else { return nil }
         return "\(w) × \(h)"
-    }
-
-    private func row(_ k: String, _ v: String) -> some View {
-        GridRow {
-            Text(k).foregroundStyle(.secondary).gridColumnAlignment(.trailing)
-            Text(v).lineLimit(3).textSelection(.enabled)
-        }
     }
 
     private func date(_ d: Date?) -> String {
@@ -552,8 +896,9 @@ private struct FilesInfoView: View {
         apps = list
         let u = url
         let measured = await Task.detached { FileCopier.measure(u) }.value
-        let bytes = ByteCountFormatter.string(fromByteCount: measured.bytes, countStyle: .file)
+        let b = ByteCountFormatter.string(fromByteCount: measured.bytes, countStyle: .file)
         let isDir = (try? u.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? false
-        size = isDir ? L("%@ · %d öğe", bytes, measured.files) : bytes
+        bytes = b
+        size = isDir ? L("%@ · %d öğe", b, measured.files) : b
     }
 }

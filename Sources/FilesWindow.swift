@@ -378,8 +378,7 @@ private final class FilesNSWindow: NSWindow {
     override var canBecomeMain: Bool { true }
 }
 
-@MainActor final class FilesWindowController: NSWindowController, NSWindowDelegate, NSMenuItemValidation,
-                                              QLPreviewPanelDataSource, QLPreviewPanelDelegate {
+@MainActor final class FilesWindowController: NSWindowController, NSWindowDelegate, NSMenuItemValidation {
     let model: FilesWindowModel
     let browser = FilesBrowser()
     private var bag = Set<AnyCancellable>()
@@ -402,7 +401,7 @@ private final class FilesNSWindow: NSWindow {
         super.init(window: w)
         w.delegate = self
         browser.owner = self
-        w.contentView = NSHostingView(rootView: FilesRootView(model: model, controller: self))
+        w.contentView = FilesClickThroughHostingView(rootView: FilesRootView(model: model, controller: self))
         if let prev = cascadeFrom {
             w.setFrame(prev.frame, display: false)
             w.setFrameTopLeftPoint(w.cascadeTopLeft(from: NSPoint(x: prev.frame.minX, y: prev.frame.maxY)))
@@ -443,11 +442,11 @@ private final class FilesNSWindow: NSWindow {
         tab.$url.sink { [weak self] _ in
             DispatchQueue.main.async { self?.window?.title = tab.title }
         }.store(in: &tabBag)
-        tab.$selection.sink { _ in
+        // Önizleme açıksa yeni seçimi göstersin
+        tab.$selection.sink { [weak self] _ in
             DispatchQueue.main.async {
-                if QLPreviewPanel.sharedPreviewPanelExists(), QLPreviewPanel.shared().isVisible {
-                    QLPreviewPanel.shared().reloadData()
-                }
+                guard let self else { return }
+                FilesPreviewPanel.shared.update(urls: self.browser.selectedItems.map(\.url), index: 0, from: self)
             }
         }.store(in: &tabBag)
     }
@@ -460,9 +459,7 @@ private final class FilesNSWindow: NSWindow {
     }
 
     func windowWillClose(_ notification: Notification) {
-        if QLPreviewPanel.sharedPreviewPanelExists(), QLPreviewPanel.shared().isVisible, QLPreviewPanel.shared().dataSource === self {
-            QLPreviewPanel.shared().orderOut(nil)
-        }
+        if FilesPreviewPanel.shared.controller === self { FilesPreviewPanel.shared.close(animated: false) }
         model.tabs.forEach { $0.stop() }
         FilesManager.shared.closed(self)
     }
@@ -733,19 +730,11 @@ private final class FilesNSWindow: NSWindow {
 
     @objc func goToFolder(_ sender: Any?) {
         guard let window else { return }
-        let a = NSAlert()
-        a.messageText = L("Klasöre git")
-        a.informativeText = L("Bir yol yaz; ~ ev klasörün demek.")
-        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 320, height: 24))
-        field.stringValue = (tab.url.path as NSString).abbreviatingWithTildeInPath
-        field.placeholderString = "~/Documents"
-        a.accessoryView = field
-        a.addButton(withTitle: L("Git"))
-        a.addButton(withTitle: L("Vazgeç"))
-        a.window.initialFirstResponder = field
-        a.beginSheetModal(for: window) { [weak self] r in
-            guard r == .alertFirstButtonReturn, let self else { return }
-            let path = (field.stringValue.trimmingCharacters(in: .whitespaces) as NSString).expandingTildeInPath
+        FilesDialog.show(on: window, title: L("Klasöre git"), message: L("Bir yol yaz; ~ ev klasörün demek."),
+                         field: .init(text: (tab.url.path as NSString).abbreviatingWithTildeInPath, placeholder: "~/Documents"),
+                         actions: [.init(L("Vazgeç"), .cancel), .init(L("Git"), .primary)]) { [weak self] r, text in
+            guard r == 1, let self else { return }
+            let path = (text.trimmingCharacters(in: .whitespaces) as NSString).expandingTildeInPath
             let u = URL(fileURLWithPath: path)
             var dir: ObjCBool = false
             guard FileManager.default.fileExists(atPath: u.path, isDirectory: &dir) else { NSSound.beep(); return }
@@ -781,60 +770,8 @@ private final class FilesNSWindow: NSWindow {
 
     // MARK: Quick Look
 
-    @objc func toggleQuickLook(_ sender: Any?) {
-        let p = QLPreviewPanel.shared()!
-        if p.isVisible { p.orderOut(nil) } else { p.makeKeyAndOrderFront(nil) }
-    }
-
-    override func acceptsPreviewPanelControl(_ panel: QLPreviewPanel!) -> Bool { true }
-
-    override func beginPreviewPanelControl(_ panel: QLPreviewPanel!) {
-        panel.dataSource = self
-        panel.delegate = self
-        panel.reloadData()
-    }
-
-    override func endPreviewPanelControl(_ panel: QLPreviewPanel!) {
-        panel.dataSource = nil
-        panel.delegate = nil
-    }
-
-    nonisolated func numberOfPreviewItems(in panel: QLPreviewPanel!) -> Int {
-        MainActor.assumeIsolated { quickLookURLs.count }
-    }
-
-    nonisolated func previewPanel(_ panel: QLPreviewPanel!, previewItemAt index: Int) -> QLPreviewItem! {
-        MainActor.assumeIsolated {
-            let u = quickLookURLs
-            return u.indices.contains(index) ? u[index] as NSURL : nil
-        }
-    }
-
-    private var quickLookURLs: [URL] {
-        let s = selectedURLs
-        return s.isEmpty ? [] : s
-    }
-
-    /// Önizleme açıkken ok tuşları seçimi değiştirsin
-    nonisolated func previewPanel(_ panel: QLPreviewPanel!, handle event: NSEvent!) -> Bool {
-        guard event.type == .keyDown else { return false }
-        return MainActor.assumeIsolated { browser.forwardKey(event) }
-    }
-
-    nonisolated func previewPanel(_ panel: QLPreviewPanel!, sourceFrameOnScreenFor item: QLPreviewItem!) -> NSRect {
-        MainActor.assumeIsolated {
-            guard let u = item.previewItemURL else { return .zero }
-            return browser.screenFrame(of: u) ?? .zero
-        }
-    }
-
-    nonisolated func previewPanel(_ panel: QLPreviewPanel!, transitionImageFor item: QLPreviewItem!,
-                                  contentRect: UnsafeMutablePointer<NSRect>!) -> Any! {
-        MainActor.assumeIsolated {
-            guard let u = item.previewItemURL else { return nil }
-            return FileIcons.shared.icon(u)
-        }
-    }
+    /// Space / ⌘Y: temalı önizleme penceresi
+    @objc func toggleQuickLook(_ sender: Any?) { FilesPreviewPanel.shared.toggle(for: self) }
 }
 
 // MARK: - Görünüm
@@ -998,7 +935,8 @@ private struct BrowserHost: NSViewRepresentable {
     let view: NSView
 
     func makeNSView(context: Context) -> NSView {
-        let box = NSView()
+        // Tarayıcının arkasında kalan kap da ilk tıklamayı geçirsin
+        let box = FilesClickThroughView()
         attach(to: box)
         return box
     }
@@ -1243,7 +1181,8 @@ private struct FilesTabChip: View {
     }
 
     @ViewBuilder private func background(_ selected: Bool) -> some View {
-        let drop = p.accent.opacity(0.45)
+        // Bırakma hedefi: kenar çubuğu ve klasör simgeleriyle aynı vurgu tonu
+        let drop = p.dropFill
         switch p.theme {
         case .missing:
             let shape = RoundedRectangle(cornerRadius: 7, style: .continuous)
@@ -2225,10 +2164,9 @@ private struct SidebarRow: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            Image(systemName: place.symbol)
+            FilesDropTargetSymbol(symbol: place.symbol, isTargeted: dropTarget, color: iconColor, palette: p)
                 .font(.system(size: 12.5, weight: .medium))
                 .frame(width: 18)
-                .foregroundStyle(iconColor)
             Text(place.title)
                 .font(.system(size: 12.5, weight: selected && p.theme != .finder ? .semibold : .regular))
                 .lineLimit(1)
@@ -2262,6 +2200,7 @@ private struct SidebarRow: View {
         .padding(.trailing, expandable ? 3 : 8)
         .frame(height: p.theme == .windows ? 30 : 26)
         .background(background)
+        .filesDropTarget(dropTarget, palette: p)
         .overlay(alignment: .leading) {
             if selected && p.theme == .windows {
                 Capsule().fill(p.accent).frame(width: 3, height: 16)
@@ -2355,20 +2294,16 @@ private struct SidebarRow: View {
 
     @ViewBuilder private var background: some View {
         let shape = RoundedRectangle(cornerRadius: max(4, p.radius - 1), style: .continuous)
-        if dropTarget {
-            shape.fill(p.accent.opacity(0.45))
-        } else {
-            switch p.theme {
-            case .glass:
-                shape.fill(p.glassFill(selected ? 0.18 : (hover ? 0.07 : 0)))
-                    .overlay(shape.strokeBorder(p.glassStroke(selected ? 0.28 : 0), lineWidth: 1))
-            case .finder:
-                shape.fill(p.fg.opacity(selected ? (p.dark ? 0.14 : 0.10) : (hover ? 0.04 : 0)))
-            case .windows:
-                shape.fill(p.fg.opacity(selected ? (p.dark ? 0.09 : 0.06) : (hover ? 0.04 : 0)))
-            case .missing:
-                shape.fill(p.fg.opacity(selected ? 0.13 : (hover ? 0.06 : 0)))
-            }
+        switch p.theme {
+        case .glass:
+            shape.fill(p.glassFill(selected ? 0.18 : (hover ? 0.07 : 0)))
+                .overlay(shape.strokeBorder(p.glassStroke(selected ? 0.28 : 0), lineWidth: 1))
+        case .finder:
+            shape.fill(p.fg.opacity(selected ? (p.dark ? 0.14 : 0.10) : (hover ? 0.04 : 0)))
+        case .windows:
+            shape.fill(p.fg.opacity(selected ? (p.dark ? 0.09 : 0.06) : (hover ? 0.04 : 0)))
+        case .missing:
+            shape.fill(p.fg.opacity(selected ? 0.13 : (hover ? 0.06 : 0)))
         }
     }
 }
@@ -2580,13 +2515,7 @@ private struct FilesCopyCard: View {
         }
         .padding(12)
         .frame(width: 290)
-        .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(.regularMaterial)
-                .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(p.dark ? Color.black.opacity(0.25) : Color.white.opacity(0.3)))
-        )
-        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(p.fg.opacity(0.10), lineWidth: 1))
-        .shadow(color: .black.opacity(0.25), radius: 12, y: 4)
+        .modifier(FilesCardSurface())
         .environment(\.colorScheme, p.dark ? .dark : .light)
     }
 
@@ -2746,7 +2675,7 @@ private struct FilesTrashBar: View {
             Text(L("Çöp Sepeti")).font(.system(size: 12, weight: .semibold))
             Spacer()
             Button(L("Boşalt")) { FilesTrash.empty(in: controller.window) }
-                .controlSize(.small)
+                .filesButton(.destructive, p, small: true)
                 .disabled(tab.items.isEmpty)
         }
         .padding(.horizontal, 12)

@@ -86,7 +86,8 @@ import Quartz
         table.registerForDraggedTypes([.fileURL])
         table.setDraggingSourceOperationMask([.copy, .move, .link, .generic], forLocal: false)
         table.setDraggingSourceOperationMask([.copy, .move, .generic], forLocal: true)
-        table.draggingDestinationFeedbackStyle = .regular
+        // Sistemin bırakma vurgusu yok: klasör satırı kendi temalı zeminini ve açık klasör simgesini gösterir
+        table.draggingDestinationFeedbackStyle = .none
 
         func column(_ id: NSUserInterfaceItemIdentifier, _ title: String, width: CGFloat, min: CGFloat, key: FilesSortKey,
                     ascending: Bool = true) -> NSTableColumn {
@@ -499,6 +500,7 @@ import Quartz
         switch id {
         case Self.colName:
             cell.textField?.stringValue = item.name
+            (cell.imageView as? FilesIconView)?.resetDropOpen()
             cell.imageView?.image = FileIcons.shared.icon(item.url)
             cell.textField?.textColor = .labelColor
             cell.textField?.delegate = self
@@ -564,6 +566,8 @@ import Quartz
         }
         let r = dropOperation(info, into: target)
         springLoad(target, op: r)
+        // Sadece içine bırakılacak klasör açılır (açık klasörün kendisine bırakmada ya da işlem yoksa değil)
+        (tv as? FilesHoverTable)?.setDropTarget(row: target != nil && !r.isEmpty ? row : -1, item: target)
         return r
     }
 
@@ -642,7 +646,8 @@ import Quartz
                         proposedIndexPath ip: AutoreleasingUnsafeMutablePointer<NSIndexPath>,
                         dropOperation op: UnsafeMutablePointer<NSCollectionView.DropOperation>) -> NSDragOperation {
         var target: FileItem?
-        if op.pointee == .on, let i = itemIndex(of: ip.pointee as IndexPath), items[i].opensAsFolder {
+        let proposed = ip.pointee as IndexPath
+        if op.pointee == .on, let i = itemIndex(of: proposed), items[i].opensAsFolder {
             target = items[i]
         } else {
             // Klasör olmayan yere bırakma: açık klasörün kendisine
@@ -652,6 +657,7 @@ import Quartz
         }
         let r = dropOperation(info, into: target)
         springLoad(target, op: r)
+        (cv as? FilesCollectionView)?.setDropTarget(target != nil && !r.isEmpty ? proposed : nil, item: target)
         return r
     }
 
@@ -810,17 +816,11 @@ import Quartz
 
     private func renameWithSheet(_ item: FileItem) {
         guard let window, let owner else { return }
-        let a = NSAlert()
-        a.messageText = L("Yeniden adlandır")
-        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 280, height: 24))
-        field.stringValue = item.url.lastPathComponent
-        a.accessoryView = field
-        a.addButton(withTitle: L("Yeniden adlandır"))
-        a.addButton(withTitle: L("Vazgeç"))
-        a.window.initialFirstResponder = field
-        a.beginSheetModal(for: window) { [weak self] r in
-            guard r == .alertFirstButtonReturn,
-                  let dest = FileOps.rename(item.url, to: field.stringValue, undo: owner.window?.undoManager, window: window) else { return }
+        FilesDialog.show(on: window, title: L("Yeniden adlandır"), icon: .image(NSWorkspace.shared.icon(forFile: item.url.path)),
+                         field: .init(text: item.url.lastPathComponent),
+                         actions: [.init(L("Vazgeç"), .cancel), .init(L("Yeniden adlandır"), .primary)]) { [weak self] r, text in
+            guard r == 1,
+                  let dest = FileOps.rename(item.url, to: text, undo: owner.window?.undoManager, window: window) else { return }
             self?.tab?.pendingSelect = [dest]
             self?.tab?.reload()
         }
@@ -1020,6 +1020,9 @@ import Quartz
 /// Fareyle üstüne gelinen satırı hafif gri gösterir (Dosyalar'ın liste ve sütun tabloları)
 class FilesHoverTable: NSTableView {
     private var hoverRow = -1
+
+    /// Pencere anahtar değilken de ilk tık seçsin / sürüklesin (FilesClickThrough.swift)
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
     private var tracking: NSTrackingArea?
 
     override func updateTrackingAreas() {
@@ -1048,7 +1051,47 @@ class FilesHoverTable: NSTableView {
 
     override func reloadData() {
         setHover(-1)
+        setDropTarget(row: -1, item: nil, animated: false)
         super.reloadData()
+    }
+
+    // MARK: Bırakma hedefi klasör: temalı zemin + açık klasör simgesi
+
+    private var dropRow = -1
+
+    /// Sürüklerken her güncellemede çağrılır (-1: hedef yok). Aynı satırda tekrar çağrılırsa sadece eksik olanı tamamlar
+    /// (kaydırınca satır görünümü yeniden kurulmuş olabilir)
+    func setDropTarget(row r: Int, item: FileItem?, animated: Bool = true) {
+        if r != dropRow {
+            if dropRow >= 0, dropRow < numberOfRows { applyDrop(false, row: dropRow, item: nil, animated: animated) }
+            dropRow = r
+        }
+        if r >= 0, r < numberOfRows { applyDrop(true, row: r, item: item, animated: animated) }
+    }
+
+    private func applyDrop(_ on: Bool, row r: Int, item: FileItem?, animated: Bool) {
+        (rowView(atRow: r, makeIfNecessary: false) as? FilesRowView)?.dropTarget = on
+        for c in 0..<numberOfColumns {
+            guard let icon = (view(atColumn: c, row: r, makeIfNecessary: false) as? NSTableCellView)?.imageView as? FilesIconView
+            else { continue }
+            icon.setDropOpen(on, item: item, animated: animated)
+        }
+    }
+
+    override func draggingExited(_ sender: NSDraggingInfo?) {
+        super.draggingExited(sender)
+        setDropTarget(row: -1, item: nil)
+    }
+
+    override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        let ok = super.performDragOperation(sender)
+        setDropTarget(row: -1, item: nil)
+        return ok
+    }
+
+    override func concludeDragOperation(_ sender: NSDraggingInfo?) {
+        super.concludeDragOperation(sender)
+        setDropTarget(row: -1, item: nil)
     }
 
     private func updateHover(_ event: NSEvent?) {
@@ -1107,10 +1150,12 @@ final class FilesTableView: FilesHoverTable {
 }
 
 final class FilesCell: NSTableCellView {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
     init(id: NSUserInterfaceItemIdentifier, withIcon: Bool) {
         super.init(frame: .zero)
         identifier = id
-        let t = NSTextField(labelWithString: "")
+        let t = FilesLabel(labelWithString: "")
         t.font = .systemFont(ofSize: 12.5)
         t.lineBreakMode = .byTruncatingMiddle
         t.cell?.truncatesLastVisibleLine = true
@@ -1158,19 +1203,41 @@ final class FilesRowView: NSTableRowView {
     private var palette: FilesPalette { FilesPalette.current(for: effectiveAppearance) }
     /// Fare üstünde: hafif gri
     var hovered = false { didSet { if hovered != oldValue { needsDisplay = true } } }
+    /// İçine bırakılacak klasör: vurgu renginde hafif zemin + ince kenar
+    var dropTarget = false { didSet { if dropTarget != oldValue { needsDisplay = true } } }
+
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
     override func drawBackground(in dirtyRect: NSRect) {
         super.drawBackground(in: dirtyRect)
-        guard hovered, !isSelected else { return }
         let p = palette
+        if dropTarget {
+            if !isSelected { drawDropLook(p, fill: true) }
+            return
+        }
+        guard hovered, !isSelected else { return }
         let r = bounds.insetBy(dx: p.rowInset, dy: 1)
         p.nsHover.setFill()
         NSBezierPath(roundedRect: r, xRadius: p.rowRadius, yRadius: p.rowRadius).fill()
     }
 
+    private func drawDropLook(_ p: FilesPalette, fill: Bool) {
+        let w = p.dropStrokeWidth
+        let r = bounds.insetBy(dx: p.rowInset + w / 2, dy: 1 + w / 2)
+        let path = NSBezierPath(roundedRect: r, xRadius: p.rowRadius, yRadius: p.rowRadius)
+        if fill {
+            p.nsDropFill.setFill()
+            path.fill()
+        }
+        p.nsDropStroke.setStroke()
+        path.lineWidth = w
+        path.stroke()
+    }
+
     override func prepareForReuse() {
         super.prepareForReuse()
         hovered = false
+        dropTarget = false
     }
 
     func refreshStyle() {
@@ -1200,14 +1267,13 @@ final class FilesRowView: NSTableRowView {
             p.nsAccent.setFill()
             NSBezierPath(roundedRect: NSRect(x: r.minX, y: r.midY - 7, width: 3, height: 14), xRadius: 1.5, yRadius: 1.5).fill()
         }
+        // Seçili klasör bırakma hedefiyse seçimin üstüne kenar
+        if dropTarget { drawDropLook(p, fill: false) }
     }
 
+    /// Sistemin bırakma vurgusu kapalı (.none); yine de istenirse aynı temalı görünüm
     override func drawDraggingDestinationFeedback(in dirtyRect: NSRect) {
-        let p = palette
-        let r = bounds.insetBy(dx: p.rowInset, dy: 1)
-        let path = NSBezierPath(roundedRect: r, xRadius: p.rowRadius, yRadius: p.rowRadius)
-        p.nsAccent.withAlphaComponent(0.45).setFill()
-        path.fill()
+        drawDropLook(palette, fill: true)
     }
 }
 
@@ -1215,6 +1281,8 @@ final class FilesRowView: NSTableRowView {
 
 final class FilesCollectionView: NSCollectionView {
     weak var owner: FilesBrowser?
+
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
     private var hoverPath: IndexPath?
     private var tracking: NSTrackingArea?
 
@@ -1244,7 +1312,37 @@ final class FilesCollectionView: NSCollectionView {
 
     override func reloadData() {
         setHover(nil)
+        setDropTarget(nil, item: nil, animated: false)
         super.reloadData()
+    }
+
+    // MARK: Bırakma hedefi klasör
+
+    private(set) var dropPath: IndexPath?
+
+    /// Sürüklerken her güncellemede çağrılır (nil: hedef yok)
+    func setDropTarget(_ ip: IndexPath?, item: FileItem?, animated: Bool = true) {
+        if ip != dropPath {
+            if let old = dropPath { (self.item(at: old) as? FilesGridItem)?.setDropTarget(false, item: nil, animated: animated) }
+            dropPath = ip
+        }
+        if let ip { (self.item(at: ip) as? FilesGridItem)?.setDropTarget(true, item: item, animated: animated) }
+    }
+
+    override func draggingExited(_ sender: NSDraggingInfo?) {
+        super.draggingExited(sender)
+        setDropTarget(nil, item: nil)
+    }
+
+    override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        let ok = super.performDragOperation(sender)
+        setDropTarget(nil, item: nil)
+        return ok
+    }
+
+    override func concludeDragOperation(_ sender: NSDraggingInfo?) {
+        super.concludeDragOperation(sender)
+        setDropTarget(nil, item: nil)
     }
 
     private func updateHover(_ event: NSEvent?) {
@@ -1335,14 +1433,14 @@ final class FilesCollectionView: NSCollectionView {
 final class FilesGridItem: NSCollectionViewItem {
     static let id = NSUserInterfaceItemIdentifier("FilesGridItem")
     let iconView = FilesIconView()
-    private let label = NSTextField(wrappingLabelWithString: "")
-    private let back = NSView()
+    private let label = FilesLabel(wrappingLabelWithString: "")
+    private let back = FilesClickThroughView()
     private var url: URL?
     private var iconW: NSLayoutConstraint!
     private var iconH: NSLayoutConstraint!
 
     override func loadView() {
-        let v = NSView()
+        let v = FilesClickThroughView()
         back.wantsLayer = true
         back.layer?.cornerRadius = 9
         back.translatesAutoresizingMaskIntoConstraints = false
@@ -1381,6 +1479,7 @@ final class FilesGridItem: NSCollectionViewItem {
         url = item.url
         label.stringValue = item.name
         view.alphaValue = item.isHidden ? 0.5 : 1
+        resetDrop()   // simge yeniden atanır; hedefse bir sonraki sürükleme güncellemesi yeniden açar
         if refreshThumb {
             iconView.image = FileIcons.shared.thumbnail(item, size: FilesGridZoom.shared.thumbSize) {} ?? FileIcons.shared.icon(item.url)
         } else {
@@ -1393,6 +1492,21 @@ final class FilesGridItem: NSCollectionViewItem {
     override var highlightState: NSCollectionViewItem.HighlightState { didSet { updateLook() } }
     /// Fare üstünde: hafif gri zemin
     var hovered = false { didSet { if hovered != oldValue { updateLook() } } }
+    /// İçine bırakılacak klasör: açık klasör simgesi + vurgu renginde zemin
+    private(set) var dropTarget = false
+
+    func setDropTarget(_ on: Bool, item: FileItem?, animated: Bool = true) {
+        guard isViewLoaded, on != dropTarget else { return }
+        dropTarget = on
+        iconView.setDropOpen(on, item: item, animated: animated)
+        updateLook()
+    }
+
+    private func resetDrop() {
+        guard dropTarget || iconView.isDropOpen else { return }
+        dropTarget = false
+        iconView.resetDropOpen()
+    }
 
     func refreshLook() { updateLook() }
 
@@ -1405,14 +1519,25 @@ final class FilesGridItem: NSCollectionViewItem {
     override func prepareForReuse() {
         super.prepareForReuse()
         hovered = false
+        resetDrop()
         setIconSize(FilesGridZoom.shared.size)
     }
 
     private func updateLook() {
         let p = FilesPalette.current(for: view.effectiveAppearance)
-        let dropping = highlightState == .forSelection && !isSelected
-        let on = isSelected || dropping
         back.layer?.cornerRadius = p.rowRadius + 3
+        if dropTarget {
+            // Seçili olsa da bırakma görünümü öne çıkar; ad normal renginde
+            back.layer?.backgroundColor = p.nsDropFill.cgColor
+            back.layer?.borderWidth = p.dropStrokeWidth
+            back.layer?.borderColor = p.nsDropStroke.cgColor
+            label.layer?.backgroundColor = NSColor.clear.cgColor
+            label.textColor = p.nsFG.withAlphaComponent(0.9)
+            return
+        }
+        // Sürükleyerek seçerken (lastik bant) seçilecek olanlar da seçili gibi görünür
+        let previewing = highlightState == .forSelection && !isSelected
+        let on = isSelected || previewing
         back.layer?.backgroundColor = on ? p.gridBack.cgColor : (hovered ? p.nsHover.cgColor : NSColor.clear.cgColor)
         back.layer?.borderWidth = on && p.gridStroke != nil ? 1 : 0
         back.layer?.borderColor = p.gridStroke?.cgColor
@@ -1427,11 +1552,13 @@ final class FilesGridItem: NSCollectionViewItem {
 /// Başlık: kalın ad, sağda sayı, altında ince çizgi
 final class FilesGroupHeaderView: NSTableCellView {
     static let id = NSUserInterfaceItemIdentifier("FilesGroupHeader")
-    private let title = NSTextField(labelWithString: "")
-    private let count = NSTextField(labelWithString: "")
+    private let title = FilesLabel(labelWithString: "")
+    private let count = FilesLabel(labelWithString: "")
     private let line = NSView()
     private var leading: NSLayoutConstraint!
     private var lineLeading: NSLayoutConstraint!
+
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
     init() {
         super.init(frame: .zero)
@@ -1483,6 +1610,7 @@ final class FilesGroupHeaderView: NSTableCellView {
 
 /// Başlık satırı: arka plan ve seçim çizilmez
 final class FilesHeaderRowView: NSTableRowView {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
     override func drawBackground(in dirtyRect: NSRect) {}
     override func drawSelection(in dirtyRect: NSRect) {}
 }
@@ -1491,11 +1619,13 @@ final class FilesHeaderRowView: NSTableRowView {
 /// Bırakma boşluğu göstergesi: boş; dosyalar açık klasörün kendisine bırakılır, araya değil
 final class FilesGridGap: NSView, NSCollectionViewElement {
     static let id = NSUserInterfaceItemIdentifier("FilesGridGap")
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 }
 
 final class FilesGridHeader: NSView, NSCollectionViewElement {
     static let id = NSUserInterfaceItemIdentifier("FilesGridHeader")
     let header = FilesGroupHeaderView()
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
     override init(frame: NSRect) {
         super.init(frame: frame)
@@ -1510,6 +1640,14 @@ final class FilesGridHeader: NSView, NSCollectionViewElement {
 /// Dosya simgesi: NSImageView kendini sürükle-bırak hedefi olarak kaydeder ve düzenlenemezken bırakmayı
 /// reddeder; bu yüzden klasörün simgesinin üstüne bırakılan dosyalar ızgaraya / tabloya ulaşmıyordu.
 final class FilesIconView: NSImageView {
+    /// Bırakma hedefiyken açık klasör (FilesDropFeedback.swift): açık mı, geri konacak kapalı simge, gösterilen açık simge
+    var isDropOpen = false
+    var dropClosedImage: NSImage?
+    var dropOpenImage: NSImage?
+
+    /// Etkin olmayan pencerede simgeye ilk tık da seçsin / sürüklesin
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
     override init(frame: NSRect) {
         super.init(frame: frame)
         unregisterDraggedTypes()

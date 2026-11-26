@@ -432,8 +432,7 @@ final class DirectoryWatcher {
     }
 
     static func report(_ error: Error, in window: NSWindow?) {
-        let a = NSAlert(error: error)
-        if let window { a.beginSheetModal(for: window) } else { a.runModal() }
+        FilesDialog.error(error, in: window)
     }
 
     /// Bir klasör kendisinin ya da alt klasörünün içine taşınamaz
@@ -621,9 +620,8 @@ final class DirectoryWatcher {
         guard !name.isEmpty, name != url.lastPathComponent else { return nil }
         let dest = url.deletingLastPathComponent().appendingPathComponent(name)
         if fm.fileExists(atPath: dest.path), dest.path.lowercased() != url.path.lowercased() {
-            let a = NSAlert()
-            a.messageText = L("“%@” adı kullanılıyor. Başka bir ad seç.", name)
-            if let window { a.beginSheetModal(for: window) } else { a.runModal() }
+            FilesDialog.show(on: window, title: L("“%@” adı kullanılıyor. Başka bir ad seç.", name), icon: .warning,
+                             actions: [.init(L("Tamam"), .primary)])
             return nil
         }
         do {

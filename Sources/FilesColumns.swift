@@ -214,6 +214,7 @@ import Cocoa
         t.target = self
         t.doubleAction = #selector(doubleClicked(_:))
         t.registerForDraggedTypes([.fileURL])
+        t.draggingDestinationFeedbackStyle = .none   // klasör satırı kendi temalı zeminini ve açık simgesini gösterir
         t.setDraggingSourceOperationMask([.copy, .move, .link, .generic], forLocal: false)
         t.setDraggingSourceOperationMask([.copy, .move, .generic], forLocal: true)
         t.menu = itemMenu
@@ -353,6 +354,7 @@ import Cocoa
         let cell = (tv.makeView(withIdentifier: Self.colID, owner: nil) as? FilesColumnCell) ?? FilesColumnCell()
         cell.identifier = Self.colID
         cell.textField?.stringValue = item.name
+        (cell.imageView as? FilesIconView)?.resetDropOpen()
         cell.imageView?.image = FileIcons.shared.icon(item.url)
         cell.arrow.isHidden = !item.opensAsFolder
         cell.alphaValue = item.isHidden ? 0.5 : 1
@@ -387,7 +389,10 @@ import Cocoa
         guard let c = column(for: tv), let browser else { return [] }
         let dest = dropTarget(c, row: row, op: op)
         if dest == nil { tv.setDropRow(-1, dropOperation: .on) }
-        return browser.dragOperation(info, dest: dest ?? c.dir)
+        let r = browser.dragOperation(info, dest: dest ?? c.dir)
+        // Sadece içine bırakılacak klasör açılır
+        (tv as? FilesHoverTable)?.setDropTarget(row: dest != nil && !r.isEmpty ? row : -1, item: dest != nil ? c.items[row] : nil)
+        return r
     }
 
     func tableView(_ tv: NSTableView, acceptDrop info: NSDraggingInfo, row: Int, dropOperation op: NSTableView.DropOperation) -> Bool {
@@ -399,6 +404,7 @@ import Cocoa
 /// Sütunların taşıyıcısı: aralarına ince çizgi
 final class FilesColumnsDocument: NSView {
     var columnCount = 0
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
     override var isFlipped: Bool { true }
 
     override func draw(_ dirtyRect: NSRect) {
@@ -449,6 +455,7 @@ final class FilesColumnTable: FilesHoverTable {
 /// Simge, ad ve klasörse sağda ok
 final class FilesColumnCell: NSTableCellView {
     let arrow = FilesIconView()
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
     init() {
         super.init(frame: .zero)
@@ -457,7 +464,7 @@ final class FilesColumnCell: NSTableCellView {
         i.translatesAutoresizingMaskIntoConstraints = false
         addSubview(i)
         imageView = i
-        let t = NSTextField(labelWithString: "")
+        let t = FilesLabel(labelWithString: "")
         t.font = .systemFont(ofSize: 12.5)
         t.lineBreakMode = .byTruncatingMiddle
         t.translatesAutoresizingMaskIntoConstraints = false

@@ -16,6 +16,16 @@ struct ChangelogEntry {
 
 enum Changelog {
     static let entries: [ChangelogEntry] = [
+        ChangelogEntry(version: "4.3.26", items: [
+            ("Dosyalar her yerde temasına uyuyor: sağ tık menüsü, Bilgi al, yeni klasör, yeniden adlandırma ve onay pencereleri ile Dosyalar Ayarları; Missing, Finder, Windows ve Cam temalarının her birinde kendi görünümünde",
+             "Files follows its theme everywhere: the right-click menu, Get Info, the new folder, rename and confirmation dialogs and Files Settings each have their own look in Missing, Finder, Windows and Glass"),
+            ("Dosyalar'da yeni önizleme penceresi (Boşluk): Quick Look yerine her temada Missing'in kendi tasarımı; dosya bilgileri, birlikte aç, paylaş ve önceki / sonraki. Odağı almaz: başka bir dosyaya tek tıklayınca seçilir, önizleme onu izler",
+             "New preview window in Files (Space): Missing's own design per theme instead of Quick Look, with the file's details, Open with, share and previous / next; it doesn't take focus, so one click on another file selects it and the preview follows"),
+            ("Dosyaları bir klasörün üstüne sürükleyince klasör açılır ve temanın rengiyle hafifçe boyanır: simge, liste ve sütun görünümünde ve kenar çubuğunda",
+             "Dragging files over a folder opens the folder and tints it in the theme's colour, in icon, list and column views and in the sidebar"),
+            ("Başka bir uygulama öndeyken Dosyalar'da tek tıklama çalışır (pencereyi öne almak için ayrı tıklama gerekmez)",
+             "A single click works in Files while another app is in front (no extra click just to bring the window forward)"),
+        ]),
         ChangelogEntry(version: "4.3.25", items: [
             ("Yeni: Ses dengeleyici. Kısık sesi açar, yüksek sesi kısar; bilgisayardan çıkan her ses seçtiğin yükseklikte çalar (Ayarlar › Hızlı Özellikler ya da menü çubuğu paneli)",
              "New: Volume leveler. Raises quiet sound and lowers loud sound so everything from the computer plays at the level you pick (Settings › Quick Features, or the menu bar panel)"),

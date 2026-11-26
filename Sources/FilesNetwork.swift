@@ -160,10 +160,11 @@ struct FilesNetworkView: View {
                 }
                 section(L("Sunucuya bağlan")) {
                     HStack(spacing: 8) {
-                        TextField(L("smb://sunucu.local"), text: $address)
-                            .textFieldStyle(.roundedBorder)
-                            .onSubmit { net.connect(address, from: controller) }
+                        FilesThemedField(text: $address, placeholder: L("smb://sunucu.local"), autofocus: false) {
+                            net.connect(address, from: controller)
+                        }
                         Button(L("Bağlan")) { net.connect(address, from: controller) }
+                            .filesButton(.primary, p)
                             .disabled(address.trimmingCharacters(in: .whitespaces).isEmpty)
                     }
                     .frame(maxWidth: 460)
@@ -217,14 +218,12 @@ struct FilesNetworkView: View {
     static func empty(in window: NSWindow?) {
         let fm = FileManager.default
         let items = (try? fm.contentsOfDirectory(at: url, includingPropertiesForKeys: nil)) ?? nil
-        let a = NSAlert()
-        a.messageText = L("Çöp Sepeti'ndeki öğeler kalıcı olarak silinsin mi?")
-        a.informativeText = items.map { L("%d öğe silinecek. Bu işlem geri alınamaz.", $0.count) } ?? L("Bu işlem geri alınamaz.")
-        a.alertStyle = .warning
-        a.addButton(withTitle: L("Çöp Sepetini Boşalt"))
-        a.addButton(withTitle: L("Vazgeç"))
-        let run: (NSApplication.ModalResponse) -> Void = { r in
-            guard r == .alertFirstButtonReturn else { return }
+        let icon = NSImage(named: NSImage.trashFullName).map(FilesDialog.Icon.image) ?? .warning
+        FilesDialog.show(on: window, title: L("Çöp Sepeti'ndeki öğeler kalıcı olarak silinsin mi?"),
+                         message: items.map { L("%d öğe silinecek. Bu işlem geri alınamaz.", $0.count) } ?? L("Bu işlem geri alınamaz."),
+                         icon: icon,
+                         actions: [.init(L("Vazgeç"), .cancel), .init(L("Çöp Sepetini Boşalt"), .destructiveDefault)]) { r, _ in
+            guard r == 1 else { return }
             if let items {
                 DispatchQueue.global(qos: .userInitiated).async {
                     for u in items { try? FileManager.default.removeItem(at: u) }
@@ -235,7 +234,6 @@ struct FilesNetworkView: View {
                 _ = NSAppleScript(source: "tell application \"Finder\" to empty trash")?.executeAndReturnError(&err)
             }
         }
-        if let window { a.beginSheetModal(for: window, completionHandler: run) } else { run(a.runModal()) }
     }
 
     private static func playEmptySound() {

@@ -11,17 +11,21 @@ struct TagColorMenuRow: View {
     let urls: [URL]
     let done: () -> Void
     @State private var hover: Int?
+    @Environment(\.filesPalette) private var p
 
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
-            Text(L("Renk")).font(.system(size: 11)).foregroundStyle(.secondary)
-            HStack(spacing: 7) {
+            Text(L("Renk")).font(.system(size: p.theme == .windows ? 12 : 11)).foregroundStyle(.secondary)
+            HStack(spacing: 3) {
                 ForEach(FinderTags.menuOrder, id: \.self) { i in
                     let on = has(i)
                     Circle()
                         .fill(Color(nsColor: FinderTags.nsColor(i)))
                         .frame(width: 15, height: 15)
                         .overlay(Circle().strokeBorder(.white.opacity(0.9), lineWidth: on ? 2 : 0))
+                        // Seçili renk: dışta temanın vurgusuyla ince halka (açık menüde de görünsün)
+                        .padding(2)
+                        .overlay(Circle().strokeBorder(on ? ringColor : .clear, lineWidth: 1.5))
                         .overlay {
                             if on { Image(systemName: "checkmark").font(.system(size: 7, weight: .heavy)).foregroundStyle(.white) }
                         }
@@ -36,9 +40,18 @@ struct TagColorMenuRow: View {
                 }
             }
         }
-        .padding(.horizontal, 14)
+        // Menünün yazı sütunuyla hizalı (temaya göre: Windows'ta simge sütunu daha geniş)
+        .padding(.leading, FilesContextMenu.textInset(for: p))
+        .padding(.trailing, 14)
         .padding(.vertical, 4)
-        .frame(width: 210, alignment: .leading)
+        .frame(minWidth: 210, alignment: .leading)
+    }
+
+    private var ringColor: Color {
+        switch p.theme {
+        case .missing, .finder: return p.fg.opacity(0.55)
+        case .windows, .glass: return p.accent
+        }
     }
 
     private func has(_ i: Int) -> Bool {
@@ -51,9 +64,11 @@ struct TagColorMenuRow: View {
     @MainActor static func menuItem(for urls: [URL], changed: @escaping () -> Void) -> NSMenuItem {
         let item = NSMenuItem()
         let host = FilesMenuHostingView(rootView: AnyView(EmptyView()))   // ilk tıklama da renge ulaşsın
-        host.rootView = AnyView(TagColorMenuRow(urls: urls) { [weak item] in
-            item?.menu?.cancelTracking()
-            changed()
+        host.rootView = AnyView(FilesThemedRoot(followsHost: true) { _ in
+            TagColorMenuRow(urls: urls) { [weak item] in
+                item?.menu?.cancelTracking()
+                changed()
+            }
         })
         host.frame = NSRect(origin: .zero, size: host.fittingSize)
         item.view = host
@@ -64,129 +79,154 @@ struct TagColorMenuRow: View {
 // MARK: Yeni klasör
 
 @MainActor final class NewFolderSheet {
-    /// Pencerenin üstünde ad + renk sorar; Oluştur'a basınca `create(ad, renk)` çağrılır
+    /// Pencerenin üstünde ad + renk sorar; Oluştur'a basınca `create(ad, renk)` çağrılır.
+    /// Görünüm seçili temaya uyar; Return oluşturur, Esc vazgeçer.
     static func show(on window: NSWindow, create: @escaping (String, Int?) -> Void) {
-        let panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 360, height: 300),
-                            styleMask: [.titled, .fullSizeContentView], backing: .buffered, defer: false)
+        let panel = FilesKeyPanel(contentRect: NSRect(x: 0, y: 0, width: 360, height: 300),
+                                  styleMask: [.titled, .fullSizeContentView], backing: .buffered, defer: false)
         panel.titlebarAppearsTransparent = true
         panel.titleVisibility = .hidden
         panel.isOpaque = false
         panel.backgroundColor = .clear
-        let p = FilesPalette.current(for: window.appearance ?? window.effectiveAppearance)
-        panel.appearance = NSAppearance(named: p.dark ? .darkAqua : .aqua)
+        if FilesThemeStore.shared.theme == .missing { panel.appearance = NSAppearance(named: .darkAqua) }
+        let model = NewFolderModel()
+        var finished = false
         let close: () -> Void = { [weak window, weak panel] in
-            guard let panel else { return }
+            guard let panel, !finished else { return }
+            finished = true
             window?.endSheet(panel)
         }
-        let view = NewFolderView(palette: p, onCancel: close) { name, color in
+        let done: () -> Void = {
+            guard !finished else { return }
             close()
-            create(name, color)
+            create(model.name, model.color)
         }
-        let host = NSHostingView(rootView: view)
+        panel.onReturn = done
+        panel.onEscape = close
+        let host = NSHostingView(rootView: content(model: model, onCancel: close, onCreate: done))
         host.frame = NSRect(origin: .zero, size: host.fittingSize)
         panel.setContentSize(host.fittingSize)
         panel.contentView = host
         window.beginSheet(panel)
     }
+
+    /// Sayfanın içeriği (deneme düzeneği de bunu çizer)
+    static func content(model: NewFolderModel, onCancel: @escaping () -> Void, onCreate: @escaping () -> Void) -> some View {
+        FilesThemedRoot { _ in NewFolderView(model: model, onCancel: onCancel, onCreate: onCreate) }
+    }
+}
+
+final class NewFolderModel: ObservableObject {
+    @Published var name = L("adsız klasör")
+    @Published var color: Int?
 }
 
 private struct NewFolderView: View {
-    let palette: FilesPalette
+    @ObservedObject var model: NewFolderModel
     let onCancel: () -> Void
-    let onCreate: (String, Int?) -> Void
-    @State private var name = L("adsız klasör")
-    @State private var color: Int?
-    @FocusState private var focused: Bool
+    let onCreate: () -> Void
+    @Environment(\.filesPalette) private var p
 
-    private var p: FilesPalette { palette }
     private static let folder = NSWorkspace.shared.icon(for: .folder)
 
     var body: some View {
+        Group {
+            if p.theme == .windows { windows } else { standard }
+        }
+        .foregroundStyle(p.fg)
+        .modifier(FilesDialogSurface())
+    }
+
+    // missing / glass / finder: ortada önizleme, altında ad, renk, düğmeler
+    private var standard: some View {
         VStack(spacing: 16) {
-            preview
+            VStack(spacing: 6) {
+                folderIcon(72)
+                Text(L("Yeni klasör")).font(.system(size: p.theme == .finder ? 13 : 15, weight: .bold))
+            }
             VStack(alignment: .leading, spacing: 6) {
-                Text(L("Ad")).font(.system(size: 11, weight: .semibold)).foregroundStyle(p.fg.opacity(0.55))
-                TextField("", text: $name)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 13))
-                    .focused($focused)
-                    .onSubmit(create)
-                    .padding(.horizontal, 10)
-                    .frame(height: 30)
-                    .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(p.fg.opacity(p.dark ? 0.08 : 0.05)))
-                    .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .strokeBorder(focused ? p.accent.opacity(0.8) : p.fg.opacity(0.12), lineWidth: focused ? 1.5 : 1))
+                label(L("Ad"))
+                FilesThemedField(text: $model.name, onSubmit: onCreate)
             }
             VStack(alignment: .leading, spacing: 8) {
-                Text(L("Renk")).font(.system(size: 11, weight: .semibold)).foregroundStyle(p.fg.opacity(0.55))
-                HStack(spacing: 9) {
-                    swatch(nil)
-                    ForEach(FinderTags.menuOrder, id: \.self) { swatch($0) }
-                }
+                label(L("Renk"))
+                swatches
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             HStack(spacing: 10) {
-                Button(action: onCancel) {
-                    Text(L("Vazgeç")).frame(maxWidth: .infinity).frame(height: 30)
-                        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(p.fg.opacity(0.08)))
-                        .contentShape(Rectangle())
-                }
-                .keyboardShortcut(.cancelAction)
-                Button(action: create) {
-                    Text(L("Oluştur")).fontWeight(.semibold).foregroundStyle(p.onAccent)
-                        .frame(maxWidth: .infinity).frame(height: 30)
-                        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(p.accent))
-                        .contentShape(Rectangle())
-                }
-                .keyboardShortcut(.defaultAction)
+                if p.theme == .finder { Spacer(minLength: 0) }
+                Button(action: onCancel) { Text(L("Vazgeç")).frame(maxWidth: p.theme == .finder ? nil : .infinity) }
+                    .filesButton(.cancel, p, stretch: true)
+                    .keyboardShortcut(.cancelAction)
+                Button(action: onCreate) { Text(L("Oluştur")).frame(maxWidth: p.theme == .finder ? nil : .infinity) }
+                    .filesButton(.primary, p, stretch: true)
+                    .keyboardShortcut(.defaultAction)
             }
-            .buttonStyle(.plain)
-            .font(.system(size: 13))
+            .padding(.top, 2)
         }
         .padding(.horizontal, 22)
-        .padding(.top, 26)
+        .padding(.top, 24)
         .padding(.bottom, 20)
         .frame(width: 340)
-        .foregroundStyle(p.fg)
-        .background(background.ignoresSafeArea())
-        .tint(p.accent)
-        .onAppear {
-            DispatchQueue.main.async {
-                focused = true
-                // Finder gibi: ad seçili gelsin, yazınca değişsin
-                DispatchQueue.main.async { NSApp.keyWindow?.firstResponder.flatMap { $0 as? NSTextView }?.selectAll(nil) }
-            }
-        }
     }
 
-    private var preview: some View {
-        VStack(spacing: 6) {
-            Image(nsImage: color.map { FileIcons.tintedFolder(Self.folder, FinderTags.nsColor($0)) } ?? Self.folder)
-                .resizable().interpolation(.high)
-                .frame(width: 72, height: 72)
-                .shadow(color: .black.opacity(0.2), radius: 6, y: 3)
-                .animation(.easeOut(duration: 0.15), value: color)
-            Text(L("Yeni klasör")).font(.system(size: 15, weight: .bold))
+    // Windows 11 ContentDialog: başlık solda, altta ayrı şeritte eşit düğmeler
+    private var windows: some View {
+        VStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(spacing: 12) {
+                    folderIcon(40)
+                    Text(L("Yeni klasör")).font(.system(size: 17, weight: .semibold))
+                    Spacer(minLength: 0)
+                }
+                VStack(alignment: .leading, spacing: 6) {
+                    label(L("Ad"))
+                    FilesThemedField(text: $model.name, onSubmit: onCreate)
+                }
+                VStack(alignment: .leading, spacing: 8) {
+                    label(L("Renk"))
+                    swatches
+                }
+            }
+            .padding(24)
+            .background(p.winSurface)
+            Rectangle().fill(p.dialogBorder).frame(height: 1)
+            HStack(spacing: 8) {
+                Button(L("Oluştur"), action: onCreate).filesButton(.primary, p, stretch: true)
+                    .keyboardShortcut(.defaultAction)
+                Button(L("Vazgeç"), action: onCancel).filesButton(.cancel, p, stretch: true)
+                    .keyboardShortcut(.cancelAction)
+            }
+            .padding(.horizontal, 24)
+            .padding(.vertical, 20)
+            .background(p.winBand)
         }
+        .frame(width: 380)
     }
 
-    @ViewBuilder private var background: some View {
-        switch p.theme {
-        case .missing, .glass:
-            ZStack {
-                GlassBlur(material: .hudWindow, appearance: p.dark ? .darkAqua : .aqua)
-                p.dark ? Color.black.opacity(0.35) : Color.white.opacity(0.35)
-            }
-        case .finder:
-            Color(nsColor: .windowBackgroundColor)
-        case .windows:
-            p.winChrome
+    private func label(_ t: String) -> some View {
+        Text(t).font(.system(size: p.theme == .windows ? 12 : 11, weight: p.theme == .windows ? .regular : .semibold))
+            .foregroundStyle(p.theme == .windows ? p.fg.opacity(0.85) : p.secondary)
+    }
+
+    private func folderIcon(_ s: CGFloat) -> some View {
+        Image(nsImage: model.color.map { FileIcons.tintedFolder(Self.folder, FinderTags.nsColor($0)) } ?? Self.folder)
+            .resizable().interpolation(.high)
+            .frame(width: s, height: s)
+            .shadow(color: .black.opacity(0.2), radius: s > 50 ? 6 : 3, y: s > 50 ? 3 : 1)
+            .animation(.easeOut(duration: 0.15), value: model.color)
+    }
+
+    private var swatches: some View {
+        HStack(spacing: 9) {
+            swatch(nil)
+            ForEach(FinderTags.menuOrder, id: \.self) { swatch($0) }
         }
     }
 
     private func swatch(_ i: Int?) -> some View {
-        let on = color == i
-        return Button { color = i } label: {
+        let on = model.color == i
+        return Button { model.color = i } label: {
             ZStack {
                 if let i {
                     Circle().fill(Color(nsColor: FinderTags.nsColor(i)))
@@ -203,6 +243,4 @@ private struct NewFolderView: View {
         .buttonStyle(.plain)
         .help(i.map { FinderTags.name(forColor: $0) } ?? L("Renksiz"))
     }
-
-    private func create() { onCreate(name, color) }
 }
